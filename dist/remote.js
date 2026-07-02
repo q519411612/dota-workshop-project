@@ -341,6 +341,9 @@ async function launchRemoteDota(input) {
             evidence: ["remote target did not include dotaRoot"]
         });
     }
+    if (input.launchMode === "interactiveTask") {
+        return launchRemoteDotaInteractiveTask(input);
+    }
     const executable = `${input.target.dotaRoot}/game/bin/win64/dota2.exe`;
     const argumentList = input.args.map(quoteForPowerShellSingleQuotedString).join(", ");
     const command = `$exe = ${quoteForPowerShellSingleQuotedString(executable)}; $args = @(${argumentList}); $process = Start-Process -FilePath $exe -ArgumentList $args -PassThru; @{ processId = $process.Id; processName = $process.ProcessName; hasExited = $process.HasExited } | ConvertTo-Json -Compress`;
@@ -354,6 +357,38 @@ async function launchRemoteDota(input) {
         operation: input.operation,
         warnings: result.ok
             ? ["launch command completed; validation still requires log evidence", ...result.warnings]
+            : result.warnings
+    };
+}
+async function launchRemoteDotaInteractiveTask(input) {
+    const taskName = input.taskName ?? `DotaWorkshopMcp_${input.addonName}`;
+    if (!/^[A-Za-z0-9_.-]{1,64}$/.test(taskName)) {
+        return createFailureResult({
+            target: input.target,
+            operation: input.operation,
+            error: {
+                code: "INVALID_REMOTE_TASK_NAME",
+                message: "Remote interactive task name must be 1-64 characters of letters, numbers, dot, underscore, or dash."
+            },
+            evidence: [`invalid task name: ${taskName}`]
+        });
+    }
+    const argumentText = `-applaunch 570 ${input.args.join(" ")}`;
+    const userId = input.target.username ?? "";
+    const command = remoteInteractiveLaunchScript(input.target.dotaRoot, input.addonName, taskName, argumentText, userId);
+    const result = await runRemoteCommand({
+        target: input.target,
+        command,
+        executor: input.executor
+    });
+    return {
+        ...result,
+        operation: input.operation,
+        evidence: result.ok
+            ? ["remote interactive launch task completed", ...result.evidence]
+            : result.evidence,
+        warnings: result.ok
+            ? ["interactive launch completed; validation still requires log evidence", ...result.warnings]
             : result.warnings
     };
 }
@@ -400,6 +435,9 @@ function remoteInspectAddonScript(dotaRoot, addonName) {
 function remoteReadLogsScript(logPaths) {
     const paths = logPaths.map((path) => `'${path}'`).join(", ");
     return `$logs = @(); foreach ($path in @(${paths})) { if (Test-Path -LiteralPath $path) { $lines = @(Get-Content -LiteralPath $path -Tail 200 | ForEach-Object { [string]$_ }); $logs += @{ source = $path; lines = $lines } } }; $logs | ConvertTo-Json -Compress`;
+}
+function remoteInteractiveLaunchScript(dotaRoot, addonName, taskName, argumentText, userId) {
+    return `$ErrorActionPreference = 'Stop'; $taskName = ${quoteForPowerShellSingleQuotedString(taskName)}; $root = ${quoteForPowerShellSingleQuotedString(dotaRoot)}; $steamRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $root)); $steamExe = Join-Path $steamRoot 'steam.exe'; if (-not (Test-Path -LiteralPath $steamExe)) { throw "STEAM_EXE_MISSING:$steamExe" }; Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue; $registeredTask = $false; try { $action = New-ScheduledTaskAction -Execute $steamExe -Argument ${quoteForPowerShellSingleQuotedString(argumentText)}; $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5); $userId = ${quoteForPowerShellSingleQuotedString(userId)}; if ([string]::IsNullOrWhiteSpace($userId)) { $userId = $env:USERNAME }; $principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited; Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null; $registeredTask = $true; $launchStart = (Get-Date); Start-ScheduledTask -TaskName $taskName; $deadline = (Get-Date).AddSeconds(30); do { Start-Sleep -Seconds 2; $processes = @(Get-CimInstance Win32_Process -Filter "name = 'dota2.exe' or name = 'dota2cfg.exe' or name = 'vconsole2.exe'" | Where-Object { $_.CreationDate -ge $launchStart.AddSeconds(-2) -and $_.CommandLine -match ${quoteForPowerShellSingleQuotedString(`-addon\\s+${addonName}`)} } | Select-Object ProcessId, Name, CommandLine, SessionId, CreationDate) } until ($processes.Count -gt 0 -or (Get-Date) -gt $deadline); $info = Get-ScheduledTaskInfo -TaskName $taskName; if ($processes.Count -eq 0) { throw 'INTERACTIVE_LAUNCH_PROCESS_NOT_FOUND' }; @{ taskName = $taskName; steamExecutable = $steamExe; lastTaskResult = $info.LastTaskResult; processes = $processes } | ConvertTo-Json -Depth 5 -Compress } finally { if ($registeredTask) { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue } }`;
 }
 function remoteDiscoverRecentLogsScript(dotaRoot) {
     return `$root = '${dotaRoot}'; $steamRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $root)); $candidateRoots = @((Join-Path $root 'game/dota'), (Join-Path $root 'game/bin/win64'), (Join-Path $steamRoot 'logs')) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }; $namePattern = 'console|vconsole|dota|workshop|stderr|stdout|webhelper|overlay|content|controller|duration'; $files = @(); foreach ($candidateRoot in $candidateRoots) { $files += Get-ChildItem -LiteralPath $candidateRoot -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-30) -and $_.Length -lt 20971520 -and ($_.Extension -eq '.log' -or $_.Name -match $namePattern) } }; $logs = @(); foreach ($file in ($files | Sort-Object LastWriteTime -Descending | Select-Object -First 10)) { $lines = @(Get-Content -LiteralPath $file.FullName -Tail 200 | ForEach-Object { [string]$_ }); $logs += @{ source = $file.FullName; lines = $lines } }; $logs | ConvertTo-Json -Compress`;

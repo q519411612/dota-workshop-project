@@ -45,7 +45,9 @@ export const RemoteCommandInputSchema = z.object({
 export const LaunchToolsInputSchema = z.object({
     target: TargetSchema,
     addonName: z.string().min(1),
-    dryRun: z.boolean().optional()
+    dryRun: z.boolean().optional(),
+    launchMode: z.enum(["process", "interactiveTask"]).optional(),
+    taskName: z.string().min(1).optional()
 });
 export const LaunchCustomGameInputSchema = LaunchToolsInputSchema.extend({
     mapName: z.string().min(1)

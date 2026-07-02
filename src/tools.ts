@@ -85,7 +85,9 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
       if (parsed.target.kind === "remote") {
         return launchRemoteTools({
           target: parsed.target,
-          addonName: parsed.addonName
+          addonName: parsed.addonName,
+          launchMode: parsed.launchMode,
+          taskName: parsed.taskName
         });
       }
       return launchTools(parsed);
@@ -96,7 +98,9 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
         return launchRemoteCustomGame({
           target: parsed.target,
           addonName: parsed.addonName,
-          mapName: parsed.mapName
+          mapName: parsed.mapName,
+          launchMode: parsed.launchMode,
+          taskName: parsed.taskName
         });
       }
       return launchCustomGame(parsed);

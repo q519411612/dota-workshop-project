@@ -126,6 +126,7 @@ Use a real Windows machine with Dota 2 Workshop Tools installed.
 3. Call `create_addon` with a Dota-safe addon name.
 4. Call `launch_tools` for the addon.
 5. Call `launch_custom_game` with the addon and map candidate when a map exists.
+   For remote targets where SSH or PowerShell Remoting runs outside the desktop session, pass `"launchMode": "interactiveTask"` so the launch is scheduled in the logged-in Windows user session through Steam.
 6. Call `read_console_or_logs` with the relevant Workshop Tools log path.
    On remote Windows targets, `logPaths` may be omitted when `dotaRoot` is set; the MCP server will inspect recent Dota, Workshop, and Steam log candidates.
 7. Call `validate_addon` and require the expected marker or equivalent log evidence.
@@ -139,5 +140,6 @@ Use SSH or PowerShell Remoting configured outside the repository.
 1. Create a remote target object without storing secrets in files.
 2. Call `discover_environment` with the remote target and `dotaRoot`.
 3. Call `create_addon`, `inspect_addon`, `launch_tools`, and `launch_custom_game` through the same logical MCP tools.
-4. Confirm command evidence includes stdout, stderr, exit code, and attempted command.
-5. If any remote command fails, fix remote configuration. The server does not fall back to local behavior.
+4. Use `"launchMode": "interactiveTask"` when the remote transport is a service session and Workshop Tools must appear in the logged-in desktop session.
+5. Confirm command evidence includes stdout, stderr, exit code, and attempted command.
+6. If any remote command fails, fix remote configuration. The server does not fall back to local behavior.

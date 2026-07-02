@@ -27,6 +27,18 @@ Remote Windows should use the same MCP operations as local Windows:
 
 The target object should select the adapter. The agent should not choose separate user-facing workflows for local and remote.
 
+## Interactive Launches
+
+When SSH or PowerShell Remoting starts commands outside the logged-in desktop session, `dota2.exe` may return process evidence and then exit before Workshop Tools initializes. For real Workshop Tools desktop validation, call `launch_tools` or `launch_custom_game` with:
+
+```json
+{
+  "launchMode": "interactiveTask"
+}
+```
+
+This mode uses a temporary Windows Scheduled Task with `LogonType Interactive` and launches Steam with `-applaunch 570` plus the requested Workshop Tools arguments. Treat it as an explicit mode, not a fallback from failed process launch.
+
 ## Evidence Requirements
 
 Remote command results must include:

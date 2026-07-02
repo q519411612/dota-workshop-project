@@ -111,7 +111,9 @@ export function createServer(): McpServer {
       inputSchema: {
         ...targetInput,
         addonName: z.string().min(1),
-        dryRun: z.boolean().optional()
+        dryRun: z.boolean().optional(),
+        launchMode: z.enum(["process", "interactiveTask"]).optional(),
+        taskName: z.string().min(1).optional()
       }
     },
     async (input) => asToolContent(await handleTool("launch_tools", input))
@@ -126,7 +128,9 @@ export function createServer(): McpServer {
         ...targetInput,
         addonName: z.string().min(1),
         mapName: z.string().min(1),
-        dryRun: z.boolean().optional()
+        dryRun: z.boolean().optional(),
+        launchMode: z.enum(["process", "interactiveTask"]).optional(),
+        taskName: z.string().min(1).optional()
       }
     },
     async (input) => asToolContent(await handleTool("launch_custom_game", input))
@@ -140,7 +144,7 @@ export function createServer(): McpServer {
       inputSchema: {
         ...targetInput,
         addonName: z.string().min(1),
-        logPaths: z.array(z.string().min(1)).min(1)
+        logPaths: z.array(z.string().min(1)).min(1).optional()
       }
     },
     async (input) => asToolContent(await handleTool("read_console_or_logs", input))
@@ -154,7 +158,7 @@ export function createServer(): McpServer {
       inputSchema: {
         ...targetInput,
         addonName: z.string().min(1),
-        logPaths: z.array(z.string().min(1)).min(1),
+        logPaths: z.array(z.string().min(1)).min(1).optional(),
         expectedMarker: z.string().min(1).optional()
       }
     },

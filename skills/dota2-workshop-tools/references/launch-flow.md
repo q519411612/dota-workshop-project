@@ -37,6 +37,8 @@ For console output:
 
 Treat these as target-validated candidates. Do not silently substitute guessed commands.
 
+On remote Windows targets, if command execution is outside the logged-in desktop session, use `launchMode: "interactiveTask"` on `launch_tools` or `launch_custom_game`. That mode launches through Steam in the interactive Windows session and should return process command-line evidence for the requested addon and map.
+
 ## Validation
 
 Process start is not enough. A successful validation result needs evidence such as:

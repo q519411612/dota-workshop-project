@@ -115,6 +115,63 @@ describe("remote Windows operations", () => {
     expect(result.commands[0].command).toContain("'demo_map'");
   });
 
+  test("launches custom game through an interactive remote task when requested", async () => {
+    const result = await launchRemoteCustomGame({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      mapName: "demo_map",
+      launchMode: "interactiveTask",
+      taskName: "DotaWorkshopMcp_demo",
+      executor: async () => ({
+        exitCode: 0,
+        stdout: JSON.stringify({
+          taskName: "DotaWorkshopMcp_demo",
+          lastTaskResult: 0,
+          processes: [{
+            ProcessId: 1234,
+            Name: "dota2.exe",
+            CommandLine: "dota2.exe -tools -addon demo_addon +dota_launch_custom_game demo_addon demo_map",
+            SessionId: 1
+          }]
+        }),
+        stderr: ""
+      })
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("remote interactive launch task completed");
+    expect(result.commands[0].command).toContain("New-ScheduledTaskAction");
+    expect(result.commands[0].command).toContain("-applaunch 570 -novid -tools -addon demo_addon +dota_launch_custom_game demo_addon demo_map");
+    expect(result.commands[0].command).toContain("CreationDate");
+    expect(result.commands[0].command).toContain("Unregister-ScheduledTask");
+  });
+
+  test("rejects unsafe interactive remote task names", async () => {
+    const result = await launchRemoteTools({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      launchMode: "interactiveTask",
+      taskName: "bad task name"
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_REMOTE_TASK_NAME");
+  });
+
   test("creates addon on the remote target instead of writing locally", async () => {
     const result = await createRemoteAddon({
       target: {
