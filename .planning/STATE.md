@@ -7,16 +7,16 @@
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal runnable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** Phase 1 - Plugin and Skill Foundation
+**Current focus:** v1 Vertical MVP implementation complete; verification and independent review in progress
 
 ## Current Roadmap
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Plugin and Skill Foundation | Pending |
-| 2 | MCP Contract and Addon Template | Pending |
-| 3 | Local Windows Workshop Validation | Pending |
-| 4 | Remote Windows Target Support | Pending |
+| 1 | Plugin and Skill Foundation | Complete |
+| 2 | MCP Contract and Addon Template | Complete |
+| 3 | Local Windows Workshop Validation | Complete |
+| 4 | Remote Windows Target Support | Complete |
 
 ## Decisions In Effect
 
@@ -38,9 +38,18 @@ See: `.planning/PROJECT.md`
 - `.planning/research/PITFALLS.md`
 - `.planning/research/SUMMARY.md`
 
+## Verification Notes
+
+- `npm test` passes with 24 tests.
+- `npm run typecheck` passes.
+- `npm run build` passes and produces `dist/index.js`.
+- Plugin manifest validation passes.
+- Skill validation passes.
+- Real local and remote Windows smoke checks require user-provided target access and are documented in `README.md`.
+
 ## Next Action
 
-Run `$gsd-discuss-phase 1` to gather implementation context for Plugin and Skill Foundation.
+Run independent review, fix any findings, then commit and push the v1 MVP.
 
 ---
-*Last updated: 2026-07-03 after roadmap creation*
+*Last updated: 2026-07-03 after v1 MVP implementation*

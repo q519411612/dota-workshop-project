@@ -1,0 +1,131 @@
+import { createAddon, inspectAddon } from "./addon.js";
+import { discoverEnvironment, validateInstallRoot } from "./environment.js";
+import { launchCustomGame, launchTools, readConsoleOrLogs, validateAddon } from "./launch.js";
+import { createFailureResult } from "./result.js";
+import { createRemoteAddon, discoverRemoteEnvironment, inspectRemoteAddon, launchRemoteCustomGame, launchRemoteTools, readRemoteConsoleOrLogs, runRemoteCommand, validateRemoteAddon } from "./remote.js";
+import { CreateAddonInputSchema, DiscoverEnvironmentInputSchema, InspectAddonInputSchema, LaunchCustomGameInputSchema, LaunchToolsInputSchema, ReadLogsInputSchema, RemoteCommandInputSchema, ValidateAddonInputSchema, ValidateTargetInputSchema } from "./schemas.js";
+export const toolNames = [
+    "discover_environment",
+    "validate_target",
+    "create_addon",
+    "inspect_addon",
+    "launch_tools",
+    "launch_custom_game",
+    "read_console_or_logs",
+    "validate_addon",
+    "remote_command"
+];
+export async function handleTool(name, input) {
+    switch (name) {
+        case "discover_environment": {
+            const parsed = DiscoverEnvironmentInputSchema.parse(input);
+            if (parsed.target.kind === "remote") {
+                return discoverRemoteEnvironment({ target: parsed.target });
+            }
+            return discoverEnvironment(parsed);
+        }
+        case "validate_target": {
+            const parsed = ValidateTargetInputSchema.parse(input);
+            if (parsed.target.kind === "remote") {
+                return discoverRemoteEnvironment({
+                    target: {
+                        ...parsed.target,
+                        dotaRoot: parsed.target.dotaRoot ?? parsed.dotaRoot
+                    }
+                });
+            }
+            return validateInstallRoot(parsed);
+        }
+        case "create_addon": {
+            const parsed = CreateAddonInputSchema.parse(input);
+            if (parsed.target.kind === "remote") {
+                return createRemoteAddon({
+                    target: parsed.target,
+                    addonName: parsed.addonName,
+                    mapName: parsed.mapName,
+                    replace: parsed.replace
+                });
+            }
+            return createAddon(parsed);
+        }
+        case "inspect_addon": {
+            const parsed = InspectAddonInputSchema.parse(input);
+            if (parsed.target.kind === "remote") {
+                return inspectRemoteAddon({
+                    target: parsed.target,
+                    addonName: parsed.addonName
+                });
+            }
+            return inspectAddon(parsed);
+        }
+        case "launch_tools": {
+            const parsed = LaunchToolsInputSchema.parse(input);
+            if (parsed.target.kind === "remote") {
+                return launchRemoteTools({
+                    target: parsed.target,
+                    addonName: parsed.addonName
+                });
+            }
+            return launchTools(parsed);
+        }
+        case "launch_custom_game": {
+            const parsed = LaunchCustomGameInputSchema.parse(input);
+            if (parsed.target.kind === "remote") {
+                return launchRemoteCustomGame({
+                    target: parsed.target,
+                    addonName: parsed.addonName,
+                    mapName: parsed.mapName
+                });
+            }
+            return launchCustomGame(parsed);
+        }
+        case "read_console_or_logs": {
+            const parsed = ReadLogsInputSchema.parse(input);
+            if (parsed.target.kind === "remote") {
+                return readRemoteConsoleOrLogs({
+                    target: parsed.target,
+                    addonName: parsed.addonName,
+                    logPaths: parsed.logPaths
+                });
+            }
+            return readConsoleOrLogs(parsed);
+        }
+        case "validate_addon": {
+            const parsed = ValidateAddonInputSchema.parse(input);
+            if (parsed.target.kind === "remote") {
+                return validateRemoteAddon({
+                    target: parsed.target,
+                    addonName: parsed.addonName,
+                    logPaths: parsed.logPaths,
+                    expectedMarker: parsed.expectedMarker
+                });
+            }
+            return validateAddon(parsed);
+        }
+        case "remote_command": {
+            const parsed = RemoteCommandInputSchema.parse(input);
+            return runRemoteCommand(parsed);
+        }
+        default:
+            return createFailureResult({
+                target: { kind: "local" },
+                operation: name,
+                error: {
+                    code: "UNKNOWN_TOOL",
+                    message: `Unknown tool: ${name}`
+                }
+            });
+    }
+}
+export function asToolContent(result) {
+    return {
+        content: [
+            {
+                type: "text",
+                text: JSON.stringify(result, null, 2)
+            }
+        ],
+        structuredContent: result,
+        isError: !result.ok
+    };
+}

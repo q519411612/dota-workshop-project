@@ -1,0 +1,7 @@
+interface:
+  display_name: "Dota 2 Workshop Tools"
+  short_description: "Create and validate Dota 2 addon workflows."
+  brand_color: "#A73B35"
+  default_prompt: "Use $dota2-workshop-tools to create and validate a minimal Dota 2 addon."
+policy:
+  allow_implicit_invocation: true

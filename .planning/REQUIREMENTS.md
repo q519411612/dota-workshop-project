@@ -15,60 +15,60 @@
 
 ### Plugin
 
-- [ ] **PLUG-01**: User can install or load a Codex plugin project that contains the Dota 2 Workshop Tools skill, MCP server, scripts, and templates.
-- [ ] **PLUG-02**: User can validate the plugin manifest without placeholder metadata or missing referenced plugin components.
-- [ ] **PLUG-03**: User can keep plugin development files in the project repository without requiring global installation during development.
+- [x] **PLUG-01**: User can install or load a Codex plugin project that contains the Dota 2 Workshop Tools skill, MCP server, scripts, and templates.
+- [x] **PLUG-02**: User can validate the plugin manifest without placeholder metadata or missing referenced plugin components.
+- [x] **PLUG-03**: User can keep plugin development files in the project repository without requiring global installation during development.
 
 ### Skill
 
-- [ ] **SKIL-01**: Agent can trigger the Dota 2 Workshop Tools skill for Dota 2 custom game, addon, Workshop Tools, Lua gamemode, Panorama, and validation tasks.
-- [ ] **SKIL-02**: Agent can read concise skill guidance that explains when to use MCP tools instead of guessing paths or launch commands.
-- [ ] **SKIL-03**: Agent can load reference material for addon layout, minimal template generation, Workshop Tools launch flow, remote Windows control, and troubleshooting only when needed.
-- [ ] **SKIL-04**: Agent can distinguish v1 supported workflows from deferred workflows such as TypeScript-to-Lua, React Panorama, ability generation, and Workshop publishing.
+- [x] **SKIL-01**: Agent can trigger the Dota 2 Workshop Tools skill for Dota 2 custom game, addon, Workshop Tools, Lua gamemode, Panorama, and validation tasks.
+- [x] **SKIL-02**: Agent can read concise skill guidance that explains when to use MCP tools instead of guessing paths or launch commands.
+- [x] **SKIL-03**: Agent can load reference material for addon layout, minimal template generation, Workshop Tools launch flow, remote Windows control, and troubleshooting only when needed.
+- [x] **SKIL-04**: Agent can distinguish v1 supported workflows from deferred workflows such as TypeScript-to-Lua, React Panorama, ability generation, and Workshop publishing.
 
 ### MCP Interface
 
-- [ ] **MCP-01**: Agent can call a typed MCP tool interface with explicit target selection for local Windows and remote Windows.
-- [ ] **MCP-02**: Agent receives structured MCP results that include success state, target, operation, evidence, warnings, paths, commands, and logs.
-- [ ] **MCP-03**: Agent receives explicit error codes and messages when an operation cannot proceed.
-- [ ] **MCP-04**: Agent can inspect an existing addon without modifying or overwriting it.
+- [x] **MCP-01**: Agent can call a typed MCP tool interface with explicit target selection for local Windows and remote Windows.
+- [x] **MCP-02**: Agent receives structured MCP results that include success state, target, operation, evidence, warnings, paths, commands, and logs.
+- [x] **MCP-03**: Agent receives explicit error codes and messages when an operation cannot proceed.
+- [x] **MCP-04**: Agent can inspect an existing addon without modifying or overwriting it.
 
 ### Environment
 
-- [ ] **ENV-01**: Agent can discover the Dota 2 install root on a local Windows target.
-- [ ] **ENV-02**: Agent can verify that expected Dota binaries and addon directories exist before launch or file generation.
-- [ ] **ENV-03**: Agent can use a user-provided Dota install root override when automatic discovery is insufficient.
-- [ ] **ENV-04**: Agent can report missing Steam, missing Dota 2, missing Workshop Tools paths, or unsupported operating system as explicit failures.
+- [x] **ENV-01**: Agent can discover the Dota 2 install root on a local Windows target.
+- [x] **ENV-02**: Agent can verify that expected Dota binaries and addon directories exist before launch or file generation.
+- [x] **ENV-03**: Agent can use a user-provided Dota install root override when automatic discovery is insufficient.
+- [x] **ENV-04**: Agent can report missing Steam, missing Dota 2, missing Workshop Tools paths, or unsupported operating system as explicit failures.
 
 ### Remote
 
-- [ ] **REMT-01**: Agent can configure a remote Windows target using SSH or PowerShell Remoting.
-- [ ] **REMT-02**: Agent can run environment discovery on a remote Windows target through the same logical MCP tool interface used for local Windows.
-- [ ] **REMT-03**: Agent can execute remote file and process operations with stdout, stderr, exit code, and command evidence returned to the caller.
-- [ ] **REMT-04**: Agent can avoid silently falling back from remote Windows to local behavior when remote execution fails.
+- [x] **REMT-01**: Agent can configure a remote Windows target using SSH or PowerShell Remoting.
+- [x] **REMT-02**: Agent can run environment discovery on a remote Windows target through the same logical MCP tool interface used for local Windows.
+- [x] **REMT-03**: Agent can execute remote file and process operations with stdout, stderr, exit code, and command evidence returned to the caller.
+- [x] **REMT-04**: Agent can avoid silently falling back from remote Windows to local behavior when remote execution fails.
 
 ### Addon
 
-- [ ] **ADDN-01**: Agent can validate addon names before writing files.
-- [ ] **ADDN-02**: Agent can generate the minimal `game/dota_addons/<addon>` and `content/dota_addons/<addon>` directory structure required for v1 validation.
-- [ ] **ADDN-03**: Agent can generate an addon metadata file using a verified format or a selected compatibility format.
-- [ ] **ADDN-04**: Agent can generate `scripts/vscripts/addon_game_mode.lua` with a startup validation marker.
-- [ ] **ADDN-05**: Agent can generate the minimal supporting NPC, hero list, localization, or map metadata files required by the chosen validation template.
-- [ ] **ADDN-06**: Agent refuses to overwrite an existing addon unless the user explicitly requests replacement.
+- [x] **ADDN-01**: Agent can validate addon names before writing files.
+- [x] **ADDN-02**: Agent can generate the minimal `game/dota_addons/<addon>` and `content/dota_addons/<addon>` directory structure required for v1 validation.
+- [x] **ADDN-03**: Agent can generate an addon metadata file using a verified format or a selected compatibility format.
+- [x] **ADDN-04**: Agent can generate `scripts/vscripts/addon_game_mode.lua` with a startup validation marker.
+- [x] **ADDN-05**: Agent can generate the minimal supporting NPC, hero list, localization, or map metadata files required by the chosen validation template.
+- [x] **ADDN-06**: Agent refuses to overwrite an existing addon unless the user explicitly requests replacement.
 
 ### Launch
 
-- [ ] **LNCH-01**: Agent can launch Dota 2 Workshop Tools for a selected addon on local Windows.
-- [ ] **LNCH-02**: Agent can launch Dota 2 Workshop Tools for a selected addon on remote Windows through the remote target adapter.
-- [ ] **LNCH-03**: Agent can attempt a custom game launch for a selected addon and map using a target-validated launch command.
-- [ ] **LNCH-04**: Agent can start or locate the console/logging surface needed for validation.
+- [x] **LNCH-01**: Agent can launch Dota 2 Workshop Tools for a selected addon on local Windows.
+- [x] **LNCH-02**: Agent can launch Dota 2 Workshop Tools for a selected addon on remote Windows through the remote target adapter.
+- [x] **LNCH-03**: Agent can attempt a custom game launch for a selected addon and map using a target-validated launch command.
+- [x] **LNCH-04**: Agent can start or locate the console/logging surface needed for validation.
 
 ### Validation
 
-- [ ] **VALD-01**: Agent can read relevant Dota 2 Workshop Tools logs or console output after launch.
-- [ ] **VALD-02**: Agent can determine addon validation success only when expected log or console evidence is present.
-- [ ] **VALD-03**: Agent can classify common validation failures such as missing install root, invalid addon name, missing map, invalid metadata, launch failure, and Lua startup error.
-- [ ] **VALD-04**: Agent can return a concise validation transcript that can be attached to later review or debugging.
+- [x] **VALD-01**: Agent can read relevant Dota 2 Workshop Tools logs or console output after launch.
+- [x] **VALD-02**: Agent can determine addon validation success only when expected log or console evidence is present.
+- [x] **VALD-03**: Agent can classify common validation failures such as missing install root, invalid addon name, missing map, invalid metadata, launch failure, and Lua startup error.
+- [x] **VALD-04**: Agent can return a concise validation transcript that can be attached to later review or debugging.
 
 ## v2 Requirements
 
@@ -122,39 +122,39 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLUG-01 | Phase 1 | Pending |
-| PLUG-02 | Phase 1 | Pending |
-| PLUG-03 | Phase 1 | Pending |
-| SKIL-01 | Phase 1 | Pending |
-| SKIL-02 | Phase 1 | Pending |
-| SKIL-03 | Phase 1 | Pending |
-| SKIL-04 | Phase 1 | Pending |
-| MCP-01 | Phase 2 | Pending |
-| MCP-02 | Phase 2 | Pending |
-| MCP-03 | Phase 2 | Pending |
-| MCP-04 | Phase 2 | Pending |
-| ENV-01 | Phase 3 | Pending |
-| ENV-02 | Phase 3 | Pending |
-| ENV-03 | Phase 3 | Pending |
-| ENV-04 | Phase 3 | Pending |
-| REMT-01 | Phase 4 | Pending |
-| REMT-02 | Phase 4 | Pending |
-| REMT-03 | Phase 4 | Pending |
-| REMT-04 | Phase 4 | Pending |
-| ADDN-01 | Phase 2 | Pending |
-| ADDN-02 | Phase 2 | Pending |
-| ADDN-03 | Phase 2 | Pending |
-| ADDN-04 | Phase 2 | Pending |
-| ADDN-05 | Phase 2 | Pending |
-| ADDN-06 | Phase 2 | Pending |
-| LNCH-01 | Phase 3 | Pending |
-| LNCH-02 | Phase 4 | Pending |
-| LNCH-03 | Phase 3 | Pending |
-| LNCH-04 | Phase 3 | Pending |
-| VALD-01 | Phase 3 | Pending |
-| VALD-02 | Phase 3 | Pending |
-| VALD-03 | Phase 3 | Pending |
-| VALD-04 | Phase 3 | Pending |
+| PLUG-01 | Phase 1 | Implemented |
+| PLUG-02 | Phase 1 | Implemented |
+| PLUG-03 | Phase 1 | Implemented |
+| SKIL-01 | Phase 1 | Implemented |
+| SKIL-02 | Phase 1 | Implemented |
+| SKIL-03 | Phase 1 | Implemented |
+| SKIL-04 | Phase 1 | Implemented |
+| MCP-01 | Phase 2 | Implemented |
+| MCP-02 | Phase 2 | Implemented |
+| MCP-03 | Phase 2 | Implemented |
+| MCP-04 | Phase 2 | Implemented |
+| ENV-01 | Phase 3 | Implemented |
+| ENV-02 | Phase 3 | Implemented |
+| ENV-03 | Phase 3 | Implemented |
+| ENV-04 | Phase 3 | Implemented |
+| REMT-01 | Phase 4 | Implemented |
+| REMT-02 | Phase 4 | Implemented |
+| REMT-03 | Phase 4 | Implemented |
+| REMT-04 | Phase 4 | Implemented |
+| ADDN-01 | Phase 2 | Implemented |
+| ADDN-02 | Phase 2 | Implemented |
+| ADDN-03 | Phase 2 | Implemented |
+| ADDN-04 | Phase 2 | Implemented |
+| ADDN-05 | Phase 2 | Implemented |
+| ADDN-06 | Phase 2 | Implemented |
+| LNCH-01 | Phase 3 | Implemented |
+| LNCH-02 | Phase 4 | Implemented |
+| LNCH-03 | Phase 3 | Implemented |
+| LNCH-04 | Phase 3 | Implemented |
+| VALD-01 | Phase 3 | Implemented |
+| VALD-02 | Phase 3 | Implemented |
+| VALD-03 | Phase 3 | Implemented |
+| VALD-04 | Phase 3 | Implemented |
 
 **Coverage:**
 - v1 requirements: 33 total

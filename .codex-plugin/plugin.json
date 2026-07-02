@@ -1,0 +1,38 @@
+{
+  "name": "dota-workshop-tools",
+  "version": "0.1.0",
+  "description": "Plugin package for Dota 2 Workshop Tools custom game workflows.",
+  "author": {
+    "name": "Dota Workshop Project",
+    "url": "https://github.com/q519411612/dota-workshop-project"
+  },
+  "homepage": "https://github.com/q519411612/dota-workshop-project",
+  "repository": "https://github.com/q519411612/dota-workshop-project",
+  "license": "MIT",
+  "keywords": [
+    "dota2",
+    "workshop-tools",
+    "custom-game",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Dota Workshop Tools",
+    "shortDescription": "Build and validate Dota 2 custom game addons.",
+    "longDescription": "Guides Dota 2 Workshop Tools addon creation, launch, validation, and troubleshooting through a focused skill and MCP-backed workflows.",
+    "developerName": "Dota Workshop Project",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Write",
+      "Interactive"
+    ],
+    "websiteURL": "https://github.com/q519411612/dota-workshop-project",
+    "defaultPrompt": [
+      "Create a minimal Dota 2 addon and validate it.",
+      "Inspect this Dota 2 custom game addon.",
+      "Troubleshoot a Workshop Tools launch failure."
+    ],
+    "brandColor": "#A73B35"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "dota-workshop-tools": {
+      "command": "node",
+      "args": [
+        "./dist/index.js"
+      ]
+    }
+  }
+}

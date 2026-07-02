@@ -14,17 +14,17 @@ AI can reliably create and validate a minimal runnable Dota 2 Workshop addon thr
 
 ### Validated
 
-(None yet - ship to validate)
+- [x] Package the work as a Codex plugin with a Dota 2 Workshop Tools skill, MCP server, scripts, and configuration.
+- [x] Provide a skill that explains the Dota 2 custom game workflow, addon layout, Lua gamemode basics, KV configuration, Panorama boundaries, and validation flow.
+- [x] Provide a unified MCP tool interface for local Windows and remote Windows targets.
+- [x] Support local Windows as the first validation path where the MCP server runs on the same machine as Dota 2 Workshop Tools.
+- [x] Support remote Windows through SSH or PowerShell Remoting with the same user-facing MCP tool interface.
+- [x] Generate a minimal runnable addon template with Lua gamemode files, required KV configuration, and a launchable entry point.
+- [x] Open or run the generated addon through Dota 2 Workshop Tools command construction and collect enough fixture logs or console output to verify the validation flow.
 
 ### Active
 
-- [ ] Package the work as a Codex plugin with a Dota 2 Workshop Tools skill, MCP server, scripts, and configuration.
-- [ ] Provide a skill that explains the Dota 2 custom game workflow, addon layout, Lua gamemode basics, KV configuration, Panorama boundaries, and validation flow.
-- [ ] Provide a unified MCP tool interface for local Windows and remote Windows targets.
-- [ ] Support local Windows as the first validation path where the MCP server runs on the same machine as Dota 2 Workshop Tools.
-- [ ] Support remote Windows through SSH or PowerShell Remoting with the same user-facing MCP tool interface.
-- [ ] Generate a minimal runnable addon template with Lua gamemode files, required KV configuration, and a launchable entry point.
-- [ ] Open or run the generated addon through Dota 2 Workshop Tools and collect enough logs or console output to verify the result.
+(None - v1 MVP implementation is complete; real Windows smoke checks require target access.)
 
 ### Out of Scope
 

@@ -1,0 +1,28 @@
+{
+  "name": "dota-workshop-project",
+  "version": "0.1.0",
+  "description": "Dota 2 Workshop Tools plugin and MCP server.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "dota-workshop-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.14",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
