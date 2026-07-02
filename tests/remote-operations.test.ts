@@ -84,7 +84,10 @@ describe("remote Windows operations", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(result.commands[0].command).toContain("-tools -addon demo_addon");
+    expect(result.commands[0].command).toContain("Start-Process");
+    expect(result.commands[0].command).toContain("'\\''-tools'\\''");
+    expect(result.commands[0].command).toContain("'\\''-addon'\\''");
+    expect(result.commands[0].command).toContain("'\\''demo_addon'\\''");
   });
 
   test("launches custom game through remote command evidence", async () => {
@@ -106,7 +109,10 @@ describe("remote Windows operations", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(result.commands[0].command).toContain("+dota_launch_custom_game demo_addon demo_map");
+    expect(result.commands[0].command).toContain("Start-Process");
+    expect(result.commands[0].command).toContain("'+dota_launch_custom_game'");
+    expect(result.commands[0].command).toContain("'demo_addon'");
+    expect(result.commands[0].command).toContain("'demo_map'");
   });
 
   test("creates addon on the remote target instead of writing locally", async () => {
@@ -162,6 +168,7 @@ describe("remote Windows operations", () => {
   });
 
   test("reads remote logs from JSON command output", async () => {
+    let attemptedCommand = "";
     const result = await readRemoteConsoleOrLogs({
       target: {
         kind: "remote",
@@ -173,14 +180,18 @@ describe("remote Windows operations", () => {
       },
       addonName: "demo_addon",
       logPaths: ["C:/Steam/logs/console.log"],
-      executor: async () => ({
-        exitCode: 0,
-        stdout: JSON.stringify([{ source: "C:/Steam/logs/console.log", lines: ["[DOTA_WORKSHOP_MCP] addon loaded: demo_addon"] }]),
-        stderr: ""
-      })
+      executor: async (command) => {
+        attemptedCommand = command.command;
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify([{ source: "C:/Steam/logs/console.log", lines: ["[DOTA_WORKSHOP_MCP] addon loaded: demo_addon"] }]),
+          stderr: ""
+        };
+      }
     });
 
     expect(result.ok).toBe(true);
+    expect(attemptedCommand).toContain("ForEach-Object { [string]$_ }");
     expect(result.logs[0].lines).toContain("[DOTA_WORKSHOP_MCP] addon loaded: demo_addon");
   });
 

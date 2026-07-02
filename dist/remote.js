@@ -302,6 +302,9 @@ function buildRemoteCommand(target, command) {
 function quoteForPosixShell(value) {
     return `'${value.replace(/'/g, `'\\''`)}'`;
 }
+function quoteForPowerShellSingleQuotedString(value) {
+    return `'${value.replace(/'/g, "''")}'`;
+}
 async function launchRemoteDota(input) {
     const nameValidation = validateAddonName(input.addonName);
     if (!nameValidation.ok) {
@@ -326,7 +329,8 @@ async function launchRemoteDota(input) {
         });
     }
     const executable = `${input.target.dotaRoot}/game/bin/win64/dota2.exe`;
-    const command = `& "${executable}" ${input.args.join(" ")}`;
+    const argumentList = input.args.map(quoteForPowerShellSingleQuotedString).join(", ");
+    const command = `$exe = ${quoteForPowerShellSingleQuotedString(executable)}; $args = @(${argumentList}); $process = Start-Process -FilePath $exe -ArgumentList $args -PassThru; @{ processId = $process.Id; processName = $process.ProcessName; hasExited = $process.HasExited } | ConvertTo-Json -Compress`;
     const result = await runRemoteCommand({
         target: input.target,
         command,
@@ -382,7 +386,7 @@ function remoteInspectAddonScript(dotaRoot, addonName) {
 }
 function remoteReadLogsScript(logPaths) {
     const paths = logPaths.map((path) => `'${path}'`).join(", ");
-    return `$logs = @(); foreach ($path in @(${paths})) { if (Test-Path -LiteralPath $path) { $logs += @{ source = $path; lines = @(Get-Content -LiteralPath $path -Tail 200) } } }; $logs | ConvertTo-Json -Compress`;
+    return `$logs = @(); foreach ($path in @(${paths})) { if (Test-Path -LiteralPath $path) { $lines = @(Get-Content -LiteralPath $path -Tail 200 | ForEach-Object { [string]$_ }); $logs += @{ source = $path; lines = $lines } } }; $logs | ConvertTo-Json -Compress`;
 }
 async function defaultExecutor(command) {
     try {

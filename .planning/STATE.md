@@ -47,7 +47,10 @@ See: `.planning/PROJECT.md`
 - Skill validation passes.
 - Remote Windows SSH discovery smoke passed on a user-provided target with OpenSSH defaulting to PowerShell: Dota root, `dota2.exe`, `vconsole2.exe`, game addon root, and content addon root were verified through the MCP remote adapter.
 - Workshop Tools related process evidence was observed through remote PowerShell (`dota2cfg.exe` and Steam process evidence).
-- Full addon launch/log validation still requires an intentional generated addon smoke run and should not store hostnames, usernames, passwords, or private target data.
+- Remote generated-addon smoke created and inspected `mcp_smoke_20260703_0439` on the user-provided Windows target without replacement.
+- Remote custom game launch now returns `Start-Process` PID evidence through the MCP remote adapter.
+- Remote log reading returns string log lines from real Steam logs, but runtime validation remains incomplete because the expected Lua marker was not found in readable logs.
+- Full runtime marker validation still needs a Workshop Tools log source or a generated addon/map path that reaches Lua `Activate()`; do not store hostnames, usernames, passwords, or private target data.
 
 ## Next Action
 
