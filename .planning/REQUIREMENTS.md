@@ -122,45 +122,45 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLUG-01 | TBD | Pending |
-| PLUG-02 | TBD | Pending |
-| PLUG-03 | TBD | Pending |
-| SKIL-01 | TBD | Pending |
-| SKIL-02 | TBD | Pending |
-| SKIL-03 | TBD | Pending |
-| SKIL-04 | TBD | Pending |
-| MCP-01 | TBD | Pending |
-| MCP-02 | TBD | Pending |
-| MCP-03 | TBD | Pending |
-| MCP-04 | TBD | Pending |
-| ENV-01 | TBD | Pending |
-| ENV-02 | TBD | Pending |
-| ENV-03 | TBD | Pending |
-| ENV-04 | TBD | Pending |
-| REMT-01 | TBD | Pending |
-| REMT-02 | TBD | Pending |
-| REMT-03 | TBD | Pending |
-| REMT-04 | TBD | Pending |
-| ADDN-01 | TBD | Pending |
-| ADDN-02 | TBD | Pending |
-| ADDN-03 | TBD | Pending |
-| ADDN-04 | TBD | Pending |
-| ADDN-05 | TBD | Pending |
-| ADDN-06 | TBD | Pending |
-| LNCH-01 | TBD | Pending |
-| LNCH-02 | TBD | Pending |
-| LNCH-03 | TBD | Pending |
-| LNCH-04 | TBD | Pending |
-| VALD-01 | TBD | Pending |
-| VALD-02 | TBD | Pending |
-| VALD-03 | TBD | Pending |
-| VALD-04 | TBD | Pending |
+| PLUG-01 | Phase 1 | Pending |
+| PLUG-02 | Phase 1 | Pending |
+| PLUG-03 | Phase 1 | Pending |
+| SKIL-01 | Phase 1 | Pending |
+| SKIL-02 | Phase 1 | Pending |
+| SKIL-03 | Phase 1 | Pending |
+| SKIL-04 | Phase 1 | Pending |
+| MCP-01 | Phase 2 | Pending |
+| MCP-02 | Phase 2 | Pending |
+| MCP-03 | Phase 2 | Pending |
+| MCP-04 | Phase 2 | Pending |
+| ENV-01 | Phase 3 | Pending |
+| ENV-02 | Phase 3 | Pending |
+| ENV-03 | Phase 3 | Pending |
+| ENV-04 | Phase 3 | Pending |
+| REMT-01 | Phase 4 | Pending |
+| REMT-02 | Phase 4 | Pending |
+| REMT-03 | Phase 4 | Pending |
+| REMT-04 | Phase 4 | Pending |
+| ADDN-01 | Phase 2 | Pending |
+| ADDN-02 | Phase 2 | Pending |
+| ADDN-03 | Phase 2 | Pending |
+| ADDN-04 | Phase 2 | Pending |
+| ADDN-05 | Phase 2 | Pending |
+| ADDN-06 | Phase 2 | Pending |
+| LNCH-01 | Phase 3 | Pending |
+| LNCH-02 | Phase 4 | Pending |
+| LNCH-03 | Phase 3 | Pending |
+| LNCH-04 | Phase 3 | Pending |
+| VALD-01 | Phase 3 | Pending |
+| VALD-02 | Phase 3 | Pending |
+| VALD-03 | Phase 3 | Pending |
+| VALD-04 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 33 total
-- Mapped to phases: 0
-- Unmapped: 33
+- Mapped to phases: 33
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-03*
-*Last updated: 2026-07-03 after initial definition*
+*Last updated: 2026-07-03 after roadmap traceability update*
