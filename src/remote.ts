@@ -360,7 +360,8 @@ function buildRemoteCommand(target: RemoteTarget, command: string): CommandEvide
   if (target.transport === "ssh") {
     const destination = target.username ? `${target.username}@${target.host}` : target.host;
     return {
-      command: `ssh ${destination} ${command}`
+      // 远程脚本必须作为一个参数传给 ssh，避免本地 shell 提前解析 PowerShell 语法。
+      command: `ssh ${quoteForPosixShell(destination)} ${quoteForPosixShell(command)}`
     };
   }
 
@@ -368,6 +369,10 @@ function buildRemoteCommand(target: RemoteTarget, command: string): CommandEvide
   return {
     command: `Invoke-Command -ComputerName ${target.host}${credential} -ScriptBlock { ${command} }`
   };
+}
+
+function quoteForPosixShell(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 type RemoteDiscoveryPayload = {

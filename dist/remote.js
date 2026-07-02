@@ -290,13 +290,17 @@ function buildRemoteCommand(target, command) {
     if (target.transport === "ssh") {
         const destination = target.username ? `${target.username}@${target.host}` : target.host;
         return {
-            command: `ssh ${destination} ${command}`
+            // 远程脚本必须作为一个参数传给 ssh，避免本地 shell 提前解析 PowerShell 语法。
+            command: `ssh ${quoteForPosixShell(destination)} ${quoteForPosixShell(command)}`
         };
     }
     const credential = target.username ? ` -Credential ${target.username}` : "";
     return {
         command: `Invoke-Command -ComputerName ${target.host}${credential} -ScriptBlock { ${command} }`
     };
+}
+function quoteForPosixShell(value) {
+    return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 async function launchRemoteDota(input) {
     const nameValidation = validateAddonName(input.addonName);

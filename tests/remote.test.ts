@@ -21,9 +21,36 @@ describe("remote command adapter", () => {
 
     expect(result.ok).toBe(true);
     expect(result.commands[0]).toMatchObject({
-      command: "ssh builder@dota.example.test Write-Output ok"
+      command: "ssh 'builder@dota.example.test' 'Write-Output ok'"
     });
     expect(result.logs[0].lines).toEqual(["ok"]);
+  });
+
+  test("quotes SSH PowerShell scripts as a single remote command argument", async () => {
+    let attemptedCommand = "";
+    const result = await runRemoteCommand({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder"
+      },
+      command: "$root = 'C:/Steam/steamapps/common/dota 2 beta'; (Test-Path $root) | ConvertTo-Json",
+      executor: async (command) => {
+        attemptedCommand = command.command;
+        return {
+          exitCode: 0,
+          stdout: "true\n",
+          stderr: ""
+        };
+      }
+    });
+
+    expect(result.ok).toBe(true);
+    expect(attemptedCommand).toBe(
+      "ssh 'builder@dota.example.test' '$root = '\\''C:/Steam/steamapps/common/dota 2 beta'\\''; (Test-Path $root) | ConvertTo-Json'"
+    );
   });
 
   test("remote failures stay remote and do not fall back to local behavior", async () => {
