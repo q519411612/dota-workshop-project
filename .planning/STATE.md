@@ -7,7 +7,7 @@
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal runnable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v1 Vertical MVP implementation complete; verification and independent review in progress
+**Current focus:** v1 Vertical MVP complete, verified, reviewed, committed, and pushed
 
 ## Current Roadmap
 
@@ -49,7 +49,7 @@ See: `.planning/PROJECT.md`
 
 ## Next Action
 
-Run independent review, fix any findings, then commit and push the v1 MVP.
+Use the README smoke checklists when real local or remote Windows targets are available.
 
 ---
-*Last updated: 2026-07-03 after v1 MVP implementation*
+*Last updated: 2026-07-03 after v1 MVP completion*

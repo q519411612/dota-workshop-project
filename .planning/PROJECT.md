@@ -54,12 +54,12 @@ The skill and MCP server should have separate responsibilities. The skill teache
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Build a thin vertical slice first | Proves the whole AI-to-Workshop-Tools loop before expanding scope | - Pending |
-| Package as a Codex plugin | Keeps the skill, MCP server, scripts, and configuration together for installation and sharing | - Pending |
-| Support both local Windows and remote Windows | Local Windows is the fastest validation path; remote Windows matches likely Mac-to-Windows usage | - Pending |
-| Use SSH or PowerShell Remoting for remote Windows | Command-oriented remote control is more reliable and easier to verify than UI-only automation | - Pending |
-| Keep one unified MCP tool interface | Prevents local and remote implementations from drifting into separate workflows | - Pending |
-| Start with a minimal runnable addon template | Validates Workshop Tools integration without mixing in gameplay design complexity | - Pending |
+| Build a thin vertical slice first | Proves the whole AI-to-Workshop-Tools loop before expanding scope | Implemented |
+| Package as a Codex plugin | Keeps the skill, MCP server, scripts, and configuration together for installation and sharing | Implemented |
+| Support both local Windows and remote Windows | Local Windows is the fastest validation path; remote Windows matches likely Mac-to-Windows usage | Implemented |
+| Use SSH or PowerShell Remoting for remote Windows | Command-oriented remote control is more reliable and easier to verify than UI-only automation | Implemented |
+| Keep one unified MCP tool interface | Prevents local and remote implementations from drifting into separate workflows | Implemented |
+| Start with a minimal runnable addon template | Validates Workshop Tools integration without mixing in gameplay design complexity | Implemented |
 
 ## Evolution
 
@@ -79,4 +79,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-03 after initialization*
+*Last updated: 2026-07-03 after v1 MVP completion*
