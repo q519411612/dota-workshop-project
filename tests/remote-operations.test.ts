@@ -195,6 +195,34 @@ describe("remote Windows operations", () => {
     expect(result.logs[0].lines).toContain("[DOTA_WORKSHOP_MCP] addon loaded: demo_addon");
   });
 
+  test("auto-discovers recent remote logs when explicit paths are omitted", async () => {
+    let attemptedCommand = "";
+    const result = await readRemoteConsoleOrLogs({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      executor: async (command) => {
+        attemptedCommand = command.command;
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify([{ source: "C:/Steam/logs/workshop.log", lines: ["Workshop Tools ready"] }]),
+          stderr: ""
+        };
+      }
+    } as Parameters<typeof readRemoteConsoleOrLogs>[0]);
+
+    expect(result.ok).toBe(true);
+    expect(attemptedCommand).toContain("Get-ChildItem");
+    expect(attemptedCommand).toContain("LastWriteTime");
+    expect(result.evidence).toContain("read remote log: C:/Steam/logs/workshop.log");
+  });
+
   test("validates remote addon only when marker is present", async () => {
     const result = await validateRemoteAddon({
       target: {

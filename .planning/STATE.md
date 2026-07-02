@@ -50,6 +50,7 @@ See: `.planning/PROJECT.md`
 - Remote generated-addon smoke created and inspected `mcp_smoke_20260703_0439` on the user-provided Windows target without replacement.
 - Remote custom game launch now returns `Start-Process` PID evidence through the MCP remote adapter.
 - Remote log reading returns string log lines from real Steam logs, but runtime validation remains incomplete because the expected Lua marker was not found in readable logs.
+- Remote log auto-discovery works without explicit `logPaths` when `dotaRoot` is configured; it found recent Steam/Dota log candidates and produced the expected marker-missing diagnostic.
 - Full runtime marker validation still needs a Workshop Tools log source or a generated addon/map path that reaches Lua `Activate()`; do not store hostnames, usernames, passwords, or private target data.
 
 ## Next Action

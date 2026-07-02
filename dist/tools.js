@@ -88,7 +88,7 @@ export async function handleTool(name, input) {
                     logPaths: parsed.logPaths
                 });
             }
-            return readConsoleOrLogs(parsed);
+            return readConsoleOrLogs({ ...parsed, logPaths: parsed.logPaths ?? [] });
         }
         case "validate_addon": {
             const parsed = ValidateAddonInputSchema.parse(input);
@@ -100,7 +100,7 @@ export async function handleTool(name, input) {
                     expectedMarker: parsed.expectedMarker
                 });
             }
-            return validateAddon(parsed);
+            return validateAddon({ ...parsed, logPaths: parsed.logPaths ?? [] });
         }
         case "remote_command": {
             const parsed = RemoteCommandInputSchema.parse(input);

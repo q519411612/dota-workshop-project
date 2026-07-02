@@ -193,9 +193,22 @@ export async function readRemoteConsoleOrLogs(input) {
             }
         });
     }
+    if ((!input.logPaths || input.logPaths.length === 0) && !input.target.dotaRoot) {
+        return createFailureResult({
+            target: input.target,
+            operation,
+            error: {
+                code: "REMOTE_DOTA_ROOT_REQUIRED",
+                message: "Remote log discovery requires a Dota install root when log paths are omitted."
+            },
+            evidence: ["remote target did not include dotaRoot"]
+        });
+    }
     const result = await runRemoteCommand({
         target: input.target,
-        command: remoteReadLogsScript(input.logPaths),
+        command: input.logPaths && input.logPaths.length > 0
+            ? remoteReadLogsScript(input.logPaths)
+            : remoteDiscoverRecentLogsScript(input.target.dotaRoot),
         executor: input.executor
     });
     if (!result.ok) {
@@ -387,6 +400,9 @@ function remoteInspectAddonScript(dotaRoot, addonName) {
 function remoteReadLogsScript(logPaths) {
     const paths = logPaths.map((path) => `'${path}'`).join(", ");
     return `$logs = @(); foreach ($path in @(${paths})) { if (Test-Path -LiteralPath $path) { $lines = @(Get-Content -LiteralPath $path -Tail 200 | ForEach-Object { [string]$_ }); $logs += @{ source = $path; lines = $lines } } }; $logs | ConvertTo-Json -Compress`;
+}
+function remoteDiscoverRecentLogsScript(dotaRoot) {
+    return `$root = '${dotaRoot}'; $steamRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $root)); $candidateRoots = @((Join-Path $root 'game/dota'), (Join-Path $root 'game/bin/win64'), (Join-Path $steamRoot 'logs')) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }; $namePattern = 'console|vconsole|dota|workshop|stderr|stdout|webhelper|overlay|content|controller|duration'; $files = @(); foreach ($candidateRoot in $candidateRoots) { $files += Get-ChildItem -LiteralPath $candidateRoot -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-30) -and $_.Length -lt 20971520 -and ($_.Extension -eq '.log' -or $_.Name -match $namePattern) } }; $logs = @(); foreach ($file in ($files | Sort-Object LastWriteTime -Descending | Select-Object -First 10)) { $lines = @(Get-Content -LiteralPath $file.FullName -Tail 200 | ForEach-Object { [string]$_ }); $logs += @{ source = $file.FullName; lines = $lines } }; $logs | ConvertTo-Json -Compress`;
 }
 async function defaultExecutor(command) {
     try {

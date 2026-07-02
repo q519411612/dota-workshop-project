@@ -53,7 +53,7 @@ export const LaunchCustomGameInputSchema = LaunchToolsInputSchema.extend({
 export const ReadLogsInputSchema = z.object({
     target: TargetSchema,
     addonName: z.string().min(1),
-    logPaths: z.array(z.string().min(1)).min(1)
+    logPaths: z.array(z.string().min(1)).optional()
 });
 export const ValidateAddonInputSchema = ReadLogsInputSchema.extend({
     expectedMarker: z.string().min(1).optional()
