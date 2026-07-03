@@ -1,13 +1,13 @@
 # Project State: Dota Workshop Project
 
-**Updated:** 2026-07-03
+**Updated:** 2026-07-04
 
 ## Project Reference
 
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v2 Playable Gameplay Loop MVP shipped to GitHub; next evidence target is real Windows gameplay smoke when target access is available
+**Current focus:** v2 Playable Gameplay Loop MVP shipped and real Windows gameplay smoke passed; next milestone should choose the next v2.x gameplay/tooling slice
 
 ## Current Roadmap
 
@@ -33,6 +33,7 @@ See: `.planning/PROJECT.md`
 | Use Vertical MVP roadmap structure | Roadmap setup |
 | Runtime validation launches without `-tools` and enables `-condebug` | Remote v1.1 investigation |
 | v2 uses a small Lua `SetContextThink` gameplay loop instead of importing a framework | `.planning/research/GAMEPLAY_LOOP_API_NOTES.md` |
+| v2 stable template avoids `GameRules:SetCustomGameForceHero` because current runtime smoke rejected it | `.planning/phases/06-playable-gameplay-loop-mvp/06-REMOTE-SMOKE.md` |
 
 ## Research Inputs
 
@@ -68,12 +69,16 @@ See: `.planning/PROJECT.md`
 - v1.1 independent review found that custom game map names needed the same explicit input validation discipline as addon names; implementation now rejects unsafe map names before addon metadata writes or launch command construction.
 - v1.1 verification passed `npm run typecheck`, `npm test`, and `npm run build` after fixture coverage increased to 37 tests.
 - v2 implementation added a playable Lua template, multiple-marker validation, remote template parity, README/skill guidance, and API research artifacts.
-- v2 verification passed `git diff --check`, `npm run typecheck`, `npm test` with 43 tests, `npm run build`, plugin validation, skill validation, and strict secret scan across tracked and untracked files.
-- Real Windows gameplay spawn smoke was not run in this repository session because no private target configuration or credentials are stored in the repository; candidate spawn details remain documented in `.planning/research/DOTA2_WORKSHOP_API_V2.md`.
+- v2 verification passed `git diff --check`, `npm run typecheck`, `npm test` with 44 tests after real-smoke fixes, `npm run build`, plugin validation, skill validation, and strict secret scan across tracked and untracked files.
+- Real Windows v2 gameplay smoke passed on 2026-07-04 using a user-provided target over SSH without storing private target details or credentials in the repository.
+- v2 smoke generated `v2_smoke_20260704_0003`, launched it in Dota game runtime mode with `-condebug`, and validated addon loaded, gamemode initialized, round started, score updated, and win condition markers from `game/dota/console.log`.
+- v2 smoke also verified the optional spawn marker for `npc_dota_creep_badguys_melee`, `SetContextThink` score ticks, and `GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)`.
+- v2 smoke found remote log validation needed a wider runtime console tail than 200 lines; the remote reader now uses a wider marker window.
+- v2 smoke found `GameRules:SetCustomGameForceHero("npc_dota_hero_lina")` causes a Lua runtime error in the tested runtime; it is documented as rejected and not used by the stable template.
 
 ## Next Action
 
-Run real Windows v2 gameplay smoke when the user provides or selects a non-repository target configuration: generate a playable addon, launch with `runtimeMode: "game"` and `consoleLog: true`, validate required gameplay markers in `game/dota/console.log`, and record which candidate spawn/win APIs are proven by runtime evidence.
+Open the next v2.x milestone decision: custom map spawn points, richer gameplay objectives, generated unit/ability scaffolding, or packaging the validated playable workflow for repeatable user smoke runs.
 
 ---
-*Last updated: 2026-07-03 after v2 playable gameplay loop commit and push*
+*Last updated: 2026-07-04 after real Windows v2 gameplay smoke*

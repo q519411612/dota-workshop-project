@@ -10,12 +10,13 @@ The generated Lua should implement this runtime flow:
 1. `Precache(context)` precaches the candidate spawned unit.
 2. `Activate()` creates a game mode object and calls `InitGameMode()`.
 3. `InitGameMode()` emits the v1.1 addon marker and v2 gamemode marker.
-4. `InitGameMode()` registers `game_rules_state_change` and `entity_killed`.
-5. `InitGameMode()` registers a `SetContextThink` loop on `GameRules:GetGameModeEntity()`.
-6. When `GameRules:State_Get()` equals `DOTA_GAMERULES_STATE_GAME_IN_PROGRESS`, the round starts.
-7. Round start emits a marker and attempts to spawn one target unit.
-8. Score advances through a small validation tick and through `entity_killed`.
-9. A target score ends the loop and calls `GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)`.
+4. `InitGameMode()` configures short setup, hero-selection, strategy, showcase, and pre-game timers so runtime smoke can proceed without UI automation.
+5. `InitGameMode()` registers `game_rules_state_change` and `entity_killed`.
+6. `InitGameMode()` registers a `SetContextThink` loop on `GameRules:GetGameModeEntity()`.
+7. When `GameRules:State_Get()` equals `DOTA_GAMERULES_STATE_GAME_IN_PROGRESS`, the round starts.
+8. Round start emits a marker and attempts to spawn one target unit.
+9. Score advances through a small validation tick and through `entity_killed`.
+10. A target score ends the loop and calls `GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)`.
 
 ## Why `SetContextThink` Instead of Timers
 
@@ -39,7 +40,7 @@ Optional marker:
 [DOTA_WORKSHOP_MCP] target spawned: <addon>
 ```
 
-The optional spawn marker depends on candidate spawn behavior that still needs real runtime validation. The validation tool should support checking multiple markers, but docs should recommend validating the required marker set first and then using the spawn marker as additional evidence when present.
+The optional spawn marker was verified on a real Windows runtime smoke on 2026-07-04 with the stock `dota` map and `npc_dota_creep_badguys_melee`. The validation tool should still recommend the required marker set first and use the spawn marker as additional evidence when present.
 
 ## File Generation Contract
 
@@ -80,14 +81,14 @@ content/dota_addons/<addon>/
 }
 ```
 
-Validation succeeds only when every requested marker appears in readable logs. Lua startup errors must still fail before marker success.
+Validation succeeds only when every requested marker appears in readable logs. Lua startup errors must still fail before marker success. Remote runtime validation reads a wider console-log tail because Dota can emit enough startup noise to push early Lua markers beyond a 200-line window before score and win markers appear.
 
-## Open Runtime Questions
+## Runtime Smoke Findings
 
-These are not blockers for macOS fixture implementation, but they must be checked on Windows before claiming real gameplay smoke success:
+The 2026-07-04 remote Windows smoke used a user-provided target and did not write private target details or credentials into the repository.
 
-- Does `npc_dota_creep_badguys_melee` spawn successfully through `CreateUnitByName` on the stock `dota` map?
-- Does the `SetContextThink` loop fire early enough in non-tools runtime launch to emit score and win markers without manual player input?
-- Does `SetGameWinner(DOTA_TEAM_GOODGUYS)` write any additional console evidence that should be captured?
-- Should a later custom map replace the origin-based spawn point with named map entities?
-
+- `CreateUnitByName("npc_dota_creep_badguys_melee", Vector(0, 0, 256), ...)` spawned successfully and emitted the optional spawn marker.
+- `SetContextThink` emitted score markers in game runtime mode after the stock `dota` map reached `DOTA_GAMERULES_STATE_GAME_IN_PROGRESS`.
+- `GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)` executed after the score target and the win-condition marker was validated.
+- `GameRules:SetCustomGameForceHero("npc_dota_hero_lina")` caused a Lua runtime error in the tested runtime and was removed from the stable template.
+- A later custom map can replace the origin-based spawn point with named map entities.

@@ -79,4 +79,6 @@ For the playable template, validate all required gameplay markers when the runti
 }
 ```
 
+Remote log discovery reads a wider runtime console tail so early initialization markers and later score/win markers can be validated together in noisy Dota logs.
+
 Return a concise transcript with commands, relevant log lines, warnings, and classified errors.

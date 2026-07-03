@@ -140,7 +140,8 @@
 - Use `game/dota/console.log` and substring marker matching from v1.1.
 - Use `SetContextThink` for the minimal validation tick instead of importing a Timers framework.
 - Keep stock `dota` map validation for runtime markers; custom map spawn points are deferred.
-- Candidate spawn details must remain pending until real Windows runtime smoke evidence exists.
+- Real Windows runtime smoke on 2026-07-04 validated the required gameplay markers and optional built-in creep spawn marker on the stock `dota` map.
+- `GameRules:SetCustomGameForceHero` was rejected by current runtime smoke and is not part of the stable v2 template.
 
 ## Coverage
 

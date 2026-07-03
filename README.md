@@ -110,7 +110,7 @@ content/dota_addons/<addon_name>/
   maps/
 ```
 
-By default, the generated template is `playable`. It keeps the v1.1 runtime marker and adds a small Lua gameplay loop with GameRules initialization, round start, score updates, and a win condition.
+By default, the generated template is `playable`. It keeps the v1.1 runtime marker and adds a small Lua gameplay loop with GameRules initialization, short non-UI runtime setup, round start, score updates, and a win condition.
 
 The Lua entry point emits markers such as:
 
@@ -140,7 +140,7 @@ Use a real Windows machine with Dota 2 Workshop Tools installed.
    For Lua runtime marker validation, pass `"runtimeMode": "game"` and `"consoleLog": true`; this omits `-tools` and enables Dota `game/dota/console.log`.
 6. Call `read_console_or_logs` with the relevant Workshop Tools log path.
    On local targets, `logPaths` may be omitted when `dotaRoot` is set and `game/dota/console.log` is the desired runtime log. On remote Windows targets, `logPaths` may be omitted when `dotaRoot` is set; the MCP server prioritizes `game/dota/console.log` and then inspects recent Dota, Workshop, and Steam log candidates.
-7. Call `validate_addon` and require the expected marker or gameplay marker list.
+7. Call `validate_addon` and require the expected marker or gameplay marker list. Remote validation reads enough runtime console history to match early initialization markers and later score/win markers together.
 
 Example gameplay marker validation:
 

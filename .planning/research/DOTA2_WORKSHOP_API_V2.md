@@ -97,12 +97,22 @@ v2 implementation basis:
 
 ## Candidate APIs Requiring Real Runtime Validation
 
-These are acceptable for generated prototype code but must remain documented as candidates until real Windows runtime smoke confirms them:
+The 2026-07-04 remote Windows runtime smoke on a user-provided target validated the original candidate gameplay loop on the stock `dota` map:
 
-- `Vector(0, 0, 256)` as the spawn position constructor.
-- The built-in spawn unit name `npc_dota_creep_badguys_melee`.
-- Spawn viability on the stock `dota` map at the generated origin.
-- Whether automatic score/win markers fire before or after full hero selection in every launch mode.
+- `Vector(0, 0, 256)` was accepted as the spawn position constructor.
+- `CreateUnitByName("npc_dota_creep_badguys_melee", Vector(0, 0, 256), ...)` spawned a unit and emitted `target spawned: <addon> npc_dota_creep_badguys_melee`.
+- `SetContextThink` emitted repeated score markers after `DOTA_GAMERULES_STATE_GAME_IN_PROGRESS`.
+- `GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)` executed after the target score and the win-condition marker was written.
+- `GameRules:EnableCustomGameSetupAutoLaunch(true)`, `SetCustomGameSetupAutoLaunchDelay(0)`, `LockCustomGameSetupTeamAssignment(true)`, `SetHeroSelectionTime(0)`, `SetStrategyTime(0)`, `SetShowcaseTime(0)`, and `SetPreGameTime(0)` were accepted by the runtime and helped the stock `dota` map reach game-in-progress without manual UI automation.
+
+Rejected by runtime smoke:
+
+- `GameRules:SetCustomGameForceHero("npc_dota_hero_lina")` caused a Lua runtime error in the tested Dota runtime and must not be used as a stable v2 implementation basis.
+
+Remaining candidates for later custom-map work:
+
+- Whether a custom map should replace the origin-based spawn point with named map entities.
+- Whether a later hero-selection flow should use a different, currently verified API instead of `SetCustomGameForceHero`.
 
 The generated code should not hide failures. If candidate spawn or runtime APIs fail, Dota console logs and marker absence should expose the failure.
 
@@ -114,7 +124,8 @@ Can be validated on `dota` map:
 - Game mode initialization marker.
 - GameRules state listener registration.
 - Console log marker readback through `game/dota/console.log`.
-- Think-loop driven score and win markers, subject to real runtime timing validation.
+- Think-loop driven score and win markers.
+- Origin-based built-in creep spawn marker.
 
 Requires a custom map or later map-specific work:
 
@@ -134,4 +145,3 @@ Explicitly defer:
 - Custom ability, item, hero, and full unit generators.
 - Workshop publishing and encryption.
 - UI automation as the primary control path.
-

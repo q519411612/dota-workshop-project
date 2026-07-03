@@ -10,7 +10,7 @@ status: passed
 |---------|--------|----------|
 | `git diff --check` | Passed | Exit code 0 |
 | `npm run typecheck` | Passed | `tsc -p tsconfig.json --noEmit` exit code 0 |
-| `npm test` | Passed | 6 test files, 43 tests passed |
+| `npm test` | Passed | 6 test files, 44 tests passed |
 | `npm run build` | Passed | `tsc -p tsconfig.build.json` exit code 0 |
 | Plugin validation | Passed | Manifest required fields and referenced paths verified |
 | Skill validation | Passed | Skill frontmatter, references, and playable marker guidance verified |
@@ -26,5 +26,13 @@ status: passed
 
 ## Manual/Real Target Verification
 
-Real Windows gameplay spawn smoke was not run in this session because no real target configuration, credentials, private hostname, or Steam account details are stored in the repository. v1.1 runtime marker evidence remains recorded, and v2 candidate spawn details are documented for the next real Windows smoke pass.
+Real Windows gameplay smoke passed on 2026-07-04 using a user-provided Windows target over SSH. Private target identity, credentials, host address, and account details were not written to the repository.
 
+Evidence is recorded in `06-REMOTE-SMOKE.md`:
+
+- Generated playable addon `v2_smoke_20260704_0003`.
+- Launched with `launchMode: "interactiveTask"`, `runtimeMode: "game"`, `consoleLog: true`, and map `dota`.
+- `validate_addon` succeeded against `game/dota/console.log` with addon loaded, gamemode initialized, round started, score updated, and win condition markers.
+- Optional spawn evidence appeared for `npc_dota_creep_badguys_melee`.
+- Runtime debugging rejected `GameRules:SetCustomGameForceHero("npc_dota_hero_lina")`; the stable template no longer uses it.
+- Remote validation now reads a wider console-log tail so early initialization markers and later gameplay markers fit in the same validation window.

@@ -38,9 +38,9 @@ Do not claim validation success until a log or console surface contains the mark
 
 ## Gameplay Loop
 
-The playable template should define `Precache(context)` and `Activate()`. `Activate()` initializes a Lua game mode object, registers `game_rules_state_change` and `entity_killed`, starts a small `SetContextThink` loop, emits round/score/win markers, and calls `GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)` when the target score is reached.
+The playable template should define `Precache(context)` and `Activate()`. `Activate()` initializes a Lua game mode object, configures short setup and pre-game timers for non-UI runtime smoke, registers `game_rules_state_change` and `entity_killed`, starts a small `SetContextThink` loop, emits round/score/win markers, and calls `GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)` when the target score is reached.
 
-The spawn marker is useful additional evidence, but the current spawn position and built-in unit name remain candidates until real Windows runtime smoke verifies them on the stock `dota` map.
+The spawn marker is useful additional evidence. Real Windows runtime smoke on 2026-07-04 verified the stock `dota` map can emit `target spawned` for `npc_dota_creep_badguys_melee` at the generated origin position. Do not use `GameRules:SetCustomGameForceHero` for the v2 stable template; it produced a Lua runtime error in the tested current runtime.
 
 ## Metadata
 

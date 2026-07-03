@@ -6,6 +6,8 @@ import { createFailureResult, createSuccessResult } from "./result.js";
 import type { CommandEvidence, RemoteTarget, ToolResult } from "./types.js";
 
 const execFileAsync = promisify(execFile);
+const REMOTE_LOG_TAIL_LINES = 2000;
+const REMOTE_AUXILIARY_LOG_TAIL_LINES = 200;
 
 export type RemoteCommandOutput = {
   exitCode: number;
@@ -615,7 +617,7 @@ function remoteInspectAddonScript(dotaRoot: string, addonName: string): string {
 
 function remoteReadLogsScript(logPaths: string[]): string {
   const paths = logPaths.map((path) => `'${path}'`).join(", ");
-  return `$logs = @(); foreach ($path in @(${paths})) { if (Test-Path -LiteralPath $path) { $lines = @(Get-Content -LiteralPath $path -Tail 200 | ForEach-Object { [string]$_ }); $logs += @{ source = $path; lines = $lines } } }; $logs | ConvertTo-Json -Compress`;
+  return `$logs = @(); foreach ($path in @(${paths})) { if (Test-Path -LiteralPath $path) { $lines = @(Get-Content -LiteralPath $path -Tail ${REMOTE_LOG_TAIL_LINES} | ForEach-Object { [string]$_ }); $logs += @{ source = $path; lines = $lines } } }; $logs | ConvertTo-Json -Compress`;
 }
 
 function remoteInteractiveLaunchScript(dotaRoot: string, addonName: string, taskName: string, argumentText: string, userId: string): string {
@@ -623,7 +625,7 @@ function remoteInteractiveLaunchScript(dotaRoot: string, addonName: string, task
 }
 
 function remoteDiscoverRecentLogsScript(dotaRoot: string): string {
-  return `$root = ${quoteForPowerShellSingleQuotedString(dotaRoot)}; $steamRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $root)); $runtimeConsole = Join-Path $root 'game/dota/console.log'; $candidateRoots = @((Join-Path $root 'game/dota'), (Join-Path $root 'game/bin/win64'), (Join-Path $steamRoot 'logs')) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }; $namePattern = 'console|vconsole|dota|workshop|stderr|stdout|webhelper|overlay|content|controller|duration'; $files = @(); foreach ($candidateRoot in $candidateRoots) { $files += Get-ChildItem -LiteralPath $candidateRoot -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-30) -and $_.Length -lt 20971520 -and ($_.Extension -eq '.log' -or $_.Name -match $namePattern) } }; $ordered = @(); $recentLimit = 10; if (Test-Path -LiteralPath $runtimeConsole) { $ordered += Get-Item -LiteralPath $runtimeConsole; $recentLimit = 9 }; $ordered += $files | Where-Object { $_.FullName -ne $runtimeConsole } | Sort-Object LastWriteTime -Descending | Select-Object -First $recentLimit; $logs = @(); foreach ($file in $ordered) { $lines = @(Get-Content -LiteralPath $file.FullName -Tail 200 | ForEach-Object { [string]$_ }); $logs += @{ source = $file.FullName; lines = $lines } }; $logs | ConvertTo-Json -Compress`;
+  return `$root = ${quoteForPowerShellSingleQuotedString(dotaRoot)}; $steamRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $root)); $runtimeConsole = Join-Path $root 'game/dota/console.log'; $candidateRoots = @((Join-Path $root 'game/dota'), (Join-Path $root 'game/bin/win64'), (Join-Path $steamRoot 'logs')) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }; $namePattern = 'console|vconsole|dota|workshop|stderr|stdout|webhelper|overlay|content|controller|duration'; $files = @(); foreach ($candidateRoot in $candidateRoots) { $files += Get-ChildItem -LiteralPath $candidateRoot -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-30) -and $_.Length -lt 20971520 -and ($_.Extension -eq '.log' -or $_.Name -match $namePattern) } }; $ordered = @(); $recentLimit = 10; if (Test-Path -LiteralPath $runtimeConsole) { $ordered += Get-Item -LiteralPath $runtimeConsole; $recentLimit = 9 }; $ordered += $files | Where-Object { $_.FullName -ne $runtimeConsole } | Sort-Object LastWriteTime -Descending | Select-Object -First $recentLimit; $logs = @(); foreach ($file in $ordered) { $tailLines = if ($file.FullName -eq $runtimeConsole) { ${REMOTE_LOG_TAIL_LINES} } else { ${REMOTE_AUXILIARY_LOG_TAIL_LINES} }; $lines = @(Get-Content -LiteralPath $file.FullName -Tail $tailLines | ForEach-Object { [string]$_ }); $logs += @{ source = $file.FullName; lines = $lines } }; $logs | ConvertTo-Json -Compress`;
 }
 
 async function defaultExecutor(command: CommandEvidence): Promise<RemoteCommandOutput> {

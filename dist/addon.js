@@ -223,6 +223,7 @@ end
 
 function Precache(context)
   PrecacheUnitByNameSync("npc_dota_creep_badguys_melee", context)
+  PrecacheUnitByNameSync("npc_dota_hero_lina", context)
 end
 
 function Activate()
@@ -241,6 +242,13 @@ function DotaWorkshopMcpGameMode:InitGameMode()
 
   GameRules:SetCustomGameTeamMaxPlayers(DOTA_TEAM_GOODGUYS, 1)
   GameRules:SetCustomGameTeamMaxPlayers(DOTA_TEAM_BADGUYS, 0)
+  GameRules:EnableCustomGameSetupAutoLaunch(true)
+  GameRules:SetCustomGameSetupAutoLaunchDelay(0)
+  GameRules:LockCustomGameSetupTeamAssignment(true)
+  GameRules:SetHeroSelectionTime(0)
+  GameRules:SetStrategyTime(0)
+  GameRules:SetShowcaseTime(0)
+  GameRules:SetPreGameTime(0)
 
   ListenToGameEvent("game_rules_state_change", Dynamic_Wrap(DotaWorkshopMcpGameMode, "OnGameRulesStateChange"), self)
   ListenToGameEvent("entity_killed", Dynamic_Wrap(DotaWorkshopMcpGameMode, "OnEntityKilled"), self)
@@ -321,7 +329,7 @@ end
 `;
 }
 function heroList() {
-    return `"CustomHeroList"\n{\n}\n`;
+    return `"CustomHeroList"\n{\n  "npc_dota_hero_lina" "1"\n}\n`;
 }
 function heroData() {
     return `"DOTAHeroes"\n{\n}\n`;

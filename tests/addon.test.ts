@@ -81,6 +81,26 @@ describe("addon template", () => {
     expect(unitData).toContain("\"DOTAUnits\"");
   });
 
+  test("configures playable runtime to advance without manual hero selection", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      mapName: "dota"
+    });
+
+    const lua = await readFile(join(root, "game/dota_addons/demo_addon/scripts/vscripts/addon_game_mode.lua"), "utf8");
+    expect(lua).toContain("GameRules:EnableCustomGameSetupAutoLaunch(true)");
+    expect(lua).toContain("GameRules:SetCustomGameSetupAutoLaunchDelay(0)");
+    expect(lua).toContain("GameRules:LockCustomGameSetupTeamAssignment(true)");
+    expect(lua).toContain("GameRules:SetHeroSelectionTime(0)");
+    expect(lua).toContain("GameRules:SetStrategyTime(0)");
+    expect(lua).toContain("GameRules:SetShowcaseTime(0)");
+    expect(lua).toContain("GameRules:SetPreGameTime(0)");
+
+    const heroList = await readFile(join(root, "game/dota_addons/demo_addon/scripts/npc/herolist.txt"), "utf8");
+    expect(heroList).toContain("\"npc_dota_hero_lina\" \"1\"");
+  });
+
   test("can still create a marker-only minimal template", async () => {
     await createAddon({
       target: { kind: "fixture", root },

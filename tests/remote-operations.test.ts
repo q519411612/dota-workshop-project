@@ -303,6 +303,7 @@ describe("remote Windows operations", () => {
 
     expect(result.ok).toBe(true);
     expect(attemptedCommand).toContain("ForEach-Object { [string]$_ }");
+    expect(attemptedCommand).toContain("-Tail 2000");
     expect(result.logs[0].lines).toContain("[DOTA_WORKSHOP_MCP] addon loaded: demo_addon");
   });
 
@@ -333,6 +334,8 @@ describe("remote Windows operations", () => {
     expect(attemptedCommand).toContain("game/dota/console.log");
     expect(attemptedCommand).toContain("Get-ChildItem");
     expect(attemptedCommand).toContain("LastWriteTime");
+    expect(attemptedCommand).toContain("$tailLines = if ($file.FullName -eq $runtimeConsole) { 2000 } else { 200 }");
+    expect(attemptedCommand).toContain("-Tail $tailLines");
     expect(result.evidence).toContain("read remote log: C:/Steam/steamapps/common/dota 2 beta/game/dota/console.log");
   });
 
