@@ -100,7 +100,9 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
           addonName: parsed.addonName,
           mapName: parsed.mapName,
           launchMode: parsed.launchMode,
-          taskName: parsed.taskName
+          taskName: parsed.taskName,
+          runtimeMode: parsed.runtimeMode,
+          consoleLog: parsed.consoleLog
         });
       }
       return launchCustomGame(parsed);
@@ -114,7 +116,7 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
           logPaths: parsed.logPaths
         });
       }
-      return readConsoleOrLogs({ ...parsed, logPaths: parsed.logPaths ?? [] });
+      return readConsoleOrLogs(parsed);
     }
     case "validate_addon": {
       const parsed = ValidateAddonInputSchema.parse(input);
@@ -126,7 +128,7 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
           expectedMarker: parsed.expectedMarker
         });
       }
-      return validateAddon({ ...parsed, logPaths: parsed.logPaths ?? [] });
+      return validateAddon(parsed);
     }
     case "remote_command": {
       const parsed = RemoteCommandInputSchema.parse(input);

@@ -29,6 +29,18 @@ For direct custom game launch:
 <dota_root>/game/bin/win64/dota2.exe -novid -tools -addon <addon_name> +dota_launch_custom_game <addon_name> <map_name>
 ```
 
+For Lua runtime marker validation, use game runtime mode and console logging:
+
+```json
+{
+  "runtimeMode": "game",
+  "consoleLog": true
+}
+```
+
+That command omits `-tools`, launches `+dota_launch_custom_game`, and enables `game/dota/console.log` through `-condebug`.
+When `dotaRoot` is known and `logPaths` is omitted, use MCP log reading to inspect `game/dota/console.log` as the primary runtime evidence path.
+
 For console output:
 
 ```text
@@ -46,5 +58,11 @@ Process start is not enough. A successful validation result needs evidence such 
 - The generated Lua marker appears in logs or console output.
 - Workshop Tools emits a known addon-loaded signal.
 - A target-specific validation command reports the addon/map loaded successfully.
+
+For Dota runtime console logs, the marker may appear inside a prefixed line such as:
+
+```text
+[VScript] [DOTA_WORKSHOP_MCP] addon loaded: <addon_name>
+```
 
 Return a concise transcript with commands, relevant log lines, warnings, and classified errors.

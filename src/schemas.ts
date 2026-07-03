@@ -61,7 +61,9 @@ export const LaunchToolsInputSchema = z.object({
 });
 
 export const LaunchCustomGameInputSchema = LaunchToolsInputSchema.extend({
-  mapName: z.string().min(1)
+  mapName: z.string().min(1),
+  runtimeMode: z.enum(["tools", "game"]).optional(),
+  consoleLog: z.boolean().optional()
 });
 
 export const ReadLogsInputSchema = z.object({

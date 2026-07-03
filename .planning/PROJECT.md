@@ -21,10 +21,11 @@ AI can reliably create and validate a minimal runnable Dota 2 Workshop addon thr
 - [x] Support remote Windows through SSH or PowerShell Remoting with the same user-facing MCP tool interface.
 - [x] Generate a minimal runnable addon template with Lua gamemode files, required KV configuration, and a launchable entry point.
 - [x] Open or run the generated addon through Dota 2 Workshop Tools command construction and collect enough fixture logs or console output to verify the validation flow.
+- [x] Validate a generated addon's Lua `Activate()` marker from a readable Dota runtime console log on real Windows without storing private target data.
 
 ### Active
 
-(None - v1 MVP implementation is complete; real Windows smoke checks require target access.)
+(None - v1.1 runtime marker validation is complete.)
 
 ### Out of Scope
 
@@ -60,6 +61,7 @@ The skill and MCP server should have separate responsibilities. The skill teache
 | Use SSH or PowerShell Remoting for remote Windows | Command-oriented remote control is more reliable and easier to verify than UI-only automation | Implemented |
 | Keep one unified MCP tool interface | Prevents local and remote implementations from drifting into separate workflows | Implemented |
 | Start with a minimal runnable addon template | Validates Workshop Tools integration without mixing in gameplay design complexity | Implemented |
+| Separate Workshop Tools opening from game runtime validation | `-tools` opens the editor context, while Lua `Activate()` marker validation requires a non-tools custom game runtime launch with console logging | Implemented |
 
 ## Evolution
 
@@ -79,4 +81,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-03 after v1 MVP completion*
+*Last updated: 2026-07-03 after v1.1 runtime marker validation*

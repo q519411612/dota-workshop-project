@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { createAddon, inspectAddon, validateAddonName } from "../src/addon.js";
+import { createAddon, inspectAddon, validateAddonName, validateMapName } from "../src/addon.js";
 
 describe("addon template", () => {
   let root: string;
@@ -22,6 +22,14 @@ describe("addon template", () => {
     expect(validateAddonName("demo-addon").ok).toBe(false);
   });
 
+  test("validates Dota-safe map names", () => {
+    expect(validateMapName("dota").ok).toBe(true);
+    expect(validateMapName("overthrow/forest_solo").ok).toBe(true);
+    expect(validateMapName("../demo").ok).toBe(false);
+    expect(validateMapName("demo map").ok).toBe(false);
+    expect(validateMapName("demo;Start-Process").ok).toBe(false);
+  });
+
   test("creates the minimal game and content addon trees", async () => {
     const result = await createAddon({
       target: { kind: "fixture", root },
@@ -39,6 +47,17 @@ describe("addon template", () => {
 
     const addonInfo = await readFile(join(root, "game/dota_addons/demo_addon/addoninfo.txt"), "utf8");
     expect(addonInfo).toContain("\"DefaultMap\" \"demo_map\"");
+  });
+
+  test("refuses unsafe map names before writing addon metadata", async () => {
+    const result = await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      mapName: "demo map"
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_MAP_NAME");
   });
 
   test("refuses to overwrite existing addon roots by default", async () => {

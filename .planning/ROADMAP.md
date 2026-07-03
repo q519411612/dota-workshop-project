@@ -13,6 +13,7 @@
 | 2 | MCP Contract and Addon Template | Expose typed MCP tools and generate/inspect a minimal addon template in fixtures before touching a real Dota install. | MCP-01, MCP-02, MCP-03, MCP-04, ADDN-01, ADDN-02, ADDN-03, ADDN-04, ADDN-05, ADDN-06 | Complete |
 | 3 | Local Windows Workshop Validation | Discover a local Windows Dota install, launch Workshop Tools/custom game candidates, and validate with logs or console evidence. | ENV-01, ENV-02, ENV-03, ENV-04, LNCH-01, LNCH-03, LNCH-04, VALD-01, VALD-02, VALD-03, VALD-04 | Complete |
 | 4 | Remote Windows Target Support | Run the same MCP workflows against a remote Windows target through SSH or PowerShell Remoting. | REMT-01, REMT-02, REMT-03, REMT-04, LNCH-02 | Complete |
+| 5 | Runtime Marker Validation | Launch a generated addon in Dota game runtime mode and validate the Lua marker from readable console logs. | RTVL-01, RTVL-02, RTVL-03, RTVL-04, RTVL-05 | Complete |
 
 ## Phase Details
 
@@ -96,14 +97,36 @@
 - Remote validation should reuse the launch and log-reading concepts proven in the local Windows phase.
 - If no remote machine is available during implementation, this phase should still ship command adapter tests and a documented manual smoke checklist.
 
+### Phase 5: Runtime Marker Validation
+
+**Goal:** Launch a generated addon in Dota game runtime mode and validate the Lua marker from readable console logs.
+**Mode:** mvp
+
+**Requirements:** RTVL-01, RTVL-02, RTVL-03, RTVL-04, RTVL-05
+
+**Success Criteria**:
+
+1. `launch_custom_game` can request a game runtime launch without `-tools` while preserving Workshop Tools launch behavior.
+2. `launch_custom_game` can enable console logging with Dota's `-condebug` output.
+3. Local and remote validation can read Dota `game/dota/console.log` when present.
+4. Marker validation succeeds when the expected marker appears inside a console log line with Dota prefixes such as `[VScript]`.
+5. Real remote smoke evidence proves the generated addon reaches Lua `Activate()` and the marker appears in a readable log.
+
+**Notes:**
+
+- Real remote investigation showed `-tools` opens the addon/tooling context but does not provide sufficient evidence that Lua runtime executed.
+- Real remote investigation showed non-tools custom game launch with `-condebug` writes `game/dota/console.log`, including `[VScript] [DOTA_WORKSHOP_MCP] addon loaded: <addon>`.
+- Runtime validation must remain evidence-driven; process start or Workshop Tools asset cache writes are not enough.
+
 ## Coverage
 
 | Metric | Count |
 |--------|-------|
 | v1 requirements | 33 |
-| Mapped requirements | 33 |
+| v1.1 requirements | 5 |
+| Mapped requirements | 38 |
 | Unmapped requirements | 0 |
-| Phases | 4 |
+| Phases | 5 |
 
 ## Deferred Scope
 

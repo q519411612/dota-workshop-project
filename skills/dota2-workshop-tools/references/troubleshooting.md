@@ -28,6 +28,10 @@ Launch may start but custom game validation can fail if the requested map is abs
 
 Read logs or console output for syntax/runtime errors. Validation succeeds only when the expected marker or equivalent success evidence appears.
 
+### Runtime marker missing
+
+If Workshop Tools opens but the Lua marker is missing, distinguish editor launch from game runtime launch. For runtime marker validation, call `launch_custom_game` with `runtimeMode: "game"` and `consoleLog: true`, then read `game/dota/console.log`. A `-tools` launch can prove the addon opened in Workshop Tools without proving Lua `Activate()` executed.
+
 ### Remote execution failure
 
 Return the failed remote command, exit code, stdout, stderr, and target metadata. Do not run a local substitute command.

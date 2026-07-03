@@ -70,6 +70,16 @@
 - [x] **VALD-03**: Agent can classify common validation failures such as missing install root, invalid addon name, missing map, invalid metadata, launch failure, and Lua startup error.
 - [x] **VALD-04**: Agent can return a concise validation transcript that can be attached to later review or debugging.
 
+## v1.1 Requirements
+
+### Runtime Validation
+
+- [x] **RTVL-01**: Agent can request a custom game runtime launch separately from Workshop Tools editor launch.
+- [x] **RTVL-02**: Agent can enable Dota console logging for runtime validation through the MCP launch contract.
+- [x] **RTVL-03**: Agent can read the Dota runtime console log through local or remote log discovery.
+- [x] **RTVL-04**: Agent validates Lua marker success when the marker appears inside a console log line with engine prefixes such as `[VScript]`.
+- [x] **RTVL-05**: Agent preserves explicit failure behavior when the runtime marker is absent, Lua startup errors appear, or the remote launch cannot enter the interactive Windows session.
+
 ## v2 Requirements
 
 Deferred to future releases. Tracked but not in current roadmap.
@@ -155,10 +165,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VALD-02 | Phase 3 | Implemented |
 | VALD-03 | Phase 3 | Implemented |
 | VALD-04 | Phase 3 | Implemented |
+| RTVL-01 | Phase 5 | Implemented |
+| RTVL-02 | Phase 5 | Implemented |
+| RTVL-03 | Phase 5 | Implemented |
+| RTVL-04 | Phase 5 | Implemented |
+| RTVL-05 | Phase 5 | Implemented |
 
 **Coverage:**
 - v1 requirements: 33 total
-- Mapped to phases: 33
+- v1.1 requirements: 5 total
+- Mapped to phases: 38
 - Unmapped: 0
 
 ---

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { validateAddonName } from "./addon.js";
+import { validateAddonName, validateMapName } from "./addon.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
 const execFileAsync = promisify(execFile);
 export async function runRemoteCommand(input) {
@@ -114,10 +114,22 @@ export async function launchRemoteTools(input) {
     });
 }
 export async function launchRemoteCustomGame(input) {
+    const mapValidation = validateMapName(input.mapName);
+    if (!mapValidation.ok) {
+        return createFailureResult({
+            target: input.target,
+            operation: "launch_custom_game",
+            error: {
+                code: "INVALID_MAP_NAME",
+                message: mapValidation.error ?? "Invalid map name."
+            },
+            evidence: [`rejected map name: ${input.mapName}`]
+        });
+    }
     return launchRemoteDota({
         ...input,
         operation: "launch_custom_game",
-        args: ["-novid", "-tools", "-addon", input.addonName, "+dota_launch_custom_game", input.addonName, input.mapName]
+        args: remoteCustomGameArgs(input)
     });
 }
 export async function createRemoteAddon(input) {
@@ -276,7 +288,7 @@ export async function validateRemoteAddon(input) {
             logs: readResult.logs
         });
     }
-    if (lines.includes(marker)) {
+    if (lines.some((line) => line.includes(marker))) {
         return createSuccessResult({
             target: input.target,
             operation,
@@ -317,6 +329,17 @@ function quoteForPosixShell(value) {
 }
 function quoteForPowerShellSingleQuotedString(value) {
     return `'${value.replace(/'/g, "''")}'`;
+}
+function remoteCustomGameArgs(input) {
+    const args = ["-novid"];
+    if ((input.runtimeMode ?? "tools") === "tools") {
+        args.push("-tools");
+    }
+    args.push("-addon", input.addonName, "+dota_launch_custom_game", input.addonName, input.mapName);
+    if (input.consoleLog) {
+        args.push("-console", "-condebug");
+    }
+    return args;
 }
 async function launchRemoteDota(input) {
     const nameValidation = validateAddonName(input.addonName);
@@ -404,6 +427,20 @@ function validateRemoteAddonInput(input, operation) {
             }
         });
     }
+    if (input.mapName) {
+        const mapValidation = validateMapName(input.mapName);
+        if (!mapValidation.ok) {
+            return createFailureResult({
+                target: input.target,
+                operation,
+                error: {
+                    code: "INVALID_MAP_NAME",
+                    message: mapValidation.error ?? "Invalid map name."
+                },
+                evidence: [`rejected map name: ${input.mapName}`]
+            });
+        }
+    }
     if (!input.target.dotaRoot) {
         return createFailureResult({
             target: input.target,
@@ -440,7 +477,7 @@ function remoteInteractiveLaunchScript(dotaRoot, addonName, taskName, argumentTe
     return `$ErrorActionPreference = 'Stop'; $taskName = ${quoteForPowerShellSingleQuotedString(taskName)}; $root = ${quoteForPowerShellSingleQuotedString(dotaRoot)}; $steamRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $root)); $steamExe = Join-Path $steamRoot 'steam.exe'; if (-not (Test-Path -LiteralPath $steamExe)) { throw "STEAM_EXE_MISSING:$steamExe" }; Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue; $registeredTask = $false; try { $action = New-ScheduledTaskAction -Execute $steamExe -Argument ${quoteForPowerShellSingleQuotedString(argumentText)}; $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5); $userId = ${quoteForPowerShellSingleQuotedString(userId)}; if ([string]::IsNullOrWhiteSpace($userId)) { $userId = $env:USERNAME }; $principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited; Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null; $registeredTask = $true; $launchStart = (Get-Date); Start-ScheduledTask -TaskName $taskName; $deadline = (Get-Date).AddSeconds(30); do { Start-Sleep -Seconds 2; $processes = @(Get-CimInstance Win32_Process -Filter "name = 'dota2.exe' or name = 'dota2cfg.exe' or name = 'vconsole2.exe'" | Where-Object { $_.CreationDate -ge $launchStart.AddSeconds(-2) -and $_.CommandLine -match ${quoteForPowerShellSingleQuotedString(`-addon\\s+${addonName}`)} } | Select-Object ProcessId, Name, CommandLine, SessionId, CreationDate) } until ($processes.Count -gt 0 -or (Get-Date) -gt $deadline); $info = Get-ScheduledTaskInfo -TaskName $taskName; if ($processes.Count -eq 0) { throw 'INTERACTIVE_LAUNCH_PROCESS_NOT_FOUND' }; @{ taskName = $taskName; steamExecutable = $steamExe; lastTaskResult = $info.LastTaskResult; processes = $processes } | ConvertTo-Json -Depth 5 -Compress } finally { if ($registeredTask) { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue } }`;
 }
 function remoteDiscoverRecentLogsScript(dotaRoot) {
-    return `$root = '${dotaRoot}'; $steamRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $root)); $candidateRoots = @((Join-Path $root 'game/dota'), (Join-Path $root 'game/bin/win64'), (Join-Path $steamRoot 'logs')) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }; $namePattern = 'console|vconsole|dota|workshop|stderr|stdout|webhelper|overlay|content|controller|duration'; $files = @(); foreach ($candidateRoot in $candidateRoots) { $files += Get-ChildItem -LiteralPath $candidateRoot -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-30) -and $_.Length -lt 20971520 -and ($_.Extension -eq '.log' -or $_.Name -match $namePattern) } }; $logs = @(); foreach ($file in ($files | Sort-Object LastWriteTime -Descending | Select-Object -First 10)) { $lines = @(Get-Content -LiteralPath $file.FullName -Tail 200 | ForEach-Object { [string]$_ }); $logs += @{ source = $file.FullName; lines = $lines } }; $logs | ConvertTo-Json -Compress`;
+    return `$root = ${quoteForPowerShellSingleQuotedString(dotaRoot)}; $steamRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $root)); $runtimeConsole = Join-Path $root 'game/dota/console.log'; $candidateRoots = @((Join-Path $root 'game/dota'), (Join-Path $root 'game/bin/win64'), (Join-Path $steamRoot 'logs')) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }; $namePattern = 'console|vconsole|dota|workshop|stderr|stdout|webhelper|overlay|content|controller|duration'; $files = @(); foreach ($candidateRoot in $candidateRoots) { $files += Get-ChildItem -LiteralPath $candidateRoot -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-30) -and $_.Length -lt 20971520 -and ($_.Extension -eq '.log' -or $_.Name -match $namePattern) } }; $ordered = @(); $recentLimit = 10; if (Test-Path -LiteralPath $runtimeConsole) { $ordered += Get-Item -LiteralPath $runtimeConsole; $recentLimit = 9 }; $ordered += $files | Where-Object { $_.FullName -ne $runtimeConsole } | Sort-Object LastWriteTime -Descending | Select-Object -First $recentLimit; $logs = @(); foreach ($file in $ordered) { $lines = @(Get-Content -LiteralPath $file.FullName -Tail 200 | ForEach-Object { [string]$_ }); $logs += @{ source = $file.FullName; lines = $lines } }; $logs | ConvertTo-Json -Compress`;
 }
 async function defaultExecutor(command) {
     try {

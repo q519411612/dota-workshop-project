@@ -31,6 +31,23 @@ export function validateAddonName(addonName: string): AddonNameValidation {
   return { ok: true };
 }
 
+export function validateMapName(mapName: string): AddonNameValidation {
+  if (
+    !/^[A-Za-z0-9_/-]{1,128}$/.test(mapName) ||
+    mapName.startsWith("/") ||
+    mapName.endsWith("/") ||
+    mapName.includes("//") ||
+    mapName.includes("..")
+  ) {
+    return {
+      ok: false,
+      error: "Map names must be 1-128 characters and contain only letters, digits, underscores, hyphens, and forward slashes."
+    };
+  }
+
+  return { ok: true };
+}
+
 export async function createAddon(input: CreateAddonInput): Promise<ToolResult> {
   const operation = "create_addon";
   const nameValidation = validateAddonName(input.addonName);
@@ -44,6 +61,20 @@ export async function createAddon(input: CreateAddonInput): Promise<ToolResult> 
         message: nameValidation.error ?? "Invalid addon name."
       },
       evidence: [`rejected addon name: ${input.addonName}`]
+    });
+  }
+
+  const mapName = input.mapName ?? "dota";
+  const mapValidation = validateMapName(mapName);
+  if (!mapValidation.ok) {
+    return createFailureResult({
+      target: input.target,
+      operation,
+      error: {
+        code: "INVALID_MAP_NAME",
+        message: mapValidation.error ?? "Invalid map name."
+      },
+      evidence: [`rejected map name: ${mapName}`]
     });
   }
 
@@ -80,7 +111,6 @@ export async function createAddon(input: CreateAddonInput): Promise<ToolResult> 
     await rm(paths.contentAddon, { recursive: true, force: true });
   }
 
-  const mapName = input.mapName ?? "dota";
   await writeMinimalAddon(paths, input.addonName, mapName);
 
   return createSuccessResult({

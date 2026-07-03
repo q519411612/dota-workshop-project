@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { validateAddonName } from "./addon.js";
+import { validateAddonName, validateMapName } from "./addon.js";
 import { validateInstallRoot } from "./environment.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
 import type { CommandEvidence, Target, ToolResult } from "./types.js";
@@ -24,12 +24,14 @@ export type LaunchToolsInput = {
 
 export type LaunchCustomGameInput = LaunchToolsInput & {
   mapName: string;
+  runtimeMode?: "tools" | "game";
+  consoleLog?: boolean;
 };
 
 export type ReadLogsInput = {
   target: Target;
   addonName: string;
-  logPaths: string[];
+  logPaths?: string[];
 };
 
 export type ValidateAddonInput = ReadLogsInput & {
@@ -45,10 +47,23 @@ export async function launchTools(input: LaunchToolsInput): Promise<ToolResult> 
 }
 
 export async function launchCustomGame(input: LaunchCustomGameInput): Promise<ToolResult> {
+  const mapValidation = validateMapName(input.mapName);
+  if (!mapValidation.ok) {
+    return createFailureResult({
+      target: input.target,
+      operation: "launch_custom_game",
+      error: {
+        code: "INVALID_MAP_NAME",
+        message: mapValidation.error ?? "Invalid map name."
+      },
+      evidence: [`rejected map name: ${input.mapName}`]
+    });
+  }
+
   return launchDota({
     ...input,
     operation: "launch_custom_game",
-    args: ["-novid", "-tools", "-addon", input.addonName, "+dota_launch_custom_game", input.addonName, input.mapName]
+    args: customGameArgs(input)
   });
 }
 
@@ -71,7 +86,11 @@ export async function readConsoleOrLogs(input: ReadLogsInput): Promise<ToolResul
   const evidence = [];
   const paths: Record<string, string> = {};
 
-  for (const [index, logPath] of input.logPaths.entries()) {
+  const logPaths = input.logPaths && input.logPaths.length > 0
+    ? input.logPaths
+    : defaultLogPaths(input.target);
+
+  for (const [index, logPath] of logPaths.entries()) {
     paths[`log${index}`] = logPath;
     try {
       const content = await readFile(logPath, "utf8");
@@ -131,7 +150,7 @@ export async function validateAddon(input: ValidateAddonInput): Promise<ToolResu
     });
   }
 
-  if (allLines.includes(marker)) {
+  if (allLines.some((line) => line.includes(marker))) {
     return createSuccessResult({
       target: input.target,
       operation,
@@ -158,6 +177,27 @@ type LaunchDotaInput = LaunchToolsInput & {
   operation: "launch_tools" | "launch_custom_game";
   args: string[];
 };
+
+function customGameArgs(input: LaunchCustomGameInput): string[] {
+  const args = ["-novid"];
+
+  if ((input.runtimeMode ?? "tools") === "tools") {
+    args.push("-tools");
+  }
+
+  args.push("-addon", input.addonName, "+dota_launch_custom_game", input.addonName, input.mapName);
+
+  if (input.consoleLog) {
+    args.push("-console", "-condebug");
+  }
+
+  return args;
+}
+
+function defaultLogPaths(target: Target): string[] {
+  const root = targetRoot(target);
+  return root ? [join(root, "game/dota/console.log")] : [];
+}
 
 async function launchDota(input: LaunchDotaInput): Promise<ToolResult> {
   const nameValidation = validateAddonName(input.addonName);

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { validateAddonName } from "./addon.js";
+import { validateAddonName, validateMapName } from "./addon.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
 import type { CommandEvidence, RemoteTarget, ToolResult } from "./types.js";
 
@@ -31,6 +31,8 @@ export type RemoteLaunchInput = RemoteEnvironmentInput & {
 
 export type RemoteCustomGameInput = RemoteLaunchInput & {
   mapName: string;
+  runtimeMode?: "tools" | "game";
+  consoleLog?: boolean;
 };
 
 export type RemoteAddonInput = RemoteEnvironmentInput & {
@@ -167,10 +169,23 @@ export async function launchRemoteTools(input: RemoteLaunchInput): Promise<ToolR
 }
 
 export async function launchRemoteCustomGame(input: RemoteCustomGameInput): Promise<ToolResult> {
+  const mapValidation = validateMapName(input.mapName);
+  if (!mapValidation.ok) {
+    return createFailureResult({
+      target: input.target,
+      operation: "launch_custom_game",
+      error: {
+        code: "INVALID_MAP_NAME",
+        message: mapValidation.error ?? "Invalid map name."
+      },
+      evidence: [`rejected map name: ${input.mapName}`]
+    });
+  }
+
   return launchRemoteDota({
     ...input,
     operation: "launch_custom_game",
-    args: ["-novid", "-tools", "-addon", input.addonName, "+dota_launch_custom_game", input.addonName, input.mapName]
+    args: remoteCustomGameArgs(input)
   });
 }
 
@@ -347,7 +362,7 @@ export async function validateRemoteAddon(input: RemoteLogsInput): Promise<ToolR
     });
   }
 
-  if (lines.includes(marker)) {
+  if (lines.some((line) => line.includes(marker))) {
     return createSuccessResult({
       target: input.target,
       operation,
@@ -405,6 +420,22 @@ type LaunchRemoteDotaInput = RemoteLaunchInput & {
   operation: "launch_tools" | "launch_custom_game";
   args: string[];
 };
+
+function remoteCustomGameArgs(input: RemoteCustomGameInput): string[] {
+  const args = ["-novid"];
+
+  if ((input.runtimeMode ?? "tools") === "tools") {
+    args.push("-tools");
+  }
+
+  args.push("-addon", input.addonName, "+dota_launch_custom_game", input.addonName, input.mapName);
+
+  if (input.consoleLog) {
+    args.push("-console", "-condebug");
+  }
+
+  return args;
+}
 
 async function launchRemoteDota(input: LaunchRemoteDotaInput): Promise<ToolResult> {
   const nameValidation = validateAddonName(input.addonName);
@@ -503,6 +534,21 @@ function validateRemoteAddonInput(input: RemoteAddonInput, operation: string): T
     });
   }
 
+  if (input.mapName) {
+    const mapValidation = validateMapName(input.mapName);
+    if (!mapValidation.ok) {
+      return createFailureResult({
+        target: input.target,
+        operation,
+        error: {
+          code: "INVALID_MAP_NAME",
+          message: mapValidation.error ?? "Invalid map name."
+        },
+        evidence: [`rejected map name: ${input.mapName}`]
+      });
+    }
+  }
+
   if (!input.target.dotaRoot) {
     return createFailureResult({
       target: input.target,
@@ -547,7 +593,7 @@ function remoteInteractiveLaunchScript(dotaRoot: string, addonName: string, task
 }
 
 function remoteDiscoverRecentLogsScript(dotaRoot: string): string {
-  return `$root = '${dotaRoot}'; $steamRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $root)); $candidateRoots = @((Join-Path $root 'game/dota'), (Join-Path $root 'game/bin/win64'), (Join-Path $steamRoot 'logs')) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }; $namePattern = 'console|vconsole|dota|workshop|stderr|stdout|webhelper|overlay|content|controller|duration'; $files = @(); foreach ($candidateRoot in $candidateRoots) { $files += Get-ChildItem -LiteralPath $candidateRoot -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-30) -and $_.Length -lt 20971520 -and ($_.Extension -eq '.log' -or $_.Name -match $namePattern) } }; $logs = @(); foreach ($file in ($files | Sort-Object LastWriteTime -Descending | Select-Object -First 10)) { $lines = @(Get-Content -LiteralPath $file.FullName -Tail 200 | ForEach-Object { [string]$_ }); $logs += @{ source = $file.FullName; lines = $lines } }; $logs | ConvertTo-Json -Compress`;
+  return `$root = ${quoteForPowerShellSingleQuotedString(dotaRoot)}; $steamRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $root)); $runtimeConsole = Join-Path $root 'game/dota/console.log'; $candidateRoots = @((Join-Path $root 'game/dota'), (Join-Path $root 'game/bin/win64'), (Join-Path $steamRoot 'logs')) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }; $namePattern = 'console|vconsole|dota|workshop|stderr|stdout|webhelper|overlay|content|controller|duration'; $files = @(); foreach ($candidateRoot in $candidateRoots) { $files += Get-ChildItem -LiteralPath $candidateRoot -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-30) -and $_.Length -lt 20971520 -and ($_.Extension -eq '.log' -or $_.Name -match $namePattern) } }; $ordered = @(); $recentLimit = 10; if (Test-Path -LiteralPath $runtimeConsole) { $ordered += Get-Item -LiteralPath $runtimeConsole; $recentLimit = 9 }; $ordered += $files | Where-Object { $_.FullName -ne $runtimeConsole } | Sort-Object LastWriteTime -Descending | Select-Object -First $recentLimit; $logs = @(); foreach ($file in $ordered) { $lines = @(Get-Content -LiteralPath $file.FullName -Tail 200 | ForEach-Object { [string]$_ }); $logs += @{ source = $file.FullName; lines = $lines } }; $logs | ConvertTo-Json -Compress`;
 }
 
 async function defaultExecutor(command: CommandEvidence): Promise<RemoteCommandOutput> {

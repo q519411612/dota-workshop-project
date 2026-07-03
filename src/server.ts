@@ -130,7 +130,9 @@ export function createServer(): McpServer {
         mapName: z.string().min(1),
         dryRun: z.boolean().optional(),
         launchMode: z.enum(["process", "interactiveTask"]).optional(),
-        taskName: z.string().min(1).optional()
+        taskName: z.string().min(1).optional(),
+        runtimeMode: z.enum(["tools", "game"]).optional(),
+        consoleLog: z.boolean().optional()
       }
     },
     async (input) => asToolContent(await handleTool("launch_custom_game", input))

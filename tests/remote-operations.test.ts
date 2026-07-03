@@ -115,6 +115,50 @@ describe("remote Windows operations", () => {
     expect(result.commands[0].command).toContain("'demo_map'");
   });
 
+  test("launches runtime custom game through remote command evidence", async () => {
+    const result = await launchRemoteCustomGame({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "powershell",
+        host: "dota.example.test",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      mapName: "dota",
+      runtimeMode: "game",
+      consoleLog: true,
+      executor: async () => ({
+        exitCode: 0,
+        stdout: "started",
+        stderr: ""
+      })
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.commands[0].command).not.toContain("'-tools'");
+    expect(result.commands[0].command).toContain("'-condebug'");
+    expect(result.commands[0].command).toContain("'+dota_launch_custom_game'");
+  });
+
+  test("rejects unsafe map names before remote launch command construction", async () => {
+    const result = await launchRemoteCustomGame({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "powershell",
+        host: "dota.example.test",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      mapName: "../demo"
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_MAP_NAME");
+    expect(result.commands).toHaveLength(0);
+  });
+
   test("launches custom game through an interactive remote task when requested", async () => {
     const result = await launchRemoteCustomGame({
       target: {
@@ -268,16 +312,18 @@ describe("remote Windows operations", () => {
         attemptedCommand = command.command;
         return {
           exitCode: 0,
-          stdout: JSON.stringify([{ source: "C:/Steam/logs/workshop.log", lines: ["Workshop Tools ready"] }]),
+          stdout: JSON.stringify([{ source: "C:/Steam/steamapps/common/dota 2 beta/game/dota/console.log", lines: ["Workshop Tools ready"] }]),
           stderr: ""
         };
       }
     } as Parameters<typeof readRemoteConsoleOrLogs>[0]);
 
     expect(result.ok).toBe(true);
+    expect(attemptedCommand).toContain("$runtimeConsole = Join-Path $root");
+    expect(attemptedCommand).toContain("game/dota/console.log");
     expect(attemptedCommand).toContain("Get-ChildItem");
     expect(attemptedCommand).toContain("LastWriteTime");
-    expect(result.evidence).toContain("read remote log: C:/Steam/logs/workshop.log");
+    expect(result.evidence).toContain("read remote log: C:/Steam/steamapps/common/dota 2 beta/game/dota/console.log");
   });
 
   test("validates remote addon only when marker is present", async () => {
@@ -294,6 +340,28 @@ describe("remote Windows operations", () => {
       executor: async () => ({
         exitCode: 0,
         stdout: JSON.stringify([{ source: "C:/Steam/logs/console.log", lines: ["[DOTA_WORKSHOP_MCP] addon loaded: demo_addon"] }]),
+        stderr: ""
+      })
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("found validation marker for demo_addon");
+  });
+
+  test("validates remote marker inside prefixed Dota console lines", async () => {
+    const result = await validateRemoteAddon({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "powershell",
+        host: "dota.example.test",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      logPaths: ["C:/Steam/steamapps/common/dota 2 beta/game/dota/console.log"],
+      executor: async () => ({
+        exitCode: 0,
+        stdout: JSON.stringify([{ source: "C:/Steam/steamapps/common/dota 2 beta/game/dota/console.log", lines: ["07/03 21:47:16 [VScript] [DOTA_WORKSHOP_MCP] addon loaded: demo_addon"] }]),
         stderr: ""
       })
     });
