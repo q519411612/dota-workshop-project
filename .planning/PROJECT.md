@@ -4,7 +4,7 @@
 
 Dota Workshop Project is a Codex plugin project for building Dota 2 custom games with AI assistance. It will package a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, and inspect a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The current focus is v2: extend the verified runtime marker loop into a minimal playable Dota 2 custom game prototype with gameplay markers, fixture-testable generation, and local/remote runtime validation through the same MCP contract.
+The current focus is v2.1 complete: the verified playable runtime smoke path is packaged into a repeatable MCP workflow that can generate, launch, validate, and report a playable addon smoke run without storing private target configuration.
 
 ## Core Value
 
@@ -26,10 +26,13 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 - [x] Preserve v1.1 runtime marker validation while adding gameplay marker validation.
 - [x] Keep local Windows and remote Windows behind the same MCP tool contract for playable addon generation, launch, log reading, and validation.
 - [x] Document the v2 API research evidence and mark unverified Dota APIs as pending real Windows runtime validation.
+- [x] Provide a repeatable playable smoke workflow that composes addon generation, inspection, runtime launch, gameplay marker validation, and concise transcript output through the unified MCP contract.
+- [x] Keep smoke target configuration runtime-only and avoid persisting private host, account, password, token, or Steam credential details in the repository.
+- [x] Document the workflow so a user can run a safe local or remote playable smoke without manually stitching every MCP operation together.
 
 ### Active
 
-(None - v2 Playable Gameplay Loop MVP implementation is complete; real Windows spawn smoke remains a follow-up validation item because no private target configuration is stored in the repository.)
+(None - v2.1 Repeatable Playable Smoke Workflow implementation is complete.)
 
 ### Out of Scope
 
@@ -67,6 +70,7 @@ The skill and MCP server should have separate responsibilities. The skill teache
 | Start with a minimal runnable addon template | Validates Workshop Tools integration without mixing in gameplay design complexity | Implemented |
 | Separate Workshop Tools opening from game runtime validation | `-tools` opens the editor context, while Lua `Activate()` marker validation requires a non-tools custom game runtime launch with console logging | Implemented |
 | Use a small Lua gameplay loop for v2 | Extends runtime evidence without importing large frameworks or UI automation | Implemented |
+| Add a repeatable playable smoke workflow for v2.1 | Real v2 smoke succeeded, but the validated path was too manual for reliable reuse | Implemented |
 
 ## Evolution
 
@@ -86,4 +90,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-03 after v2 playable gameplay loop implementation*
+*Last updated: 2026-07-04 after v2.1 repeatable playable smoke implementation*

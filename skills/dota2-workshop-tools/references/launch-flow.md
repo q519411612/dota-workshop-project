@@ -82,3 +82,14 @@ For the playable template, validate all required gameplay markers when the runti
 Remote log discovery reads a wider runtime console tail so early initialization markers and later score/win markers can be validated together in noisy Dota logs.
 
 Return a concise transcript with commands, relevant log lines, warnings, and classified errors.
+
+## Repeatable Playable Smoke
+
+Use `run_playable_smoke` for the standard v2 playable smoke path. It runs the same logical sequence as the manual flow:
+
+1. Create a playable addon.
+2. Inspect generated addon evidence.
+3. Launch `+dota_launch_custom_game <addon> dota` in game runtime mode with console logging.
+4. Validate all required gameplay markers.
+
+By default it generates a unique addon name, polls marker validation for a bounded window, leaves generated files on the target, and returns a transcript with the generated addon name, commands, paths, warnings, logs, and marker evidence. Pass an explicit `addonName` only for deterministic fixtures or intentional repeat runs.

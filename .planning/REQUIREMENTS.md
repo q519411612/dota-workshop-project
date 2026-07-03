@@ -108,6 +108,19 @@
 - [x] **DOC2-01**: README explains the v2 playable workflow from empty addon generation to marker validation.
 - [x] **DOC2-02**: Skill references explain the v2 playable template, runtime launch flow, gameplay markers, and troubleshooting path.
 
+## v2.1 Requirements
+
+### Repeatable Smoke Workflow
+
+- [x] **SMOK2-01**: Agent can run one MCP workflow that creates a uniquely named playable smoke addon without replacing existing addon roots unless explicit replacement is requested.
+- [x] **SMOK2-02**: Agent can inspect the generated smoke addon and include addon file evidence in the smoke transcript.
+- [x] **SMOK2-03**: Agent can launch the smoke addon in game runtime mode with console logging enabled and map `dota` by default.
+- [x] **SMOK2-04**: Agent can validate the required playable marker set from readable local or remote runtime console logs.
+- [x] **SMOK2-05**: Agent receives a concise transcript containing target metadata, smoke addon name, operation outcomes, commands, marker evidence, warnings, paths, and logs.
+- [x] **SMOK2-06**: Local and remote targets use the same MCP input contract for the repeatable smoke workflow.
+- [x] **SMOK2-07**: Agent can pass runtime-only target configuration without writing private host, account, password, token, Steam credential, or private target details into repository files.
+- [x] **SMOK2-08**: README and skill references explain how to run and troubleshoot the repeatable playable smoke workflow.
+
 ## Deferred v2.x Requirements
 
 Tracked but not in current roadmap.
@@ -212,14 +225,23 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MCP2-04 | Phase 6 | Implemented |
 | DOC2-01 | Phase 6 | Implemented |
 | DOC2-02 | Phase 6 | Implemented |
+| SMOK2-01 | Phase 7 | Implemented |
+| SMOK2-02 | Phase 7 | Implemented |
+| SMOK2-03 | Phase 7 | Implemented |
+| SMOK2-04 | Phase 7 | Implemented |
+| SMOK2-05 | Phase 7 | Implemented |
+| SMOK2-06 | Phase 7 | Implemented |
+| SMOK2-07 | Phase 7 | Implemented |
+| SMOK2-08 | Phase 7 | Implemented |
 
 **Coverage:**
 - v1 requirements: 33 total
 - v1.1 requirements: 5 total
 - v2 MVP requirements: 14 total
-- Mapped to phases: 52
+- v2.1 requirements: 8 total
+- Mapped to phases: 60
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-03*
-*Last updated: 2026-07-03 after v2 playable gameplay loop implementation*
+*Last updated: 2026-07-04 after v2.1 repeatable playable smoke implementation*

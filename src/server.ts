@@ -140,6 +140,29 @@ export function createServer(): McpServer {
   );
 
   server.registerTool(
+    "run_playable_smoke",
+    {
+      title: "Run Playable Smoke",
+      description: "Create, launch, and validate a minimal playable addon through runtime gameplay markers.",
+      inputSchema: {
+        ...targetInput,
+        addonName: z.string().min(1).optional(),
+        addonPrefix: z.string().min(1).optional(),
+        mapName: z.string().min(1).optional(),
+        expectedMarkers: z.array(z.string().min(1)).min(1).optional(),
+        replace: z.boolean().optional(),
+        dryRun: z.boolean().optional(),
+        launchMode: z.enum(["process", "interactiveTask"]).optional(),
+        taskName: z.string().min(1).optional(),
+        logPaths: z.array(z.string().min(1)).optional(),
+        validationTimeoutMs: z.number().int().min(0).optional(),
+        validationPollIntervalMs: z.number().int().min(0).optional()
+      }
+    },
+    async (input) => asToolContent(await handleTool("run_playable_smoke", input))
+  );
+
+  server.registerTool(
     "read_console_or_logs",
     {
       title: "Read Workshop Logs",

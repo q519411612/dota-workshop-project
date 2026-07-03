@@ -7,7 +7,7 @@
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v2 Playable Gameplay Loop MVP shipped and real Windows gameplay smoke passed; next milestone should choose the next v2.x gameplay/tooling slice
+**Current focus:** v2.1 Repeatable Playable Smoke Workflow complete; next milestone can choose custom map spawn points, richer gameplay objectives, generated unit/ability scaffolding, or safe smoke cleanup controls
 
 ## Current Roadmap
 
@@ -19,6 +19,7 @@ See: `.planning/PROJECT.md`
 | 4 | Remote Windows Target Support | Complete |
 | 5 | Runtime Marker Validation | Complete |
 | 6 | Playable Gameplay Loop MVP | Complete |
+| 7 | Repeatable Playable Smoke Workflow | Complete |
 
 ## Decisions In Effect
 
@@ -34,6 +35,8 @@ See: `.planning/PROJECT.md`
 | Runtime validation launches without `-tools` and enables `-condebug` | Remote v1.1 investigation |
 | v2 uses a small Lua `SetContextThink` gameplay loop instead of importing a framework | `.planning/research/GAMEPLAY_LOOP_API_NOTES.md` |
 | v2 stable template avoids `GameRules:SetCustomGameForceHero` because current runtime smoke rejected it | `.planning/phases/06-playable-gameplay-loop-mvp/06-REMOTE-SMOKE.md` |
+| v2.1 should compose existing MCP operations instead of creating a separate local or remote smoke contract | `.planning/ROADMAP.md` |
+| v2.1 does not automatically delete target files or stop broad process sets; smoke cleanup remains explicit and user-controlled | `.planning/phases/07-repeatable-playable-smoke-workflow/07-REVIEW.md` |
 
 ## Research Inputs
 
@@ -75,10 +78,15 @@ See: `.planning/PROJECT.md`
 - v2 smoke also verified the optional spawn marker for `npc_dota_creep_badguys_melee`, `SetContextThink` score ticks, and `GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)`.
 - v2 smoke found remote log validation needed a wider runtime console tail than 200 lines; the remote reader now uses a wider marker window.
 - v2 smoke found `GameRules:SetCustomGameForceHero("npc_dota_hero_lina")` causes a Lua runtime error in the tested runtime; it is documented as rejected and not used by the stable template.
+- v2.1 implementation added `run_playable_smoke`, default gameplay marker validation, bounded marker polling, compact transcripts, fixture/remote orchestration tests, and repeatable workflow documentation.
+- Real Windows v2.1 smoke passed on 2026-07-04 using a user-provided target over SSH without storing private target details or credentials in the repository.
+- v2.1 smoke generated `playable_smoke_20260703_214855162_4lmj`, launched it with remote `interactiveTask`, and validated addon loaded, gamemode initialized, round started, score updated, and win condition markers.
+- v2.1 smoke needed 13 validation retries before all gameplay markers appeared in `game/dota/console.log`; the compact transcript retained 4 command records.
+- A repeat smoke attempt while a previous smoke Dota process was still running produced `INTERACTIVE_LAUNCH_PROCESS_NOT_FOUND`; stopping only the known smoke process by addon command line allowed the current build smoke to pass.
 
 ## Next Action
 
-Open the next v2.x milestone decision: custom map spawn points, richer gameplay objectives, generated unit/ability scaffolding, or packaging the validated playable workflow for repeatable user smoke runs.
+Choose the next v2.x milestone: custom map spawn points, richer gameplay objectives, generated unit/ability scaffolding, or safe explicit smoke cleanup controls.
 
 ---
-*Last updated: 2026-07-04 after real Windows v2 gameplay smoke*
+*Last updated: 2026-07-04 after v2.1 repeatable playable smoke implementation*

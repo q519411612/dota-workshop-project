@@ -64,3 +64,17 @@ export const ValidateAddonInputSchema = ReadLogsInputSchema.extend({
     expectedMarker: z.string().min(1).optional(),
     expectedMarkers: z.array(z.string().min(1)).min(1).optional()
 });
+export const RunPlayableSmokeInputSchema = z.object({
+    target: TargetSchema,
+    addonName: z.string().min(1).optional(),
+    addonPrefix: z.string().min(1).optional(),
+    mapName: z.string().min(1).optional(),
+    expectedMarkers: z.array(z.string().min(1)).min(1).optional(),
+    replace: z.boolean().optional(),
+    dryRun: z.boolean().optional(),
+    launchMode: z.enum(["process", "interactiveTask"]).optional(),
+    taskName: z.string().min(1).optional(),
+    logPaths: z.array(z.string().min(1)).optional(),
+    validationTimeoutMs: z.number().int().min(0).optional(),
+    validationPollIntervalMs: z.number().int().min(0).optional()
+});

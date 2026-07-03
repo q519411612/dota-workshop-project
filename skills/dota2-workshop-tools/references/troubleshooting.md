@@ -38,9 +38,24 @@ If the addon marker appears but gameplay markers are missing, inspect the genera
 
 If only the target-spawn marker is missing, remember that the stock `dota` map spawn position and built-in spawn unit are candidate runtime details until a real Windows smoke run verifies them.
 
+### Repeatable smoke failed
+
+`run_playable_smoke` stops at the failed operation and returns the transcript gathered so far. Use `failed smoke operation` to decide the next diagnostic path:
+
+- `create_addon`: inspect addon name, target root, existing addon roots, and replacement intent.
+- `inspect_addon`: verify generated game/content addon paths and support files.
+- `launch_custom_game`: inspect launch command evidence, map name, runtime mode, console logging, and remote `interactiveTask` requirements.
+- `validate_addon`: inspect `game/dota/console.log`, Lua startup errors, and missing marker evidence.
+
+The workflow does not delete generated target files or stop Dota processes. Cleanup requires an explicit user-controlled action.
+
 ### Remote execution failure
 
 Return the failed remote command, exit code, stdout, stderr, and target metadata. Do not run a local substitute command.
+
+### Remote interactive launch process not found
+
+If remote `interactiveTask` launch fails with `INTERACTIVE_LAUNCH_PROCESS_NOT_FOUND`, check whether Dota is already running from a previous smoke. Steam may focus the existing process instead of creating a new process whose command line matches the requested addon. Stop only the known smoke process that matches the previous smoke addon command line, then rerun the workflow. Do not add automatic broad process cleanup without explicit user approval.
 
 ## Result Hygiene
 

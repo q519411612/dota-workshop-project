@@ -22,6 +22,7 @@ Remote Windows should use the same MCP operations as local Windows:
 - `link_addon`
 - `launch_tools`
 - `launch_custom_game`
+- `run_playable_smoke`
 - `read_console_or_logs`
 - `validate_addon`
 
@@ -38,6 +39,16 @@ When SSH or PowerShell Remoting starts commands outside the logged-in desktop se
 ```
 
 This mode uses a temporary Windows Scheduled Task with `LogonType Interactive` and launches Steam with `-applaunch 570` plus the requested Workshop Tools arguments. Treat it as an explicit mode, not a fallback from failed process launch.
+
+For repeatable playable smoke on remote Windows, pass the same target object to `run_playable_smoke` and include:
+
+```json
+{
+  "launchMode": "interactiveTask"
+}
+```
+
+The workflow still validates runtime markers from logs. A completed interactive launch task is not validation success by itself.
 
 ## Evidence Requirements
 

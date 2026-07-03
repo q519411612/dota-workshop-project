@@ -15,6 +15,7 @@
 | 4 | Remote Windows Target Support | Run the same MCP workflows against a remote Windows target through SSH or PowerShell Remoting. | REMT-01, REMT-02, REMT-03, REMT-04, LNCH-02 | Complete |
 | 5 | Runtime Marker Validation | Launch a generated addon in Dota game runtime mode and validate the Lua marker from readable console logs. | RTVL-01, RTVL-02, RTVL-03, RTVL-04, RTVL-05 | Complete |
 | 6 | Playable Gameplay Loop MVP | Generate a minimal playable Lua gameplay loop and validate gameplay markers through the existing runtime console log path. | API2-01, API2-02, API2-03, GAME2-01, GAME2-02, GAME2-03, GAME2-04, GAME2-05, MCP2-01, MCP2-02, MCP2-03, MCP2-04, DOC2-01, DOC2-02 | Complete |
+| 7 | Repeatable Playable Smoke Workflow | Package the verified playable runtime smoke path into one repeatable MCP workflow with safe transcript output. | SMOK2-01, SMOK2-02, SMOK2-03, SMOK2-04, SMOK2-05, SMOK2-06, SMOK2-07, SMOK2-08 | Complete |
 
 ## Phase Details
 
@@ -143,6 +144,28 @@
 - Real Windows runtime smoke on 2026-07-04 validated the required gameplay markers and optional built-in creep spawn marker on the stock `dota` map.
 - `GameRules:SetCustomGameForceHero` was rejected by current runtime smoke and is not part of the stable v2 template.
 
+### Phase 7: Repeatable Playable Smoke Workflow
+
+**Goal:** Package the verified playable runtime smoke path into one repeatable MCP workflow with safe transcript output.
+**Mode:** mvp
+
+**Requirements:** SMOK2-01, SMOK2-02, SMOK2-03, SMOK2-04, SMOK2-05, SMOK2-06, SMOK2-07, SMOK2-08
+
+**Success Criteria**:
+
+1. A single MCP operation can generate a unique playable smoke addon, inspect it, launch game runtime mode, and validate the required marker set.
+2. The workflow works through the same target schema for fixture, local, and remote targets, with remote launch options such as `interactiveTask` available when needed.
+3. The smoke transcript exposes operation outcomes, command evidence, paths, marker evidence, logs, warnings, and the generated addon name.
+4. Failure at any workflow operation stops the workflow with explicit evidence and does not report partial success as validation success.
+5. Documentation explains repeatable local and remote playable smoke usage without persisting private target or credential details.
+
+**Notes:**
+
+- Default addon names should be generated from a safe prefix plus timestamp-like uniqueness.
+- Default launch settings should be `runtimeMode: "game"`, `consoleLog: true`, `mapName: "dota"`, and required gameplay markers.
+- Cleanup of target files or processes is not automatic in this phase; destructive target cleanup requires an explicit future design.
+- Real Windows runtime smoke on 2026-07-04 validated `run_playable_smoke` with remote `interactiveTask`, marker polling, and a compact transcript after stopping a previous smoke Dota process by matching its smoke addon command line.
+
 ## Coverage
 
 | Metric | Count |
@@ -150,9 +173,10 @@
 | v1 requirements | 33 |
 | v1.1 requirements | 5 |
 | v2 MVP requirements | 14 |
-| Mapped requirements | 52 |
+| v2.1 requirements | 8 |
+| Mapped requirements | 60 |
 | Unmapped requirements | 0 |
-| Phases | 6 |
+| Phases | 7 |
 
 ## Deferred Scope
 
@@ -164,4 +188,4 @@
 - UI automation as a primary control strategy.
 
 ---
-*Roadmap updated: 2026-07-03 after v2 playable gameplay loop implementation*
+*Roadmap updated: 2026-07-04 after v2.1 repeatable playable smoke implementation*

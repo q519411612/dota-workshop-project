@@ -53,6 +53,7 @@ The server exposes these logical operations:
 - `inspect_addon`
 - `launch_tools`
 - `launch_custom_game`
+- `run_playable_smoke`
 - `read_console_or_logs`
 - `validate_addon`
 - `remote_command`
@@ -158,6 +159,37 @@ Example gameplay marker validation:
 
 Process startup alone is not validation success.
 
+## Repeatable Playable Smoke
+
+Use `run_playable_smoke` when you want the MCP server to run the verified v2 playable path as one workflow. It composes addon generation, inspection, game runtime launch, and gameplay marker validation.
+
+Default behavior:
+
+- Generates a unique addon name like `playable_smoke_<date>_<time>_<suffix>`.
+- Creates the default `playable` template.
+- Launches map `dota` with `"runtimeMode": "game"` and `"consoleLog": true`.
+- Validates addon loaded, gamemode initialized, round started, score updated, and win condition markers.
+- Polls marker validation for a bounded window because Dota runtime logs may appear after launch returns.
+- Leaves generated addon files on the target for inspection.
+
+Example:
+
+```json
+{
+  "target": {
+    "kind": "remote",
+    "name": "windows-lab",
+    "transport": "ssh",
+    "host": "windows.example.test",
+    "username": "builder",
+    "dotaRoot": "C:/Steam/steamapps/common/dota 2 beta"
+  },
+  "launchMode": "interactiveTask"
+}
+```
+
+For deterministic fixture tests or repeatable local checks, pass an explicit `addonName` and optional `logPaths`. Do not store real private hostnames, account names, passwords, tokens, private keys, Steam credentials, or target-specific secret configuration in repository files.
+
 ## Remote Windows Smoke Checklist
 
 Use SSH or PowerShell Remoting configured outside the repository.
@@ -169,3 +201,5 @@ Use SSH or PowerShell Remoting configured outside the repository.
 5. For runtime validation, call `launch_custom_game` with `"runtimeMode": "game"`, `"consoleLog": true`, and a launchable map such as `dota` for the generated playable template.
 6. Confirm command evidence includes stdout, stderr, exit code, and attempted command.
 7. If any remote command fails, fix remote configuration. The server does not fall back to local behavior.
+
+For the repeatable path, call `run_playable_smoke` with the same remote target and `"launchMode": "interactiveTask"`. If it fails, use the returned transcript to identify whether creation, inspection, launch, or marker validation failed, then fall back to the atomic tools above for diagnosis.
