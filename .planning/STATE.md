@@ -6,8 +6,8 @@
 
 See: `.planning/PROJECT.md`
 
-**Core value:** AI can reliably create and validate a minimal runnable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v1.1 Runtime Marker Validation complete and verified
+**Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
+**Current focus:** v2 Playable Gameplay Loop MVP complete; commit and push pending
 
 ## Current Roadmap
 
@@ -18,6 +18,7 @@ See: `.planning/PROJECT.md`
 | 3 | Local Windows Workshop Validation | Complete |
 | 4 | Remote Windows Target Support | Complete |
 | 5 | Runtime Marker Validation | Complete |
+| 6 | Playable Gameplay Loop MVP | Complete |
 
 ## Decisions In Effect
 
@@ -31,6 +32,7 @@ See: `.planning/PROJECT.md`
 | Start with a minimal runnable addon template | `.planning/PROJECT.md` |
 | Use Vertical MVP roadmap structure | Roadmap setup |
 | Runtime validation launches without `-tools` and enables `-condebug` | Remote v1.1 investigation |
+| v2 uses a small Lua `SetContextThink` gameplay loop instead of importing a framework | `.planning/research/GAMEPLAY_LOOP_API_NOTES.md` |
 
 ## Research Inputs
 
@@ -39,10 +41,12 @@ See: `.planning/PROJECT.md`
 - `.planning/research/ARCHITECTURE.md`
 - `.planning/research/PITFALLS.md`
 - `.planning/research/SUMMARY.md`
+- `.planning/research/DOTA2_WORKSHOP_API_V2.md`
+- `.planning/research/GAMEPLAY_LOOP_API_NOTES.md`
 
 ## Verification Notes
 
-- `npm test` passes with 37 tests.
+- `npm test` passed with 37 tests at v1.1 completion.
 - `npm run typecheck` passes.
 - `npm run build` passes and produces `dist/index.js`.
 - Plugin manifest validation passes.
@@ -63,10 +67,13 @@ See: `.planning/PROJECT.md`
 - v1.1 implementation adds explicit `runtimeMode: "game"` and `consoleLog: true` launch controls, local default reading of `game/dota/console.log`, remote discovery that prioritizes `game/dota/console.log`, and substring marker validation for Dota-prefixed console lines.
 - v1.1 independent review found that custom game map names needed the same explicit input validation discipline as addon names; implementation now rejects unsafe map names before addon metadata writes or launch command construction.
 - v1.1 verification passed `npm run typecheck`, `npm test`, and `npm run build` after fixture coverage increased to 37 tests.
+- v2 implementation added a playable Lua template, multiple-marker validation, remote template parity, README/skill guidance, and API research artifacts.
+- v2 verification passed `git diff --check`, `npm run typecheck`, `npm test` with 43 tests, `npm run build`, plugin validation, skill validation, and strict secret scan across tracked and untracked files.
+- Real Windows gameplay spawn smoke was not run in this repository session because no private target configuration or credentials are stored in the repository; candidate spawn details remain documented in `.planning/research/DOTA2_WORKSHOP_API_V2.md`.
 
 ## Next Action
 
-Keep future work in v2/deferred scope unless the roadmap is updated.
+Commit v2 Playable Gameplay Loop MVP and push to GitHub.
 
 ---
-*Last updated: 2026-07-03 after v1.1 runtime marker validation*
+*Last updated: 2026-07-03 after v2 playable gameplay loop implementation*

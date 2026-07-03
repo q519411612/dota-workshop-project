@@ -1,10 +1,10 @@
-# Minimal Addon Template
+# Minimal Playable Addon Template
 
-Use this reference when generating or reviewing the v1 smoke-test addon.
+Use this reference when generating or reviewing the default v2 playable addon. Use `template: "minimal"` only for the older marker-only smoke template.
 
 ## Goal
 
-Generate the smallest deterministic custom game addon that can prove the file layout, Lua entry point, metadata, and validation-marker flow.
+Generate the smallest deterministic custom game addon that can prove the file layout, Lua entry point, metadata, runtime marker flow, and a minimal gameplay loop.
 
 ## Files
 
@@ -16,25 +16,36 @@ game/dota_addons/<addon_name>/
   scripts/vscripts/addon_game_mode.lua
   scripts/npc/herolist.txt
   scripts/npc/npc_heroes_custom.txt
+  scripts/npc/npc_units_custom.txt
   resource/addon_<addon_name>_english.txt
 content/dota_addons/<addon_name>/
   maps/
 ```
 
-## Lua Marker
+## Lua Markers
 
-The generated `addon_game_mode.lua` should emit a stable marker that validation can search for:
+The generated `addon_game_mode.lua` should emit stable markers that validation can search for:
 
 ```lua
 print("[DOTA_WORKSHOP_MCP] addon loaded: <addon_name>")
+print("[DOTA_WORKSHOP_MCP] gamemode initialized: <addon_name>")
+print("[DOTA_WORKSHOP_MCP] round started: <addon_name>")
+print("[DOTA_WORKSHOP_MCP] score updated: <addon_name>")
+print("[DOTA_WORKSHOP_MCP] win condition reached: <addon_name>")
 ```
 
 Do not claim validation success until a log or console surface contains the marker or another expected target-specific success signal.
 
+## Gameplay Loop
+
+The playable template should define `Precache(context)` and `Activate()`. `Activate()` initializes a Lua game mode object, registers `game_rules_state_change` and `entity_killed`, starts a small `SetContextThink` loop, emits round/score/win markers, and calls `GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)` when the target score is reached.
+
+The spawn marker is useful additional evidence, but the current spawn position and built-in unit name remain candidates until real Windows runtime smoke verifies them on the stock `dota` map.
+
 ## Metadata
 
-`addoninfo.txt` format may vary between classic KeyValues and KV3-like output. For v1 fixture generation, use one deterministic compatibility format and keep the format choice explicit in the MCP result. When editing an existing addon, preserve the detected metadata format.
+`addoninfo.txt` format may vary between classic KeyValues and KV3-like output. For fixture generation, use one deterministic compatibility format and keep the format choice explicit in the MCP result. When editing an existing addon, preserve the detected metadata format.
 
 ## Boundaries
 
-Do not generate gameplay systems, custom abilities, React Panorama, TypeScript-to-Lua scaffolding, publishing scripts, or large starter kits for the v1 smoke template.
+Do not generate complex gameplay systems, custom abilities, React Panorama, TypeScript-to-Lua scaffolding, publishing scripts, or large starter kits for the playable MVP template.

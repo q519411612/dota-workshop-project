@@ -5,7 +5,7 @@ description: Use for Dota 2 Workshop Tools, Dota 2 custom game addons, addon tem
 
 # Dota 2 Workshop Tools
 
-Use this skill for Dota 2 custom game work. Keep v1 focused on plugin packaging, addon layout, minimal Lua/KV generation, Workshop Tools launch, log evidence, and local or remote Windows validation.
+Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, playable gameplay loop generation, Workshop Tools launch, log evidence, and local or remote Windows validation.
 
 ## Core Workflow
 
@@ -33,12 +33,13 @@ Use MCP tools when the request needs any of these operations:
 
 If MCP is unavailable, explain that target-control work cannot be performed deterministically. You may still edit repository files, write Lua/KV/Panorama source, or prepare a manual checklist, but do not claim Workshop validation.
 
-## v1 Boundaries
+## Supported Boundaries
 
-Supported in v1:
+Supported:
 
 - Minimal addon generation with `game/dota_addons/<addon>` and `content/dota_addons/<addon>`.
 - Lua gamemode entry point and startup validation marker.
+- Minimal playable Lua loop with gamemode initialization, round start, score update, and win-condition markers.
 - Addon metadata and minimal supporting KV files.
 - Local Windows target discovery and launch validation.
 - Remote Windows target execution through SSH or PowerShell Remoting.
@@ -49,7 +50,7 @@ Deferred:
 - TypeScript-to-Lua project templates.
 - React Panorama projects.
 - Excel-to-KV pipelines.
-- Ability, item, unit, hero, or gameplay generators beyond the minimal smoke template.
+- Ability, item, unit, hero, complex AI, or gameplay generators beyond the minimal playable loop.
 - Workshop publishing and encryption.
 - UI automation as the primary control path.
 
@@ -70,6 +71,8 @@ Expected v1 operations:
 - `validate_addon`
 
 Every result must make failures visible. Missing Dota paths, unsupported OS, invalid addon names, remote execution failures, missing maps, metadata errors, and Lua startup errors should return explicit errors with evidence.
+
+For v2 playable validation, call `validate_addon` with `expectedMarkers` when checking more than one gameplay marker. Validation should pass only when every requested marker appears in readable logs.
 
 ## Editing Rules
 

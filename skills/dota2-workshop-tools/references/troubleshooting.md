@@ -32,6 +32,12 @@ Read logs or console output for syntax/runtime errors. Validation succeeds only 
 
 If Workshop Tools opens but the Lua marker is missing, distinguish editor launch from game runtime launch. For runtime marker validation, call `launch_custom_game` with `runtimeMode: "game"` and `consoleLog: true`, then read `game/dota/console.log`. A `-tools` launch can prove the addon opened in Workshop Tools without proving Lua `Activate()` executed.
 
+### Gameplay marker missing
+
+If the addon marker appears but gameplay markers are missing, inspect the generated Lua for `SetContextThink`, `game_rules_state_change`, and the requested marker strings. Then read `game/dota/console.log` for Lua startup errors. Do not treat partial marker presence as success when `expectedMarkers` requested multiple markers.
+
+If only the target-spawn marker is missing, remember that the stock `dota` map spawn position and built-in spawn unit are candidate runtime details until a real Windows smoke run verifies them.
+
 ### Remote execution failure
 
 Return the failed remote command, exit code, stdout, stderr, and target metadata. Do not run a local substitute command.

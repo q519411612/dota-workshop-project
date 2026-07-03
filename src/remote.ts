@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { validateAddonName, validateMapName } from "./addon.js";
+import { renderAddonFiles, validateAddonName, validateMapName } from "./addon.js";
+import { expectedMarkerList, findLuaStartupError, markerFoundEvidence, missingMarkers } from "./markers.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
 import type { CommandEvidence, RemoteTarget, ToolResult } from "./types.js";
 
@@ -38,6 +39,7 @@ export type RemoteCustomGameInput = RemoteLaunchInput & {
 export type RemoteAddonInput = RemoteEnvironmentInput & {
   addonName: string;
   mapName?: string;
+  template?: "minimal" | "playable";
   replace?: boolean;
 };
 
@@ -45,6 +47,7 @@ export type RemoteLogsInput = RemoteEnvironmentInput & {
   addonName: string;
   logPaths?: string[];
   expectedMarker?: string;
+  expectedMarkers?: string[];
 };
 
 export async function runRemoteCommand(input: RemoteCommandInput): Promise<ToolResult> {
@@ -198,7 +201,13 @@ export async function createRemoteAddon(input: RemoteAddonInput): Promise<ToolRe
 
   const result = await runRemoteCommand({
     target: input.target,
-    command: remoteCreateAddonScript(input.target.dotaRoot!, input.addonName, input.mapName ?? "dota", input.replace ?? false),
+    command: remoteCreateAddonScript(
+      input.target.dotaRoot!,
+      input.addonName,
+      input.mapName ?? "dota",
+      input.template ?? "playable",
+      input.replace ?? false
+    ),
     executor: input.executor
   });
 
@@ -337,7 +346,7 @@ export async function readRemoteConsoleOrLogs(input: RemoteLogsInput): Promise<T
 
 export async function validateRemoteAddon(input: RemoteLogsInput): Promise<ToolResult> {
   const operation = "validate_addon";
-  const marker = input.expectedMarker ?? `[DOTA_WORKSHOP_MCP] addon loaded: ${input.addonName}`;
+  const markers = expectedMarkerList(input);
   const readResult = await readRemoteConsoleOrLogs(input);
 
   if (!readResult.ok) {
@@ -345,7 +354,7 @@ export async function validateRemoteAddon(input: RemoteLogsInput): Promise<ToolR
   }
 
   const lines = readResult.logs.flatMap((log) => log.lines);
-  const errorLine = lines.find((line) => /script runtime error|syntax error|lua/i.test(line) && /error/i.test(line));
+  const errorLine = findLuaStartupError(lines);
 
   if (errorLine) {
     return createFailureResult({
@@ -362,11 +371,12 @@ export async function validateRemoteAddon(input: RemoteLogsInput): Promise<ToolR
     });
   }
 
-  if (lines.some((line) => line.includes(marker))) {
+  const missing = missingMarkers(lines, markers);
+  if (missing.length === 0) {
     return createSuccessResult({
       target: input.target,
       operation,
-      evidence: [`found validation marker for ${input.addonName}`],
+      evidence: markerFoundEvidence(input.addonName, markers),
       paths: readResult.paths,
       commands: readResult.commands,
       logs: readResult.logs
@@ -380,7 +390,7 @@ export async function validateRemoteAddon(input: RemoteLogsInput): Promise<ToolR
       code: "VALIDATION_MARKER_NOT_FOUND",
       message: "Validation marker was not found in remote Workshop Tools logs."
     },
-    evidence: [`expected marker: ${marker}`],
+    evidence: missing.map((marker) => `missing marker: ${marker}`),
     paths: readResult.paths,
     commands: readResult.commands,
     logs: readResult.logs
@@ -568,15 +578,35 @@ function remoteDiscoveryScript(dotaRoot: string): string {
   return `$root = '${dotaRoot}'; $paths = @{ dotaExecutable = (Join-Path $root 'game/bin/win64/dota2.exe'); vconsoleExecutable = (Join-Path $root 'game/bin/win64/vconsole2.exe'); gameAddonsRoot = (Join-Path $root 'game/dota_addons'); contentAddonsRoot = (Join-Path $root 'content/dota_addons') }; $missing = @(); foreach ($key in $paths.Keys) { if (-not (Test-Path -LiteralPath $paths[$key])) { $missing += $key } }; @{ dotaRoot = $root; paths = $paths; missing = $missing } | ConvertTo-Json -Compress`;
 }
 
-function remoteCreateAddonScript(dotaRoot: string, addonName: string, mapName: string, replace: boolean): string {
+function remoteCreateAddonScript(
+  dotaRoot: string,
+  addonName: string,
+  mapName: string,
+  template: "minimal" | "playable",
+  replace: boolean
+): string {
   const gameAddon = `${dotaRoot}/game/dota_addons/${addonName}`;
   const contentAddon = `${dotaRoot}/content/dota_addons/${addonName}`;
-  const marker = `[DOTA_WORKSHOP_MCP] addon loaded: ${addonName}`;
+  const files = renderAddonFiles(addonName, mapName, template);
   const replaceScript = replace
-    ? `Remove-Item -LiteralPath '${gameAddon}', '${contentAddon}' -Recurse -Force -ErrorAction SilentlyContinue;`
-    : `if ((Test-Path -LiteralPath '${gameAddon}') -or (Test-Path -LiteralPath '${contentAddon}')) { throw 'ADDON_ALREADY_EXISTS' };`;
+    ? `Remove-Item -LiteralPath ${quoteForPowerShellSingleQuotedString(gameAddon)}, ${quoteForPowerShellSingleQuotedString(contentAddon)} -Recurse -Force -ErrorAction SilentlyContinue;`
+    : `if ((Test-Path -LiteralPath ${quoteForPowerShellSingleQuotedString(gameAddon)}) -or (Test-Path -LiteralPath ${quoteForPowerShellSingleQuotedString(contentAddon)})) { throw 'ADDON_ALREADY_EXISTS' };`;
+  const directories = [
+    `${gameAddon}/scripts/vscripts`,
+    `${gameAddon}/scripts/npc`,
+    `${gameAddon}/resource`,
+    `${contentAddon}/maps`
+  ].map(quoteForPowerShellSingleQuotedString).join(", ");
+  const writes = [
+    [`${gameAddon}/addoninfo.txt`, files.addonInfo],
+    [`${gameAddon}/scripts/vscripts/addon_game_mode.lua`, files.luaEntry],
+    [`${gameAddon}/scripts/npc/herolist.txt`, files.heroList],
+    [`${gameAddon}/scripts/npc/npc_heroes_custom.txt`, files.heroData],
+    [`${gameAddon}/scripts/npc/npc_units_custom.txt`, files.unitData],
+    [`${gameAddon}/resource/addon_${addonName}_english.txt`, files.localization]
+  ].map(([path, value]) => `Set-Content -LiteralPath ${quoteForPowerShellSingleQuotedString(path)} -Value ${quoteForPowerShellSingleQuotedString(value)}`).join("; ");
 
-  return `${replaceScript} New-Item -ItemType Directory -Force -Path '${gameAddon}/scripts/vscripts', '${gameAddon}/scripts/npc', '${gameAddon}/resource', '${contentAddon}/maps' | Out-Null; Set-Content -LiteralPath '${gameAddon}/addoninfo.txt' -Value '"AddonInfo"\n{\n  "AddonName" "${addonName}"\n  "IsPlayable" "1"\n  "DefaultMap" "${mapName}"\n  "maps" "${mapName}"\n}'; Set-Content -LiteralPath '${gameAddon}/scripts/vscripts/addon_game_mode.lua' -Value 'function Precache(context)\nend\n\nfunction Activate()\n  print("${marker}")\nend\n'; Set-Content -LiteralPath '${gameAddon}/scripts/npc/herolist.txt' -Value '"CustomHeroList"\n{\n}'; Set-Content -LiteralPath '${gameAddon}/scripts/npc/npc_heroes_custom.txt' -Value '"DOTAHeroes"\n{\n}'; Set-Content -LiteralPath '${gameAddon}/resource/addon_${addonName}_english.txt' -Value '"lang"\n{\n  "Language" "english"\n  "Tokens"\n  {\n    "addon_game_name" "${addonName}"\n  }\n}'`;
+  return `${replaceScript} New-Item -ItemType Directory -Force -Path ${directories} | Out-Null; ${writes}`;
 }
 
 function remoteInspectAddonScript(dotaRoot: string, addonName: string): string {

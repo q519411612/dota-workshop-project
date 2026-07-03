@@ -65,4 +65,18 @@ For Dota runtime console logs, the marker may appear inside a prefixed line such
 [VScript] [DOTA_WORKSHOP_MCP] addon loaded: <addon_name>
 ```
 
+For the playable template, validate all required gameplay markers when the runtime has had time to tick:
+
+```json
+{
+  "expectedMarkers": [
+    "[DOTA_WORKSHOP_MCP] addon loaded: <addon_name>",
+    "[DOTA_WORKSHOP_MCP] gamemode initialized: <addon_name>",
+    "[DOTA_WORKSHOP_MCP] round started: <addon_name>",
+    "[DOTA_WORKSHOP_MCP] score updated: <addon_name>",
+    "[DOTA_WORKSHOP_MCP] win condition reached: <addon_name>"
+  ]
+}
+```
+
 Return a concise transcript with commands, relevant log lines, warnings, and classified errors.

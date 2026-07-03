@@ -65,6 +65,7 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
           target: parsed.target,
           addonName: parsed.addonName,
           mapName: parsed.mapName,
+          template: parsed.template,
           replace: parsed.replace
         });
       }
@@ -125,7 +126,8 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
           target: parsed.target,
           addonName: parsed.addonName,
           logPaths: parsed.logPaths,
-          expectedMarker: parsed.expectedMarker
+          expectedMarker: parsed.expectedMarker,
+          expectedMarkers: parsed.expectedMarkers
         });
       }
       return validateAddon(parsed);

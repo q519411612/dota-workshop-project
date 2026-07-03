@@ -7,6 +7,13 @@ import { launchCustomGame, launchTools, readConsoleOrLogs, validateAddon } from 
 
 describe("local Windows validation flow", () => {
   let root: string;
+  const gameplayMarkers = [
+    "[DOTA_WORKSHOP_MCP] addon loaded: demo_addon",
+    "[DOTA_WORKSHOP_MCP] gamemode initialized: demo_addon",
+    "[DOTA_WORKSHOP_MCP] round started: demo_addon",
+    "[DOTA_WORKSHOP_MCP] score updated: demo_addon",
+    "[DOTA_WORKSHOP_MCP] win condition reached: demo_addon"
+  ];
 
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "dota-local-"));
@@ -158,5 +165,38 @@ describe("local Windows validation flow", () => {
 
     expect(validation.ok).toBe(false);
     expect(validation.error?.code).toBe("VALIDATION_MARKER_NOT_FOUND");
+  });
+
+  test("validates all requested gameplay markers", async () => {
+    const logPath = join(root, "console.log");
+    await writeFile(logPath, gameplayMarkers.map((marker) => `[VScript] ${marker}`).join("\n"));
+
+    const validation = await validateAddon({
+      target: { kind: "local", dotaRoot: root },
+      addonName: "demo_addon",
+      logPaths: [logPath],
+      expectedMarkers: gameplayMarkers
+    });
+
+    expect(validation.ok).toBe(true);
+    for (const marker of gameplayMarkers) {
+      expect(validation.evidence).toContain(`found validation marker: ${marker}`);
+    }
+  });
+
+  test("fails when any requested gameplay marker is missing", async () => {
+    const logPath = join(root, "console.log");
+    await writeFile(logPath, gameplayMarkers.slice(0, -1).join("\n"));
+
+    const validation = await validateAddon({
+      target: { kind: "local", dotaRoot: root },
+      addonName: "demo_addon",
+      logPaths: [logPath],
+      expectedMarkers: gameplayMarkers
+    });
+
+    expect(validation.ok).toBe(false);
+    expect(validation.error?.code).toBe("VALIDATION_MARKER_NOT_FOUND");
+    expect(validation.evidence).toContain("missing marker: [DOTA_WORKSHOP_MCP] win condition reached: demo_addon");
   });
 });

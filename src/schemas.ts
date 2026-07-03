@@ -29,6 +29,7 @@ export const CreateAddonInputSchema = z.object({
   target: TargetSchema,
   addonName: z.string().min(1),
   mapName: z.string().min(1).optional(),
+  template: z.enum(["minimal", "playable"]).optional(),
   replace: z.boolean().optional()
 });
 
@@ -73,7 +74,8 @@ export const ReadLogsInputSchema = z.object({
 });
 
 export const ValidateAddonInputSchema = ReadLogsInputSchema.extend({
-  expectedMarker: z.string().min(1).optional()
+  expectedMarker: z.string().min(1).optional(),
+  expectedMarkers: z.array(z.string().min(1)).min(1).optional()
 });
 
 export type CreateAddonToolInput = z.infer<typeof CreateAddonInputSchema>;

@@ -8,7 +8,7 @@ Plugin and MCP server for AI-assisted Dota 2 Workshop Tools custom game workflow
 - `skills/dota2-workshop-tools/` skill and references.
 - TypeScript MCP server in `src/`.
 - Built stdio server output in `dist/`.
-- Minimal Dota 2 addon generator and inspector.
+- Minimal playable Dota 2 addon generator and inspector.
 - Local Windows discovery, launch command, log reading, and validation helpers.
 - Remote Windows command support through SSH or PowerShell Remoting.
 
@@ -94,7 +94,7 @@ Remote Windows target:
 
 Do not store real credentials, tokens, private keys, Steam credentials, or private host data in the repository.
 
-## Minimal Addon
+## Playable Addon
 
 `create_addon` generates:
 
@@ -104,16 +104,25 @@ game/dota_addons/<addon_name>/
   scripts/vscripts/addon_game_mode.lua
   scripts/npc/herolist.txt
   scripts/npc/npc_heroes_custom.txt
+  scripts/npc/npc_units_custom.txt
   resource/addon_<addon_name>_english.txt
 content/dota_addons/<addon_name>/
   maps/
 ```
 
-The Lua entry point emits:
+By default, the generated template is `playable`. It keeps the v1.1 runtime marker and adds a small Lua gameplay loop with GameRules initialization, round start, score updates, and a win condition.
+
+The Lua entry point emits markers such as:
 
 ```text
 [DOTA_WORKSHOP_MCP] addon loaded: <addon_name>
+[DOTA_WORKSHOP_MCP] gamemode initialized: <addon_name>
+[DOTA_WORKSHOP_MCP] round started: <addon_name>
+[DOTA_WORKSHOP_MCP] score updated: <addon_name>
+[DOTA_WORKSHOP_MCP] win condition reached: <addon_name>
 ```
+
+Use `"template": "minimal"` only when you need the old marker-only smoke template.
 
 `validate_addon` only succeeds when expected log or console evidence is present.
 Map names are restricted to Dota map path characters: letters, digits, underscores, hyphens, and forward slashes.
@@ -131,7 +140,21 @@ Use a real Windows machine with Dota 2 Workshop Tools installed.
    For Lua runtime marker validation, pass `"runtimeMode": "game"` and `"consoleLog": true`; this omits `-tools` and enables Dota `game/dota/console.log`.
 6. Call `read_console_or_logs` with the relevant Workshop Tools log path.
    On local targets, `logPaths` may be omitted when `dotaRoot` is set and `game/dota/console.log` is the desired runtime log. On remote Windows targets, `logPaths` may be omitted when `dotaRoot` is set; the MCP server prioritizes `game/dota/console.log` and then inspects recent Dota, Workshop, and Steam log candidates.
-7. Call `validate_addon` and require the expected marker or equivalent log evidence.
+7. Call `validate_addon` and require the expected marker or gameplay marker list.
+
+Example gameplay marker validation:
+
+```json
+{
+  "expectedMarkers": [
+    "[DOTA_WORKSHOP_MCP] addon loaded: demo_addon",
+    "[DOTA_WORKSHOP_MCP] gamemode initialized: demo_addon",
+    "[DOTA_WORKSHOP_MCP] round started: demo_addon",
+    "[DOTA_WORKSHOP_MCP] score updated: demo_addon",
+    "[DOTA_WORKSHOP_MCP] win condition reached: demo_addon"
+  ]
+}
+```
 
 Process startup alone is not validation success.
 
@@ -143,6 +166,6 @@ Use SSH or PowerShell Remoting configured outside the repository.
 2. Call `discover_environment` with the remote target and `dotaRoot`.
 3. Call `create_addon`, `inspect_addon`, `launch_tools`, and `launch_custom_game` through the same logical MCP tools.
 4. Use `"launchMode": "interactiveTask"` when the remote transport is a service session and Workshop Tools must appear in the logged-in desktop session.
-5. For runtime validation, call `launch_custom_game` with `"runtimeMode": "game"`, `"consoleLog": true`, and a launchable map such as `dota` for the minimal generated template.
+5. For runtime validation, call `launch_custom_game` with `"runtimeMode": "game"`, `"consoleLog": true`, and a launchable map such as `dota` for the generated playable template.
 6. Confirm command evidence includes stdout, stderr, exit code, and attempted command.
 7. If any remote command fails, fix remote configuration. The server does not fall back to local behavior.

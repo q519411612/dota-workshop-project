@@ -4,11 +4,11 @@
 
 Dota Workshop Project is a Codex plugin project for building Dota 2 custom games with AI assistance. It will package a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, and inspect a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The initial focus is a thin vertical slice: create a minimal runnable addon template on Windows, open it in Dota 2 Workshop Tools, run it, and read enough console or log feedback to know whether the loop worked.
+The current focus is v2: extend the verified runtime marker loop into a minimal playable Dota 2 custom game prototype with gameplay markers, fixture-testable generation, and local/remote runtime validation through the same MCP contract.
 
 ## Core Value
 
-AI can reliably create and validate a minimal runnable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
+AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
 
 ## Requirements
 
@@ -22,14 +22,18 @@ AI can reliably create and validate a minimal runnable Dota 2 Workshop addon thr
 - [x] Generate a minimal runnable addon template with Lua gamemode files, required KV configuration, and a launchable entry point.
 - [x] Open or run the generated addon through Dota 2 Workshop Tools command construction and collect enough fixture logs or console output to verify the validation flow.
 - [x] Validate a generated addon's Lua `Activate()` marker from a readable Dota runtime console log on real Windows without storing private target data.
+- [x] Generate a minimal playable gameplay loop with Lua gamemode initialization, round start, score update, and win-condition markers.
+- [x] Preserve v1.1 runtime marker validation while adding gameplay marker validation.
+- [x] Keep local Windows and remote Windows behind the same MCP tool contract for playable addon generation, launch, log reading, and validation.
+- [x] Document the v2 API research evidence and mark unverified Dota APIs as pending real Windows runtime validation.
 
 ### Active
 
-(None - v1.1 runtime marker validation is complete.)
+(None - v2 Playable Gameplay Loop MVP implementation is complete; real Windows spawn smoke remains a follow-up validation item because no private target configuration is stored in the repository.)
 
 ### Out of Scope
 
-- Full gameplay generation beyond the minimal runnable template - keep v1 focused on proving the tooling loop.
+- Full gameplay generation beyond the minimal playable loop - keep v2 focused on proving the gameplay validation loop.
 - Fragile UI-only automation as the primary path - prefer command, file, and process control before desktop automation.
 - A complete Dota 2 modding knowledge base - keep detailed references progressively loaded through the skill.
 - Global installation as the primary project layout - build a plugin project first, then install or share it after validation.
@@ -62,6 +66,7 @@ The skill and MCP server should have separate responsibilities. The skill teache
 | Keep one unified MCP tool interface | Prevents local and remote implementations from drifting into separate workflows | Implemented |
 | Start with a minimal runnable addon template | Validates Workshop Tools integration without mixing in gameplay design complexity | Implemented |
 | Separate Workshop Tools opening from game runtime validation | `-tools` opens the editor context, while Lua `Activate()` marker validation requires a non-tools custom game runtime launch with console logging | Implemented |
+| Use a small Lua gameplay loop for v2 | Extends runtime evidence without importing large frameworks or UI automation | Implemented |
 
 ## Evolution
 
@@ -81,4 +86,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-03 after v1.1 runtime marker validation*
+*Last updated: 2026-07-03 after v2 playable gameplay loop implementation*

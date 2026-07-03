@@ -1,7 +1,7 @@
 # Requirements: Dota Workshop Project
 
 **Defined:** 2026-07-03
-**Core Value:** AI can reliably create and validate a minimal runnable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
+**Core Value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
 
 ## User Stories
 
@@ -82,27 +82,55 @@
 
 ## v2 Requirements
 
-Deferred to future releases. Tracked but not in current roadmap.
+### Research
+
+- [x] **API2-01**: Agent records v2 Dota 2 Workshop Tools and Custom Game API research under `.planning/research/`.
+- [x] **API2-02**: Agent marks inaccessible, community-sourced, candidate, and real-runtime-verified API evidence separately.
+- [x] **API2-03**: Agent identifies which v2 gameplay APIs can be validated on the `dota` map and which require a later custom map.
 
 ### Gameplay
 
-- **GAME-01**: Agent can generate a basic gameplay loop with spawn logic, scoring, win/loss conditions, and simple UI.
-- **GAME-02**: Agent can generate custom abilities, items, units, and heroes.
+- [x] **GAME2-01**: Agent can generate a minimal playable gameplay loop with Lua gamemode initialization.
+- [x] **GAME2-02**: Agent can generate round-start, score-update, and win-condition logic.
+- [x] **GAME2-03**: Agent preserves the v1.1 addon runtime marker and adds gameplay runtime markers.
+- [x] **GAME2-04**: Agent generates the addon metadata and supporting KV files needed by the minimal playable loop.
+- [x] **GAME2-05**: Agent keeps complex AI, custom ability/item/hero generators, and full gameplay frameworks out of v2 MVP.
+
+### MCP Interface
+
+- [x] **MCP2-01**: `create_addon` can generate the playable template without splitting local and remote target contracts.
+- [x] **MCP2-02**: `inspect_addon` reports generated gameplay marker and support-file evidence.
+- [x] **MCP2-03**: `validate_addon` can validate multiple expected runtime markers.
+- [x] **MCP2-04**: Local and remote targets continue to return structured results with evidence, warnings, paths, commands, and logs.
+
+### Documentation
+
+- [x] **DOC2-01**: README explains the v2 playable workflow from empty addon generation to marker validation.
+- [x] **DOC2-02**: Skill references explain the v2 playable template, runtime launch flow, gameplay markers, and troubleshooting path.
+
+## Deferred v2.x Requirements
+
+Tracked but not in current roadmap.
+
+### Gameplay
+
+- **GAME-X01**: Agent can generate custom abilities, items, units, and heroes.
+- **GAME-X02**: Agent can generate complex AI or a full gameplay framework.
 
 ### Panorama
 
-- **PANO-01**: Agent can generate simple Panorama UI using XML, JavaScript, and CSS.
-- **PANO-02**: Agent can support React Panorama projects.
+- **PANO-X01**: Agent can generate simple Panorama UI using XML, JavaScript, and CSS.
+- **PANO-X02**: Agent can support React Panorama projects.
 
 ### Toolchain
 
-- **TOOL-01**: Agent can support TypeScript-to-Lua project templates.
-- **TOOL-02**: Agent can support Excel-to-KV generation workflows.
-- **TOOL-03**: Agent can support publish and encryption workflows for Workshop release.
+- **TOOL-X01**: Agent can support TypeScript-to-Lua project templates.
+- **TOOL-X02**: Agent can support Excel-to-KV generation workflows.
+- **TOOL-X03**: Agent can support publish and encryption workflows for Workshop release.
 
 ### Automation
 
-- **AUTO-01**: Agent can use UI automation for Workshop Tools operations that have no deterministic command or file-based path.
+- **AUTO-X01**: Agent can use UI automation for Workshop Tools operations that have no deterministic command or file-based path.
 
 ## Out of Scope
 
@@ -170,13 +198,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RTVL-03 | Phase 5 | Implemented |
 | RTVL-04 | Phase 5 | Implemented |
 | RTVL-05 | Phase 5 | Implemented |
+| API2-01 | Phase 6 | Implemented |
+| API2-02 | Phase 6 | Implemented |
+| API2-03 | Phase 6 | Implemented |
+| GAME2-01 | Phase 6 | Implemented |
+| GAME2-02 | Phase 6 | Implemented |
+| GAME2-03 | Phase 6 | Implemented |
+| GAME2-04 | Phase 6 | Implemented |
+| GAME2-05 | Phase 6 | Implemented |
+| MCP2-01 | Phase 6 | Implemented |
+| MCP2-02 | Phase 6 | Implemented |
+| MCP2-03 | Phase 6 | Implemented |
+| MCP2-04 | Phase 6 | Implemented |
+| DOC2-01 | Phase 6 | Implemented |
+| DOC2-02 | Phase 6 | Implemented |
 
 **Coverage:**
 - v1 requirements: 33 total
 - v1.1 requirements: 5 total
-- Mapped to phases: 38
+- v2 MVP requirements: 14 total
+- Mapped to phases: 52
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-03*
-*Last updated: 2026-07-03 after roadmap traceability update*
+*Last updated: 2026-07-03 after v2 playable gameplay loop implementation*

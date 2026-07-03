@@ -58,12 +58,13 @@ export function createServer(): McpServer {
   server.registerTool(
     "create_addon",
     {
-      title: "Create Minimal Addon",
-      description: "Generate a minimal Dota 2 custom game addon template.",
+      title: "Create Addon",
+      description: "Generate a minimal or playable Dota 2 custom game addon template.",
       inputSchema: {
         ...targetInput,
         addonName: z.string().min(1),
         mapName: z.string().min(1).optional(),
+        template: z.enum(["minimal", "playable"]).optional(),
         replace: z.boolean().optional()
       }
     },
@@ -161,7 +162,8 @@ export function createServer(): McpServer {
         ...targetInput,
         addonName: z.string().min(1),
         logPaths: z.array(z.string().min(1)).min(1).optional(),
-        expectedMarker: z.string().min(1).optional()
+        expectedMarker: z.string().min(1).optional(),
+        expectedMarkers: z.array(z.string().min(1)).min(1).optional()
       }
     },
     async (input) => asToolContent(await handleTool("validate_addon", input))

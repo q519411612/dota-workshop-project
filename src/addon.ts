@@ -8,10 +8,13 @@ export type AddonNameValidation = {
   error?: string;
 };
 
+export type AddonTemplateKind = "minimal" | "playable";
+
 export type CreateAddonInput = {
   target: Target;
   addonName: string;
   mapName?: string;
+  template?: AddonTemplateKind;
   replace?: boolean;
 };
 
@@ -65,6 +68,7 @@ export async function createAddon(input: CreateAddonInput): Promise<ToolResult> 
   }
 
   const mapName = input.mapName ?? "dota";
+  const template = input.template ?? "playable";
   const mapValidation = validateMapName(mapName);
   if (!mapValidation.ok) {
     return createFailureResult({
@@ -111,7 +115,7 @@ export async function createAddon(input: CreateAddonInput): Promise<ToolResult> 
     await rm(paths.contentAddon, { recursive: true, force: true });
   }
 
-  await writeMinimalAddon(paths, input.addonName, mapName);
+  await writeAddon(paths, input.addonName, mapName, template);
 
   return createSuccessResult({
     target: input.target,
@@ -120,7 +124,10 @@ export async function createAddon(input: CreateAddonInput): Promise<ToolResult> 
       `created game addon root for ${input.addonName}`,
       `created content addon root for ${input.addonName}`,
       `created Lua validation marker for ${input.addonName}`,
-      `created addon metadata with default map ${mapName}`
+      `created addon metadata with default map ${mapName}`,
+      template === "playable"
+        ? `created playable gameplay loop for ${input.addonName}`
+        : `created minimal runtime marker template for ${input.addonName}`
     ],
     paths
   });
@@ -165,7 +172,12 @@ export async function inspectAddon(input: InspectAddonInput): Promise<ToolResult
     evidence.push(lua.includes(`[DOTA_WORKSHOP_MCP] addon loaded: ${input.addonName}`)
       ? "Lua validation marker exists"
       : "Lua validation marker missing");
+    evidence.push(playableMarkers(input.addonName).every((marker) => lua.includes(marker))
+      ? "playable gameplay markers exist"
+      : "playable gameplay markers missing");
   }
+
+  evidence.push(await pathExists(paths.unitData) ? "unit support file exists" : "unit support file missing");
 
   return createSuccessResult({
     target: input.target,
@@ -199,6 +211,7 @@ function addonPaths(root: string, addonName: string): Record<string, string> {
     addonInfo: join(gameAddon, "addoninfo.txt"),
     heroList: join(gameAddon, "scripts/npc/herolist.txt"),
     heroData: join(gameAddon, "scripts/npc/npc_heroes_custom.txt"),
+    unitData: join(gameAddon, "scripts/npc/npc_units_custom.txt"),
     localization: join(gameAddon, `resource/addon_${addonName}_english.txt`),
     mapDirectory: join(contentAddon, "maps")
   };
@@ -218,25 +231,172 @@ async function existingAddonEvidence(paths: Record<string, string>): Promise<str
   return evidence;
 }
 
-async function writeMinimalAddon(paths: Record<string, string>, addonName: string, mapName: string): Promise<void> {
+async function writeAddon(
+  paths: Record<string, string>,
+  addonName: string,
+  mapName: string,
+  template: AddonTemplateKind
+): Promise<void> {
+  const files = renderAddonFiles(addonName, mapName, template);
+
   await mkdir(join(paths.gameAddon, "scripts/vscripts"), { recursive: true });
   await mkdir(join(paths.gameAddon, "scripts/npc"), { recursive: true });
   await mkdir(join(paths.gameAddon, "resource"), { recursive: true });
   await mkdir(paths.mapDirectory, { recursive: true });
 
-  await writeFile(paths.addonInfo, addonInfo(addonName, mapName));
-  await writeFile(paths.luaEntry, luaEntry(addonName));
-  await writeFile(paths.heroList, heroList());
-  await writeFile(paths.heroData, heroData());
-  await writeFile(paths.localization, localization(addonName));
+  await writeFile(paths.addonInfo, files.addonInfo);
+  await writeFile(paths.luaEntry, files.luaEntry);
+  await writeFile(paths.heroList, files.heroList);
+  await writeFile(paths.heroData, files.heroData);
+  await writeFile(paths.unitData, files.unitData);
+  await writeFile(paths.localization, files.localization);
+}
+
+export type RenderedAddonFiles = {
+  addonInfo: string;
+  luaEntry: string;
+  heroList: string;
+  heroData: string;
+  unitData: string;
+  localization: string;
+};
+
+export function renderAddonFiles(
+  addonName: string,
+  mapName: string,
+  template: AddonTemplateKind = "playable"
+): RenderedAddonFiles {
+  return {
+    addonInfo: addonInfo(addonName, mapName),
+    luaEntry: template === "playable" ? playableLuaEntry(addonName) : minimalLuaEntry(addonName),
+    heroList: heroList(),
+    heroData: heroData(),
+    unitData: unitData(),
+    localization: localization(addonName)
+  };
+}
+
+export function playableMarkers(addonName: string): string[] {
+  return [
+    `[DOTA_WORKSHOP_MCP] addon loaded: ${addonName}`,
+    `[DOTA_WORKSHOP_MCP] gamemode initialized: ${addonName}`,
+    `[DOTA_WORKSHOP_MCP] round started: ${addonName}`,
+    `[DOTA_WORKSHOP_MCP] score updated: ${addonName}`,
+    `[DOTA_WORKSHOP_MCP] win condition reached: ${addonName}`
+  ];
 }
 
 function addonInfo(addonName: string, mapName: string): string {
   return `"AddonInfo"\n{\n  "AddonName" "${addonName}"\n  "IsPlayable" "1"\n  "DefaultMap" "${mapName}"\n  "maps" "${mapName}"\n  "MinPlayers" "1"\n  "MaxPlayers" "10"\n}\n`;
 }
 
-function luaEntry(addonName: string): string {
+function minimalLuaEntry(addonName: string): string {
   return `function Precache(context)\nend\n\nfunction Activate()\n  print("[DOTA_WORKSHOP_MCP] addon loaded: ${addonName}")\nend\n`;
+}
+
+function playableLuaEntry(addonName: string): string {
+  return `if DotaWorkshopMcpGameMode == nil then
+  DotaWorkshopMcpGameMode = class({})
+end
+
+function Precache(context)
+  PrecacheUnitByNameSync("npc_dota_creep_badguys_melee", context)
+end
+
+function Activate()
+  GameRules.DotaWorkshopMcpGameMode = DotaWorkshopMcpGameMode()
+  GameRules.DotaWorkshopMcpGameMode:InitGameMode()
+end
+
+function DotaWorkshopMcpGameMode:InitGameMode()
+  self.score = 0
+  self.targetScore = 3
+  self.roundStarted = false
+  self.winReached = false
+
+  print("[DOTA_WORKSHOP_MCP] addon loaded: ${addonName}")
+  print("[DOTA_WORKSHOP_MCP] gamemode initialized: ${addonName}")
+
+  GameRules:SetCustomGameTeamMaxPlayers(DOTA_TEAM_GOODGUYS, 1)
+  GameRules:SetCustomGameTeamMaxPlayers(DOTA_TEAM_BADGUYS, 0)
+
+  ListenToGameEvent("game_rules_state_change", Dynamic_Wrap(DotaWorkshopMcpGameMode, "OnGameRulesStateChange"), self)
+  ListenToGameEvent("entity_killed", Dynamic_Wrap(DotaWorkshopMcpGameMode, "OnEntityKilled"), self)
+
+  GameRules:GetGameModeEntity():SetContextThink("DotaWorkshopMcpThink", function()
+    return self:OnThink()
+  end, 1.0)
+end
+
+function DotaWorkshopMcpGameMode:OnGameRulesStateChange()
+  if GameRules:State_Get() == DOTA_GAMERULES_STATE_GAME_IN_PROGRESS then
+    self:StartRound()
+  end
+end
+
+function DotaWorkshopMcpGameMode:OnEntityKilled(keys)
+  self:AddScore("entity_killed")
+end
+
+function DotaWorkshopMcpGameMode:OnThink()
+  if GameRules:State_Get() ~= DOTA_GAMERULES_STATE_GAME_IN_PROGRESS then
+    return 1.0
+  end
+
+  if not self.roundStarted then
+    self:StartRound()
+  end
+
+  if self.score < self.targetScore then
+    self:AddScore("think")
+    return 3.0
+  end
+
+  if not self.winReached then
+    self:FinishRound()
+  end
+
+  return nil
+end
+
+function DotaWorkshopMcpGameMode:StartRound()
+  if self.roundStarted then
+    return
+  end
+
+  self.roundStarted = true
+  print("[DOTA_WORKSHOP_MCP] round started: ${addonName}")
+  self:SpawnTarget()
+end
+
+function DotaWorkshopMcpGameMode:SpawnTarget()
+  local unit = CreateUnitByName("npc_dota_creep_badguys_melee", Vector(0, 0, 256), true, nil, nil, DOTA_TEAM_BADGUYS)
+  print("[DOTA_WORKSHOP_MCP] target spawned: ${addonName} " .. unit:GetUnitName())
+end
+
+function DotaWorkshopMcpGameMode:AddScore(source)
+  if self.winReached then
+    return
+  end
+
+  self.score = self.score + 1
+  print("[DOTA_WORKSHOP_MCP] score updated: ${addonName} " .. tostring(self.score) .. "/" .. tostring(self.targetScore) .. " source=" .. source)
+
+  if self.score >= self.targetScore then
+    self:FinishRound()
+  end
+end
+
+function DotaWorkshopMcpGameMode:FinishRound()
+  if self.winReached then
+    return
+  end
+
+  self.winReached = true
+  print("[DOTA_WORKSHOP_MCP] win condition reached: ${addonName}")
+  GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)
+end
+`;
 }
 
 function heroList(): string {
@@ -245,6 +405,10 @@ function heroList(): string {
 
 function heroData(): string {
   return `"DOTAHeroes"\n{\n}\n`;
+}
+
+function unitData(): string {
+  return `"DOTAUnits"\n{\n}\n`;
 }
 
 function localization(addonName: string): string {

@@ -6,6 +6,13 @@ import { createAddon, inspectAddon, validateAddonName, validateMapName } from ".
 
 describe("addon template", () => {
   let root: string;
+  const gameplayMarkers = [
+    "[DOTA_WORKSHOP_MCP] addon loaded: demo_addon",
+    "[DOTA_WORKSHOP_MCP] gamemode initialized: demo_addon",
+    "[DOTA_WORKSHOP_MCP] round started: demo_addon",
+    "[DOTA_WORKSHOP_MCP] score updated: demo_addon",
+    "[DOTA_WORKSHOP_MCP] win condition reached: demo_addon"
+  ];
 
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "dota-addon-"));
@@ -49,6 +56,43 @@ describe("addon template", () => {
     expect(addonInfo).toContain("\"DefaultMap\" \"demo_map\"");
   });
 
+  test("creates a playable gameplay loop by default", async () => {
+    const result = await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      mapName: "dota"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("created playable gameplay loop for demo_addon");
+
+    const lua = await readFile(join(root, "game/dota_addons/demo_addon/scripts/vscripts/addon_game_mode.lua"), "utf8");
+    expect(lua).toContain("function Precache(context)");
+    expect(lua).toContain("function Activate()");
+    expect(lua).toContain("ListenToGameEvent(\"game_rules_state_change\"");
+    expect(lua).toContain("ListenToGameEvent(\"entity_killed\"");
+    expect(lua).toContain("SetContextThink");
+    expect(lua).toContain("GameRules:SetGameWinner");
+    for (const marker of gameplayMarkers) {
+      expect(lua).toContain(marker);
+    }
+
+    const unitData = await readFile(join(root, "game/dota_addons/demo_addon/scripts/npc/npc_units_custom.txt"), "utf8");
+    expect(unitData).toContain("\"DOTAUnits\"");
+  });
+
+  test("can still create a marker-only minimal template", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      template: "minimal"
+    });
+
+    const lua = await readFile(join(root, "game/dota_addons/demo_addon/scripts/vscripts/addon_game_mode.lua"), "utf8");
+    expect(lua).toContain("[DOTA_WORKSHOP_MCP] addon loaded: demo_addon");
+    expect(lua).not.toContain("gamemode initialized");
+  });
+
   test("refuses unsafe map names before writing addon metadata", async () => {
     const result = await createAddon({
       target: { kind: "fixture", root },
@@ -90,5 +134,7 @@ describe("addon template", () => {
     expect(result.ok).toBe(true);
     expect(result.evidence).toContain("game addon root exists");
     expect(result.evidence).toContain("content addon root exists");
+    expect(result.evidence).toContain("playable gameplay markers exist");
+    expect(result.evidence).toContain("unit support file exists");
   });
 });

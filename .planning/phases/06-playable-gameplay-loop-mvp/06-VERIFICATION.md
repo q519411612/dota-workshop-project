@@ -1,0 +1,30 @@
+---
+status: passed
+---
+
+# Phase 6 Verification: Playable Gameplay Loop MVP
+
+## Automated Verification
+
+| Command | Result | Evidence |
+|---------|--------|----------|
+| `git diff --check` | Passed | Exit code 0 |
+| `npm run typecheck` | Passed | `tsc -p tsconfig.json --noEmit` exit code 0 |
+| `npm test` | Passed | 6 test files, 43 tests passed |
+| `npm run build` | Passed | `tsc -p tsconfig.build.json` exit code 0 |
+| Plugin validation | Passed | Manifest required fields and referenced paths verified |
+| Skill validation | Passed | Skill frontmatter, references, and playable marker guidance verified |
+| Strict secret scan | Passed | Tracked and untracked files scanned for private keys, common tokens, credential assignments, and private IP patterns |
+
+## Coverage
+
+- Template tests cover playable Lua/KV generation and marker-only compatibility.
+- Inspect tests cover gameplay marker and unit support evidence.
+- Local validation tests cover multiple marker success and missing marker failure.
+- Remote validation tests cover remote template parity and multiple marker validation.
+- Documentation was updated for README, skill, addon layout, launch flow, minimal playable template, and troubleshooting.
+
+## Manual/Real Target Verification
+
+Real Windows gameplay spawn smoke was not run in this session because no real target configuration, credentials, private hostname, or Steam account details are stored in the repository. v1.1 runtime marker evidence remains recorded, and v2 candidate spawn details are documented for the next real Windows smoke pass.
+

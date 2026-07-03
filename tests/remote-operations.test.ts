@@ -10,6 +10,14 @@ import {
 } from "../src/remote.js";
 
 describe("remote Windows operations", () => {
+  const gameplayMarkers = [
+    "[DOTA_WORKSHOP_MCP] addon loaded: demo_addon",
+    "[DOTA_WORKSHOP_MCP] gamemode initialized: demo_addon",
+    "[DOTA_WORKSHOP_MCP] round started: demo_addon",
+    "[DOTA_WORKSHOP_MCP] score updated: demo_addon",
+    "[DOTA_WORKSHOP_MCP] win condition reached: demo_addon"
+  ];
+
   test("discovers a remote Dota install from JSON command output", async () => {
     const result = await discoverRemoteEnvironment({
       target: {
@@ -239,6 +247,8 @@ describe("remote Windows operations", () => {
     expect(result.evidence).toContain("remote addon creation completed");
     expect(result.commands[0].command).toContain("New-Item");
     expect(result.commands[0].command).toContain("demo_addon");
+    expect(result.commands[0].command).toContain("[DOTA_WORKSHOP_MCP] gamemode initialized: demo_addon");
+    expect(result.commands[0].command).toContain("npc_units_custom.txt");
   });
 
   test("inspects addon on the remote target from JSON command output", async () => {
@@ -368,5 +378,54 @@ describe("remote Windows operations", () => {
 
     expect(result.ok).toBe(true);
     expect(result.evidence).toContain("found validation marker for demo_addon");
+  });
+
+  test("validates all requested remote gameplay markers", async () => {
+    const result = await validateRemoteAddon({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "powershell",
+        host: "dota.example.test",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      logPaths: ["C:/Steam/steamapps/common/dota 2 beta/game/dota/console.log"],
+      expectedMarkers: gameplayMarkers,
+      executor: async () => ({
+        exitCode: 0,
+        stdout: JSON.stringify([{ source: "C:/Steam/steamapps/common/dota 2 beta/game/dota/console.log", lines: gameplayMarkers.map((marker) => `[VScript] ${marker}`) }]),
+        stderr: ""
+      })
+    });
+
+    expect(result.ok).toBe(true);
+    for (const marker of gameplayMarkers) {
+      expect(result.evidence).toContain(`found validation marker: ${marker}`);
+    }
+  });
+
+  test("fails remote validation when any requested gameplay marker is missing", async () => {
+    const result = await validateRemoteAddon({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "powershell",
+        host: "dota.example.test",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      logPaths: ["C:/Steam/steamapps/common/dota 2 beta/game/dota/console.log"],
+      expectedMarkers: gameplayMarkers,
+      executor: async () => ({
+        exitCode: 0,
+        stdout: JSON.stringify([{ source: "C:/Steam/steamapps/common/dota 2 beta/game/dota/console.log", lines: gameplayMarkers.slice(0, -1) }]),
+        stderr: ""
+      })
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("VALIDATION_MARKER_NOT_FOUND");
+    expect(result.evidence).toContain("missing marker: [DOTA_WORKSHOP_MCP] win condition reached: demo_addon");
   });
 });

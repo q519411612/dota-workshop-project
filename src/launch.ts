@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { validateAddonName, validateMapName } from "./addon.js";
 import { validateInstallRoot } from "./environment.js";
+import { expectedMarkerList, findLuaStartupError, markerFoundEvidence, missingMarkers } from "./markers.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
 import type { CommandEvidence, Target, ToolResult } from "./types.js";
 
@@ -36,6 +37,7 @@ export type ReadLogsInput = {
 
 export type ValidateAddonInput = ReadLogsInput & {
   expectedMarker?: string;
+  expectedMarkers?: string[];
 };
 
 export async function launchTools(input: LaunchToolsInput): Promise<ToolResult> {
@@ -126,7 +128,7 @@ export async function readConsoleOrLogs(input: ReadLogsInput): Promise<ToolResul
 
 export async function validateAddon(input: ValidateAddonInput): Promise<ToolResult> {
   const operation = "validate_addon";
-  const marker = input.expectedMarker ?? `[DOTA_WORKSHOP_MCP] addon loaded: ${input.addonName}`;
+  const markers = expectedMarkerList(input);
   const readResult = await readConsoleOrLogs(input);
 
   if (!readResult.ok) {
@@ -134,7 +136,7 @@ export async function validateAddon(input: ValidateAddonInput): Promise<ToolResu
   }
 
   const allLines = readResult.logs.flatMap((log) => log.lines);
-  const errorLine = allLines.find((line) => /script runtime error|syntax error|lua/i.test(line) && /error/i.test(line));
+  const errorLine = findLuaStartupError(allLines);
 
   if (errorLine) {
     return createFailureResult({
@@ -150,11 +152,12 @@ export async function validateAddon(input: ValidateAddonInput): Promise<ToolResu
     });
   }
 
-  if (allLines.some((line) => line.includes(marker))) {
+  const missing = missingMarkers(allLines, markers);
+  if (missing.length === 0) {
     return createSuccessResult({
       target: input.target,
       operation,
-      evidence: [`found validation marker for ${input.addonName}`],
+      evidence: markerFoundEvidence(input.addonName, markers),
       paths: readResult.paths,
       logs: readResult.logs
     });
@@ -167,7 +170,7 @@ export async function validateAddon(input: ValidateAddonInput): Promise<ToolResu
       code: "VALIDATION_MARKER_NOT_FOUND",
       message: "Validation marker was not found in Workshop Tools logs."
     },
-    evidence: [`expected marker: ${marker}`],
+    evidence: missing.map((marker) => `missing marker: ${marker}`),
     paths: readResult.paths,
     logs: readResult.logs
   });

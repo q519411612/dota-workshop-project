@@ -22,10 +22,11 @@ addoninfo.txt
 scripts/vscripts/addon_game_mode.lua
 scripts/npc/herolist.txt
 scripts/npc/npc_heroes_custom.txt
+scripts/npc/npc_units_custom.txt
 resource/addon_<addon_name>_english.txt
 ```
 
-The Lua entry point for v1 is `scripts/vscripts/addon_game_mode.lua`. It should define `Precache(context)` and `Activate()`, and emit a stable validation marker during startup.
+The Lua entry point is `scripts/vscripts/addon_game_mode.lua`. It should define `Precache(context)` and `Activate()`, emit a stable validation marker during startup, and for the playable template emit gameplay markers from the minimal Lua loop.
 
 ## Content Files
 
@@ -35,7 +36,7 @@ Place source assets under `content/dota_addons/<addon_name>`. A map source norma
 content/dota_addons/<addon_name>/maps/<map_name>.vmap
 ```
 
-The v1 template may create the content root without a real compiled map when fixture validation is running outside Windows. Real Workshop validation must report missing maps as an explicit failure instead of pretending the addon is runnable.
+The template may create the content root without a real compiled map when fixture validation is running outside Windows. Runtime marker validation can use a launchable stock map such as `dota`; custom map validation must report missing maps as an explicit failure instead of pretending the addon is runnable.
 
 ## Safety Rules
 
