@@ -119,6 +119,15 @@ export function createServer() {
             validationPollIntervalMs: z.number().int().min(0).optional()
         }
     }, async (input) => asToolContent(await handleTool("run_playable_smoke", input)));
+    server.registerTool("cleanup_playable_smoke", {
+        title: "Cleanup Playable Smoke",
+        description: "Explicitly inspect or stop known Dota smoke processes whose command line matches the requested addon.",
+        inputSchema: {
+            ...targetInput,
+            addonName: z.string().min(1),
+            dryRun: z.boolean().optional()
+        }
+    }, async (input) => asToolContent(await handleTool("cleanup_playable_smoke", input)));
     server.registerTool("read_console_or_logs", {
         title: "Read Workshop Logs",
         description: "Read Workshop Tools log or console files for validation evidence.",

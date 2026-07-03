@@ -78,3 +78,8 @@ export const RunPlayableSmokeInputSchema = z.object({
     validationTimeoutMs: z.number().int().min(0).optional(),
     validationPollIntervalMs: z.number().int().min(0).optional()
 });
+export const CleanupPlayableSmokeInputSchema = z.object({
+    target: TargetSchema,
+    addonName: z.string().min(1),
+    dryRun: z.boolean().optional()
+});

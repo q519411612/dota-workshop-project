@@ -54,6 +54,7 @@ The server exposes these logical operations:
 - `launch_tools`
 - `launch_custom_game`
 - `run_playable_smoke`
+- `cleanup_playable_smoke`
 - `read_console_or_logs`
 - `validate_addon`
 - `remote_command`
@@ -190,6 +191,46 @@ Example:
 
 For deterministic fixture tests or repeatable local checks, pass an explicit `addonName` and optional `logPaths`. Do not store real private hostnames, account names, passwords, tokens, private keys, Steam credentials, or target-specific secret configuration in repository files.
 
+### Safe Repeat Cleanup
+
+If a repeat smoke fails because a previous Dota process is still running for a known smoke addon, call `cleanup_playable_smoke` explicitly before rerunning `run_playable_smoke`. The cleanup tool only targets Dota-related processes whose command line contains the requested `addonName`.
+
+Inspect first:
+
+```json
+{
+  "target": {
+    "kind": "remote",
+    "name": "windows-lab",
+    "transport": "ssh",
+    "host": "windows.example.test",
+    "username": "builder",
+    "dotaRoot": "C:/Steam/steamapps/common/dota 2 beta"
+  },
+  "addonName": "playable_smoke_20260703_214855162_4lmj",
+  "dryRun": true
+}
+```
+
+Stop only the matched smoke process:
+
+```json
+{
+  "target": {
+    "kind": "remote",
+    "name": "windows-lab",
+    "transport": "ssh",
+    "host": "windows.example.test",
+    "username": "builder",
+    "dotaRoot": "C:/Steam/steamapps/common/dota 2 beta"
+  },
+  "addonName": "playable_smoke_20260703_214855162_4lmj",
+  "dryRun": false
+}
+```
+
+Cleanup is never automatic inside `run_playable_smoke`. It does not delete generated addon files, does not stop Steam, and does not stop unrelated Dota processes whose command line does not contain the requested addon name.
+
 ## Remote Windows Smoke Checklist
 
 Use SSH or PowerShell Remoting configured outside the repository.
@@ -203,3 +244,5 @@ Use SSH or PowerShell Remoting configured outside the repository.
 7. If any remote command fails, fix remote configuration. The server does not fall back to local behavior.
 
 For the repeatable path, call `run_playable_smoke` with the same remote target and `"launchMode": "interactiveTask"`. If it fails, use the returned transcript to identify whether creation, inspection, launch, or marker validation failed, then fall back to the atomic tools above for diagnosis.
+
+When the failure is `INTERACTIVE_LAUNCH_PROCESS_NOT_FOUND` and you know a previous smoke addon is still running, call `cleanup_playable_smoke` with `dryRun: true` for that previous addon name. If the candidate process list is correct, rerun cleanup with `dryRun: false`, then run `run_playable_smoke` again.

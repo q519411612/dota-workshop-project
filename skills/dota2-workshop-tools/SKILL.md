@@ -5,7 +5,7 @@ description: Use for Dota 2 Workshop Tools, Dota 2 custom game addons, addon tem
 
 # Dota 2 Workshop Tools
 
-Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, playable gameplay loop generation, repeatable playable smoke workflows, Workshop Tools launch, log evidence, and local or remote Windows validation.
+Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, playable gameplay loop generation, repeatable playable smoke workflows, explicit smoke cleanup controls, Workshop Tools launch, log evidence, and local or remote Windows validation.
 
 ## Core Workflow
 
@@ -30,6 +30,7 @@ Use MCP tools when the request needs any of these operations:
 - Reading console output or logs.
 - Running commands on local Windows or remote Windows.
 - Running the repeatable playable smoke workflow.
+- Inspecting or stopping known smoke Dota processes through explicit addon-scoped cleanup.
 - Collecting evidence for a validation transcript.
 
 If MCP is unavailable, explain that target-control work cannot be performed deterministically. You may still edit repository files, write Lua/KV/Panorama source, or prepare a manual checklist, but do not claim Workshop validation.
@@ -45,6 +46,7 @@ Supported:
 - Local Windows target discovery and launch validation.
 - Remote Windows target execution through SSH or PowerShell Remoting.
 - Repeatable playable smoke orchestration through `run_playable_smoke`.
+- Explicit repeat-smoke process cleanup through `cleanup_playable_smoke`.
 - Structured evidence with target, operation, success state, paths, commands, logs, warnings, and errors.
 
 Deferred:
@@ -70,6 +72,7 @@ Expected v1 operations:
 - `launch_tools`
 - `launch_custom_game`
 - `run_playable_smoke`
+- `cleanup_playable_smoke`
 - `read_console_or_logs`
 - `validate_addon`
 
@@ -78,6 +81,8 @@ Every result must make failures visible. Missing Dota paths, unsupported OS, inv
 For v2 playable validation, call `validate_addon` with `expectedMarkers` when checking more than one gameplay marker. Validation should pass only when every requested marker appears in readable logs.
 
 For v2.1 repeatable playable smoke, prefer `run_playable_smoke` when the user wants one end-to-end smoke transcript. Use the atomic tools when investigating a specific failure or preserving a hand-controlled launch sequence.
+
+For v2.2 repeat-smoke cleanup, call `cleanup_playable_smoke` explicitly. Start with `dryRun: true` to inspect matching Dota processes for the known smoke addon name, then call again with `dryRun: false` only when the matches are correct. Do not add hidden cleanup to `run_playable_smoke`.
 
 ## Editing Rules
 

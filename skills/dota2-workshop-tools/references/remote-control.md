@@ -23,6 +23,7 @@ Remote Windows should use the same MCP operations as local Windows:
 - `launch_tools`
 - `launch_custom_game`
 - `run_playable_smoke`
+- `cleanup_playable_smoke`
 - `read_console_or_logs`
 - `validate_addon`
 
@@ -49,6 +50,8 @@ For repeatable playable smoke on remote Windows, pass the same target object to 
 ```
 
 The workflow still validates runtime markers from logs. A completed interactive launch task is not validation success by itself.
+
+If a repeat smoke is blocked by a previous smoke Dota process, call `cleanup_playable_smoke` with the same remote target and the previous smoke `addonName`. Use `dryRun: true` first to inspect matches. Use `dryRun: false` only after confirming the returned command-line evidence is scoped to the requested addon. Cleanup does not stop Steam and does not delete addon files.
 
 ## Evidence Requirements
 

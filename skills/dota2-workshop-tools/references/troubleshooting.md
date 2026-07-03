@@ -47,7 +47,7 @@ If only the target-spawn marker is missing, remember that the stock `dota` map s
 - `launch_custom_game`: inspect launch command evidence, map name, runtime mode, console logging, and remote `interactiveTask` requirements.
 - `validate_addon`: inspect `game/dota/console.log`, Lua startup errors, and missing marker evidence.
 
-The workflow does not delete generated target files or stop Dota processes. Cleanup requires an explicit user-controlled action.
+The workflow does not delete generated target files or stop Dota processes. Cleanup requires an explicit user-controlled action through `cleanup_playable_smoke`.
 
 ### Remote execution failure
 
@@ -55,7 +55,16 @@ Return the failed remote command, exit code, stdout, stderr, and target metadata
 
 ### Remote interactive launch process not found
 
-If remote `interactiveTask` launch fails with `INTERACTIVE_LAUNCH_PROCESS_NOT_FOUND`, check whether Dota is already running from a previous smoke. Steam may focus the existing process instead of creating a new process whose command line matches the requested addon. Stop only the known smoke process that matches the previous smoke addon command line, then rerun the workflow. Do not add automatic broad process cleanup without explicit user approval.
+If remote `interactiveTask` launch fails with `INTERACTIVE_LAUNCH_PROCESS_NOT_FOUND`, check whether Dota is already running from a previous smoke. Steam may focus the existing process instead of creating a new process whose command line matches the requested addon.
+
+Use the explicit cleanup path:
+
+1. Call `cleanup_playable_smoke` with the previous smoke `addonName` and `dryRun: true`.
+2. Confirm the returned Dota process command line contains that addon name.
+3. Call `cleanup_playable_smoke` with `dryRun: false` to stop only those matched Dota process IDs.
+4. Rerun `run_playable_smoke`.
+
+Do not add automatic broad process cleanup. Do not stop Steam. Do not delete generated addon files.
 
 ## Result Hygiene
 

@@ -16,6 +16,7 @@
 | 5 | Runtime Marker Validation | Launch a generated addon in Dota game runtime mode and validate the Lua marker from readable console logs. | RTVL-01, RTVL-02, RTVL-03, RTVL-04, RTVL-05 | Complete |
 | 6 | Playable Gameplay Loop MVP | Generate a minimal playable Lua gameplay loop and validate gameplay markers through the existing runtime console log path. | API2-01, API2-02, API2-03, GAME2-01, GAME2-02, GAME2-03, GAME2-04, GAME2-05, MCP2-01, MCP2-02, MCP2-03, MCP2-04, DOC2-01, DOC2-02 | Complete |
 | 7 | Repeatable Playable Smoke Workflow | Package the verified playable runtime smoke path into one repeatable MCP workflow with safe transcript output. | SMOK2-01, SMOK2-02, SMOK2-03, SMOK2-04, SMOK2-05, SMOK2-06, SMOK2-07, SMOK2-08 | Complete |
+| 8 | Safe Smoke Cleanup Controls | Add explicit dry-run and execute cleanup for known smoke Dota processes before or after repeat playable smoke runs. | CLEN2-01, CLEN2-02, CLEN2-03, CLEN2-04, CLEN2-05, CLEN2-06, CLEN2-07, CLEN2-08, CLEN2-09, CLEN2-10 | Complete |
 
 ## Phase Details
 
@@ -166,6 +167,30 @@
 - Cleanup of target files or processes is not automatic in this phase; destructive target cleanup requires an explicit future design.
 - Real Windows runtime smoke on 2026-07-04 validated `run_playable_smoke` with remote `interactiveTask`, marker polling, and a compact transcript after stopping a previous smoke Dota process by matching its smoke addon command line.
 
+### Phase 8: Safe Smoke Cleanup Controls
+
+**Goal:** Add explicit dry-run and execute cleanup for known smoke Dota processes before or after repeat playable smoke runs.
+**Mode:** mvp
+
+**Requirements:** CLEN2-01, CLEN2-02, CLEN2-03, CLEN2-04, CLEN2-05, CLEN2-06, CLEN2-07, CLEN2-08, CLEN2-09, CLEN2-10
+
+**Success Criteria**:
+
+1. `cleanup_playable_smoke` is exposed through MCP schemas, dispatcher, and server registration without changing the `run_playable_smoke` execution path.
+2. Local and remote targets share the same cleanup input contract and return the same result shape.
+3. Dry-run cleanup reports matching Dota process candidates for the requested addon without stopping anything.
+4. Execute cleanup stops only Dota-related processes whose command line explicitly contains the requested addon name.
+5. Fixture tests cover command construction, no-match, invalid addon name, remote command failure, dry-run, execute mode, and MCP exposure.
+6. README and skill references describe the explicit cleanup workflow for repeat playable smoke runs.
+
+**Notes:**
+
+- The cleanup operation must never delete generated addon files.
+- The cleanup operation must never stop Steam and must not perform a broad Dota process kill.
+- A no-match result should be explicit and auditable; it is a successful inspection of the target state, not a hidden fallback.
+- Real Windows cleanup and repeat smoke validation can run only when runtime target access is provided.
+- Implementation added `cleanup_playable_smoke`, dry-run default behavior, execute mode, local/remote command construction tests, explicit no-match evidence, remote failure evidence, and documentation.
+
 ## Coverage
 
 | Metric | Count |
@@ -174,9 +199,10 @@
 | v1.1 requirements | 5 |
 | v2 MVP requirements | 14 |
 | v2.1 requirements | 8 |
-| Mapped requirements | 60 |
+| v2.2 requirements | 10 |
+| Mapped requirements | 70 |
 | Unmapped requirements | 0 |
-| Phases | 7 |
+| Phases | 8 |
 
 ## Deferred Scope
 
@@ -188,4 +214,4 @@
 - UI automation as a primary control strategy.
 
 ---
-*Roadmap updated: 2026-07-04 after v2.1 repeatable playable smoke implementation*
+*Roadmap updated: 2026-07-04 after v2.2 safe smoke cleanup controls implementation*

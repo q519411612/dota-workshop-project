@@ -93,6 +93,12 @@ export const RunPlayableSmokeInputSchema = z.object({
   validationPollIntervalMs: z.number().int().min(0).optional()
 });
 
+export const CleanupPlayableSmokeInputSchema = z.object({
+  target: TargetSchema,
+  addonName: z.string().min(1),
+  dryRun: z.boolean().optional()
+});
+
 export type CreateAddonToolInput = z.infer<typeof CreateAddonInputSchema>;
 export type InspectAddonToolInput = z.infer<typeof InspectAddonInputSchema>;
 export type DiscoverEnvironmentToolInput = z.infer<typeof DiscoverEnvironmentInputSchema>;
@@ -103,3 +109,4 @@ export type LaunchCustomGameToolInput = z.infer<typeof LaunchCustomGameInputSche
 export type ReadLogsToolInput = z.infer<typeof ReadLogsInputSchema>;
 export type ValidateAddonToolInput = z.infer<typeof ValidateAddonInputSchema>;
 export type RunPlayableSmokeToolInput = z.infer<typeof RunPlayableSmokeInputSchema>;
+export type CleanupPlayableSmokeToolInput = z.infer<typeof CleanupPlayableSmokeInputSchema>;

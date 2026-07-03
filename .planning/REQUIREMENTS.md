@@ -121,6 +121,21 @@
 - [x] **SMOK2-07**: Agent can pass runtime-only target configuration without writing private host, account, password, token, Steam credential, or private target details into repository files.
 - [x] **SMOK2-08**: README and skill references explain how to run and troubleshoot the repeatable playable smoke workflow.
 
+## v2.2 Requirements
+
+### Safe Smoke Cleanup Controls
+
+- [x] **CLEN2-01**: Agent can call an explicit `cleanup_playable_smoke` MCP operation without invoking it automatically from `run_playable_smoke`.
+- [x] **CLEN2-02**: Cleanup accepts the existing fixture, local Windows, and remote Windows target schema without creating a separate remote-only contract.
+- [x] **CLEN2-03**: Cleanup validates `addonName` before command construction and rejects unsafe names with explicit evidence.
+- [x] **CLEN2-04**: Cleanup supports dry-run inspection that reports matching process evidence without stopping processes.
+- [x] **CLEN2-05**: Execute cleanup stops only Dota-related processes whose command line explicitly contains the requested smoke addon name.
+- [x] **CLEN2-06**: Cleanup does not delete addon files, does not stop Steam, and does not perform a broad kill of all Dota processes.
+- [x] **CLEN2-07**: Cleanup results include target, operation, success state, command evidence, evidence, warnings, paths, and logs.
+- [x] **CLEN2-08**: Cleanup returns explicit evidence for missing target information, remote command failures, and no matching processes.
+- [x] **CLEN2-09**: Fixture tests cover MCP schema/dispatcher exposure, local command construction, remote command construction, dry-run, no-match, invalid addon name, and failure evidence on macOS.
+- [x] **CLEN2-10**: README and skill references explain the safe repeat-smoke cleanup workflow and state that cleanup is explicit, addon-scoped, and non-file-deleting.
+
 ## Deferred v2.x Requirements
 
 Tracked but not in current roadmap.
@@ -233,15 +248,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SMOK2-06 | Phase 7 | Implemented |
 | SMOK2-07 | Phase 7 | Implemented |
 | SMOK2-08 | Phase 7 | Implemented |
+| CLEN2-01 | Phase 8 | Implemented |
+| CLEN2-02 | Phase 8 | Implemented |
+| CLEN2-03 | Phase 8 | Implemented |
+| CLEN2-04 | Phase 8 | Implemented |
+| CLEN2-05 | Phase 8 | Implemented |
+| CLEN2-06 | Phase 8 | Implemented |
+| CLEN2-07 | Phase 8 | Implemented |
+| CLEN2-08 | Phase 8 | Implemented |
+| CLEN2-09 | Phase 8 | Implemented |
+| CLEN2-10 | Phase 8 | Implemented |
 
 **Coverage:**
 - v1 requirements: 33 total
 - v1.1 requirements: 5 total
 - v2 MVP requirements: 14 total
 - v2.1 requirements: 8 total
-- Mapped to phases: 60
+- v2.2 requirements: 10 total
+- Mapped to phases: 70
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-03*
-*Last updated: 2026-07-04 after v2.1 repeatable playable smoke implementation*
+*Last updated: 2026-07-04 after v2.2 safe smoke cleanup controls implementation*

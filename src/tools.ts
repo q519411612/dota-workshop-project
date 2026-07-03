@@ -1,4 +1,5 @@
 import { createAddon, inspectAddon } from "./addon.js";
+import { cleanupPlayableSmoke } from "./cleanup.js";
 import { discoverEnvironment, validateInstallRoot } from "./environment.js";
 import { launchCustomGame, launchTools, readConsoleOrLogs, validateAddon } from "./launch.js";
 import { createFailureResult } from "./result.js";
@@ -22,6 +23,7 @@ import {
   ReadLogsInputSchema,
   RemoteCommandInputSchema,
   RunPlayableSmokeInputSchema,
+  CleanupPlayableSmokeInputSchema,
   ValidateAddonInputSchema,
   ValidateTargetInputSchema
 } from "./schemas.js";
@@ -35,6 +37,7 @@ export const toolNames = [
   "launch_tools",
   "launch_custom_game",
   "run_playable_smoke",
+  "cleanup_playable_smoke",
   "read_console_or_logs",
   "validate_addon",
   "remote_command"
@@ -114,6 +117,10 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
     case "run_playable_smoke": {
       const parsed = RunPlayableSmokeInputSchema.parse(input);
       return runPlayableSmoke(parsed);
+    }
+    case "cleanup_playable_smoke": {
+      const parsed = CleanupPlayableSmokeInputSchema.parse(input);
+      return cleanupPlayableSmoke(parsed);
     }
     case "read_console_or_logs": {
       const parsed = ReadLogsInputSchema.parse(input);

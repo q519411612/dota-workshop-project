@@ -7,7 +7,7 @@
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v2.1 Repeatable Playable Smoke Workflow complete; next milestone can choose custom map spawn points, richer gameplay objectives, generated unit/ability scaffolding, or safe smoke cleanup controls
+**Current focus:** v2.2 Safe Smoke Cleanup Controls complete; repeat playable smoke runs can explicitly dry-run inspect or stop known addon-matched Dota smoke processes before rerun.
 
 ## Current Roadmap
 
@@ -20,6 +20,7 @@ See: `.planning/PROJECT.md`
 | 5 | Runtime Marker Validation | Complete |
 | 6 | Playable Gameplay Loop MVP | Complete |
 | 7 | Repeatable Playable Smoke Workflow | Complete |
+| 8 | Safe Smoke Cleanup Controls | Complete |
 
 ## Decisions In Effect
 
@@ -37,6 +38,7 @@ See: `.planning/PROJECT.md`
 | v2 stable template avoids `GameRules:SetCustomGameForceHero` because current runtime smoke rejected it | `.planning/phases/06-playable-gameplay-loop-mvp/06-REMOTE-SMOKE.md` |
 | v2.1 should compose existing MCP operations instead of creating a separate local or remote smoke contract | `.planning/ROADMAP.md` |
 | v2.1 does not automatically delete target files or stop broad process sets; smoke cleanup remains explicit and user-controlled | `.planning/phases/07-repeatable-playable-smoke-workflow/07-REVIEW.md` |
+| v2.2 cleanup must be an explicit MCP operation and must not run silently inside `run_playable_smoke` | `.planning/phases/08-safe-smoke-cleanup-controls/08-SPEC.md` |
 
 ## Research Inputs
 
@@ -83,10 +85,13 @@ See: `.planning/PROJECT.md`
 - v2.1 smoke generated `playable_smoke_20260703_214855162_4lmj`, launched it with remote `interactiveTask`, and validated addon loaded, gamemode initialized, round started, score updated, and win condition markers.
 - v2.1 smoke needed 13 validation retries before all gameplay markers appeared in `game/dota/console.log`; the compact transcript retained 4 command records.
 - A repeat smoke attempt while a previous smoke Dota process was still running produced `INTERACTIVE_LAUNCH_PROCESS_NOT_FOUND`; stopping only the known smoke process by addon command line allowed the current build smoke to pass.
+- v2.2 implementation added `cleanup_playable_smoke`, local/fixture/remote target schema support, dry-run inspection, execute cleanup, addon-name validation, no-match evidence, remote failure evidence, and repeat-smoke documentation.
+- v2.2 cleanup fixture verification passed `git diff --check`, `npm run typecheck`, `npm test` with 59 tests, `npm run build`, plugin validation, skill validation, and strict secret scan.
+- Real Windows cleanup and repeat smoke validation were not run because no runtime target access was provided during this implementation pass.
 
 ## Next Action
 
-Choose the next v2.x milestone: custom map spawn points, richer gameplay objectives, generated unit/ability scaffolding, or safe explicit smoke cleanup controls.
+Choose the next v2.x milestone: custom map spawn points, richer gameplay objectives, generated unit/ability scaffolding, or another safe operations control.
 
 ---
-*Last updated: 2026-07-04 after v2.1 repeatable playable smoke implementation*
+*Last updated: 2026-07-04 after v2.2 safe smoke cleanup controls implementation*

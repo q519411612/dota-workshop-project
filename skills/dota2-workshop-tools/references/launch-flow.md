@@ -93,3 +93,16 @@ Use `run_playable_smoke` for the standard v2 playable smoke path. It runs the sa
 4. Validate all required gameplay markers.
 
 By default it generates a unique addon name, polls marker validation for a bounded window, leaves generated files on the target, and returns a transcript with the generated addon name, commands, paths, warnings, logs, and marker evidence. Pass an explicit `addonName` only for deterministic fixtures or intentional repeat runs.
+
+## Explicit Smoke Cleanup
+
+Use `cleanup_playable_smoke` only when the user deliberately wants to inspect or stop a known smoke process before or after a repeat run. It is not part of `run_playable_smoke`.
+
+Safe workflow:
+
+1. Call `cleanup_playable_smoke` with the previous smoke `addonName` and `dryRun: true`.
+2. Review the returned process command-line evidence.
+3. If every match belongs to that smoke addon, call `cleanup_playable_smoke` again with `dryRun: false`.
+4. Rerun `run_playable_smoke`.
+
+Cleanup only matches Dota-related process names and requires the command line to contain the requested addon name. It does not delete generated addon files, stop Steam, or stop unrelated Dota processes.
