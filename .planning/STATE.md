@@ -7,7 +7,7 @@
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v2 Playable Gameplay Loop MVP complete; commit and push pending
+**Current focus:** v2 Playable Gameplay Loop MVP shipped to GitHub; next evidence target is real Windows gameplay smoke when target access is available
 
 ## Current Roadmap
 
@@ -73,7 +73,7 @@ See: `.planning/PROJECT.md`
 
 ## Next Action
 
-Commit v2 Playable Gameplay Loop MVP and push to GitHub.
+Run real Windows v2 gameplay smoke when the user provides or selects a non-repository target configuration: generate a playable addon, launch with `runtimeMode: "game"` and `consoleLog: true`, validate required gameplay markers in `game/dota/console.log`, and record which candidate spawn/win APIs are proven by runtime evidence.
 
 ---
-*Last updated: 2026-07-03 after v2 playable gameplay loop implementation*
+*Last updated: 2026-07-03 after v2 playable gameplay loop commit and push*
