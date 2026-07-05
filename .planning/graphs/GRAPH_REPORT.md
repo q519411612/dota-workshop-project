@@ -1,16 +1,16 @@
-# Graph Report - dota-workshop-project  (2026-07-04)
+# Graph Report - dota-workshop-project  (2026-07-06)
 
 ## Corpus Check
-- 91 files · ~41,651 words
+- 100 files · ~170,586 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 802 nodes · 1065 edges · 73 communities (72 shown, 1 thin omitted)
+- 937 nodes · 1208 edges · 80 communities (79 shown, 1 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a794b318`
+- Built from commit: `94912562`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -88,59 +88,66 @@
 - [[_COMMUNITY_Community 70|Community 70]]
 - [[_COMMUNITY_Community 71|Community 71]]
 - [[_COMMUNITY_Community 72|Community 72]]
+- [[_COMMUNITY_Community 73|Community 73]]
+- [[_COMMUNITY_Community 74|Community 74]]
+- [[_COMMUNITY_Community 75|Community 75]]
+- [[_COMMUNITY_Community 76|Community 76]]
+- [[_COMMUNITY_Community 77|Community 77]]
+- [[_COMMUNITY_Community 78|Community 78]]
+- [[_COMMUNITY_Community 79|Community 79]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `createFailureResult()` - 32 edges
-2. `handleTool()` - 23 edges
-3. `createSuccessResult()` - 21 edges
-4. `runPlayableSmoke()` - 18 edges
-5. `runRemoteCommand()` - 16 edges
-6. `validateAddonName()` - 15 edges
-7. `createAddon()` - 14 edges
-8. `cleanupPlayableSmoke()` - 14 edges
-9. `inspectAddon()` - 13 edges
-10. `validateAddon()` - 13 edges
+1. `Communities (73 total, 1 thin omitted)` - 73 edges
+2. `createFailureResult()` - 32 edges
+3. `handleTool()` - 23 edges
+4. `createSuccessResult()` - 21 edges
+5. `runPlayableSmoke()` - 19 edges
+6. `runRemoteCommand()` - 16 edges
+7. `validateAddonName()` - 15 edges
+8. `createAddon()` - 15 edges
+9. `cleanupPlayableSmoke()` - 14 edges
+10. `inspectAddon()` - 13 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `validateCleanupInput()` --calls--> `validateAddonName()`  [EXTRACTED]
-  src/cleanup.ts → src/addon.ts
 - `remoteCreateAddonScript()` --calls--> `renderAddonFiles()`  [EXTRACTED]
   src/remote.ts → src/addon.ts
-- `cleanupPlayableSmoke()` --calls--> `runRemoteCommand()`  [EXTRACTED]
-  src/cleanup.ts → src/remote.ts
-- `cleanupPlayableSmoke()` --calls--> `createFailureResult()`  [EXTRACTED]
-  src/cleanup.ts → src/result.ts
-- `handleTool()` --calls--> `cleanupPlayableSmoke()`  [EXTRACTED]
-  src/tools.ts → src/cleanup.ts
+- `runPlayableSmoke()` --calls--> `placementMarkers()`  [EXTRACTED]
+  src/smoke.ts → src/addon.ts
+- `validateInstallRoot()` --calls--> `createFailureResult()`  [EXTRACTED]
+  src/environment.ts → src/result.ts
+- `validateInstallRoot()` --calls--> `createSuccessResult()`  [EXTRACTED]
+  src/environment.ts → src/result.ts
+- `launchDota()` --calls--> `validateInstallRoot()`  [EXTRACTED]
+  src/launch.ts → src/environment.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (73 total, 1 thin omitted)
+## Communities (80 total, 1 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.05
-Nodes (101): addonPaths(), createAddon(), inspectAddon(), targetRoot(), validateAddonName(), validateMapName(), checkRequiredPath(), discoverCandidateRoots() (+93 more)
+Nodes (101): addonPaths(), createAddon(), inspectAddon(), RuntimePlacement, targetRoot(), validateAddonName(), validateMapName(), validateRuntimePlacement() (+93 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.06
-Nodes (30): Acceptance Criteria, Addon, Automation, Deferred v2.x Requirements, Documentation, Environment, Gameplay, Gameplay (+22 more)
+Nodes (32): Acceptance Criteria, Addon, Automation, Deferred v2.x Requirements, Documentation, Environment, Gameplay, Gameplay (+24 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.08
-Nodes (25): CleanupPlayableSmokeToolInput, CreateAddonInputSchema, CreateAddonToolInput, DiscoverEnvironmentInputSchema, DiscoverEnvironmentToolInput, FixtureTargetSchema, InspectAddonInputSchema, InspectAddonToolInput (+17 more)
+Cohesion: 0.07
+Nodes (34): server, transport, CleanupPlayableSmokeInputSchema, CleanupPlayableSmokeToolInput, CreateAddonInputSchema, CreateAddonToolInput, DiscoverEnvironmentInputSchema, DiscoverEnvironmentToolInput (+26 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.09
 Nodes (21): bin, dota-workshop-mcp, dependencies, @modelcontextprotocol/sdk, zod, description, devDependencies, @types/node (+13 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.19
-Nodes (18): cleanupFromStdout(), CleanupOutput, cleanupPaths(), CleanupPayload, cleanupPlayableSmoke(), CleanupPlayableSmokeInput, CleanupProcess, cleanupProcessScript() (+10 more)
+Cohesion: 0.03
+Nodes (73): Communities (73 total, 1 thin omitted), Community 0 - "Community 0", Community 10 - "Community 10", Community 11 - "Community 11", Community 12 - "Community 12", Community 13 - "Community 13", Community 14 - "Community 14", Community 15 - "Community 15" (+65 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.17
-Nodes (17): addonInfo(), AddonNameValidation, AddonTemplateKind, CreateAddonInput, existingAddonEvidence(), heroData(), heroList(), InspectAddonInput (+9 more)
+Cohesion: 0.14
+Nodes (21): addonInfo(), AddonNameValidation, AddonTemplateKind, CreateAddonInput, existingAddonEvidence(), formatLuaNumber(), heroData(), heroList() (+13 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.12
@@ -155,8 +162,8 @@ Cohesion: 0.13
 Nodes (14): API Evidence Gate, Deferred Ideas, Established Patterns, Existing Code Insights, Gameplay Loop Shape, Implementation Decisions, Integration Points, Marker Validation (+6 more)
 
 ### Community 9 - "Community 9"
-Cohesion: 0.13
-Nodes (14): Addon already exists, Common Failures, Dota install not found, Gameplay marker missing, Lua startup error, Metadata format mismatch, Missing map, Remote execution failure (+6 more)
+Cohesion: 0.12
+Nodes (15): Addon already exists, Common Failures, Dota install not found, Gameplay marker missing, Lua startup error, Metadata format mismatch, Missing map, Placement marker missing (+7 more)
 
 ### Community 10 - "Community 10"
 Cohesion: 0.13
@@ -171,8 +178,8 @@ Cohesion: 0.14
 Nodes (13): Canonical References, Credential Handling, Deferred Ideas, Established Patterns, Existing Code Insights, Implementation Decisions, Integration Points, Phase 4: Remote Windows Target Support - Context (+5 more)
 
 ### Community 13 - "Community 13"
-Cohesion: 0.14
-Nodes (13): Coverage, Deferred Scope, Overview, Phase 1: Plugin and Skill Foundation, Phase 2: MCP Contract and Addon Template, Phase 3: Local Windows Workshop Validation, Phase 4: Remote Windows Target Support, Phase 5: Runtime Marker Validation (+5 more)
+Cohesion: 0.13
+Nodes (14): Coverage, Deferred Scope, Overview, Phase 1: Plugin and Skill Foundation, Phase 2: MCP Contract and Addon Template, Phase 3: Local Windows Workshop Validation, Phase 4: Remote Windows Target Support, Phase 5: Runtime Marker Validation (+6 more)
 
 ### Community 14 - "Community 14"
 Cohesion: 0.14
@@ -243,8 +250,8 @@ Cohesion: 0.25
 Nodes (7): Current Roadmap, Decisions In Effect, Next Action, Project Reference, Project State: Dota Workshop Project, Research Inputs, Verification Notes
 
 ### Community 31 - "Community 31"
-Cohesion: 0.25
-Nodes (7): Boundaries, Files, Gameplay Loop, Goal, Lua Markers, Metadata, Minimal Playable Addon Template
+Cohesion: 0.22
+Nodes (8): Boundaries, Files, Gameplay Loop, Goal, Lua Markers, Metadata, Minimal Playable Addon Template, Runtime Placement
 
 ### Community 32 - "Community 32"
 Cohesion: 0.25
@@ -307,8 +314,8 @@ Cohesion: 0.29
 Nodes (6): Evidence Requirements, Interactive Launches, Remote Windows Control, Same Logical Tools, Secrets, Supported Channels
 
 ### Community 47 - "Community 47"
-Cohesion: 0.33
-Nodes (5): server, transport, createServer(), targetInput, asToolContent()
+Cohesion: 0.16
+Nodes (18): checkRequiredPath(), discoverCandidateRoots(), discoverEnvironment(), DiscoverEnvironmentInput, installPaths(), readSteamLibraryRoots(), validateInstallRoot(), ValidateInstallRootInput (+10 more)
 
 ### Community 48 - "Community 48"
 Cohesion: 0.33
@@ -406,25 +413,53 @@ Nodes (4): Commands, Phase 7 Verification: Repeatable Playable Smoke Workflow, R
 Cohesion: 0.40
 Nodes (4): Follow-Up Candidates, Phase 8 Summary: Safe Smoke Cleanup Controls, Verification Notes, What Changed
 
+### Community 73 - "Community 73"
+Cohesion: 0.18
+Nodes (10): Community Hubs (Navigation), Corpus Check, God Nodes (most connected - your core abstractions), Graph Freshness, Graph Report - dota-workshop-project  (2026-07-04), Import Cycles, Knowledge Gaps, Suggested Questions (+2 more)
+
+### Community 74 - "Community 74"
+Cohesion: 0.25
+Nodes (7): Acceptance, Ambiguity Score, Goal, Phase 9 Spec: Runtime Placement MVP, Placement Contract, Runtime Markers, Scope
+
+### Community 75 - "Community 75"
+Cohesion: 0.29
+Nodes (6): Constraints, Current Baseline, Desired Delta, Integration Points, Phase 9 Context: Runtime Placement MVP, Verification Plan
+
+### Community 76 - "Community 76"
+Cohesion: 0.33
+Nodes (5): Deferred Work, Implementation Tasks, Phase 9 Plan: Runtime Placement MVP, Risk Controls, Test-First Slices
+
+### Community 77 - "Community 77"
+Cohesion: 0.33
+Nodes (5): F1: Placement on `template: "minimal"` produced misleading evidence, Findings, Phase 9 Review: Runtime Placement MVP, Residual Risk, Review Result
+
+### Community 78 - "Community 78"
+Cohesion: 0.33
+Nodes (5): Commands, Phase 9 Verification: Runtime Placement MVP, Real Windows Placement Smoke, Requirement Evidence, Test Coverage
+
+### Community 79 - "Community 79"
+Cohesion: 0.40
+Nodes (4): Key Files, Phase 9 Summary: Runtime Placement MVP, Verification Summary, What Changed
+
 ## Knowledge Gaps
-- **482 isolated node(s):** `node`, `name`, `version`, `description`, `type` (+477 more)
+- **595 isolated node(s):** `node`, `name`, `version`, `description`, `type` (+590 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `createFailureResult()` connect `Community 0` to `Community 4`, `Community 5`?**
+- **Why does `Communities (73 total, 1 thin omitted)` connect `Community 4` to `Community 73`?**
+  _High betweenness centrality (0.008) - this node is a cross-community bridge._
+- **Why does `createFailureResult()` connect `Community 0` to `Community 2`, `Community 5`, `Community 47`?**
   _High betweenness centrality (0.003) - this node is a cross-community bridge._
-- **Why does `createSuccessResult()` connect `Community 0` to `Community 4`, `Community 5`?**
+- **Why does `Graph Report - dota-workshop-project  (2026-07-04)` connect `Community 73` to `Community 4`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
 - **What connects `node`, `name`, `version` to the rest of the system?**
-  _482 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _595 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.053934571175950484 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05083655083655084 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.06451612903225806 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06060606060606061 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.07692307692307693 - nodes in this community are weakly interconnected._
-- **Should `Community 3` be split into smaller, more focused modules?**
-  _Cohesion score 0.09090909090909091 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0728744939271255 - nodes in this community are weakly interconnected._
