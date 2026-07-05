@@ -42,6 +42,25 @@ The playable template should define `Precache(context)` and `Activate()`. `Activ
 
 The spawn marker is useful additional evidence. Real Windows runtime smoke on 2026-07-04 verified the stock `dota` map can emit `target spawned` for `npc_dota_creep_badguys_melee` at the generated origin position. Do not use `GameRules:SetCustomGameForceHero` for the v2 stable template; it produced a Lua runtime error in the tested current runtime.
 
+## Score Objective
+
+When a caller passes score objective configuration, the playable template should parameterize the existing score/win loop. Score objectives require the `playable` template; do not claim objective support for `template: "minimal"`.
+
+```lua
+self.objectiveType = "score"
+self.targetScore = 2
+```
+
+It should emit objective markers for configured state, progress, and completion:
+
+```lua
+print("[DOTA_WORKSHOP_MCP] objective configured: <addon_name> type=score target=2")
+print("[DOTA_WORKSHOP_MCP] objective progress: <addon_name> 1/2 source=think")
+print("[DOTA_WORKSHOP_MCP] objective complete: <addon_name> type=score")
+```
+
+This is a minimal score objective in the existing runtime loop. It is not a quest graph, AI system, custom unit/ability/item generator, hero system, or UI.
+
 ## Runtime Placement
 
 When a caller passes placement configuration, the playable template should set deterministic Lua placement values before spawning the validation unit. Runtime placement requires the `playable` template; do not claim placement support for `template: "minimal"`.

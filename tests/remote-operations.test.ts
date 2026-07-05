@@ -282,6 +282,37 @@ describe("remote Windows operations", () => {
     expect(result.commands[0].command).toContain("[DOTA_WORKSHOP_MCP] placement spawned: demo_addon");
   });
 
+  test("creates remote addon with score objective through shared renderer", async () => {
+    const result = await createRemoteAddon({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      mapName: "dota",
+      objective: {
+        type: "score",
+        targetScore: 2,
+        tickIntervalSeconds: 1
+      },
+      executor: async () => ({
+        exitCode: 0,
+        stdout: "created",
+        stderr: ""
+      })
+    } as Parameters<typeof createRemoteAddon>[0]);
+
+    expect(result.ok).toBe(true);
+    expect(result.commands[0].command).toContain("self.objectiveType = \"score\"");
+    expect(result.commands[0].command).toContain("self.targetScore = 2");
+    expect(result.commands[0].command).toContain("[DOTA_WORKSHOP_MCP] objective configured: demo_addon type=score target=2");
+    expect(result.commands[0].command).toContain("[DOTA_WORKSHOP_MCP] objective complete: demo_addon type=score");
+  });
+
   test("prepares a custom map through remote resourcecompiler command evidence", async () => {
     let attemptedCommand = "";
     const result = await prepareCustomMap({

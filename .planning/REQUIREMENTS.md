@@ -162,6 +162,19 @@
 - [x] **MAP2-07**: `run_playable_smoke` can optionally prepare a custom map before launch while preserving the default stock `dota` smoke workflow.
 - [x] **MAP2-08**: README and skill references explain custom map preparation, spawn entity evidence, compiler requirements, runtime validation, and the boundary that binary Hammer spawn editing is deferred.
 
+## v2.5 Requirements
+
+### Gameplay Objective MVP
+
+- [x] **OBJ2-01**: `create_addon` can accept an optional score objective configuration for the playable template without changing default template behavior.
+- [x] **OBJ2-02**: Objective configuration validates objective type, target score, and tick interval before file generation or remote command construction.
+- [x] **OBJ2-03**: The generated playable Lua emits stable objective configured, objective progress, and objective complete markers when an objective is requested.
+- [x] **OBJ2-04**: `inspect_addon` reports objective configuration and objective marker evidence for local fixture addons.
+- [x] **OBJ2-05**: Remote addon creation uses the same objective rendering path as local addon creation and does not create a separate remote-only contract.
+- [x] **OBJ2-06**: `run_playable_smoke` can include objective markers in expected validation when an objective is requested, while preserving the default smoke marker set when it is not requested.
+- [x] **OBJ2-07**: Fixture tests cover schema parsing, invalid objective rejection, generated Lua objective content, inspect evidence, remote command construction, and smoke marker validation on macOS.
+- [x] **OBJ2-08**: README and skill references explain the score objective workflow and explicitly defer complex quests, AI, custom units, abilities, items, and UI.
+
 ## Deferred v2.x Requirements
 
 Tracked but not in current roadmap.
@@ -301,6 +314,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MAP2-06 | Phase 10 | Implemented |
 | MAP2-07 | Phase 10 | Implemented |
 | MAP2-08 | Phase 10 | Implemented |
+| OBJ2-01 | Phase 11 | Implemented |
+| OBJ2-02 | Phase 11 | Implemented |
+| OBJ2-03 | Phase 11 | Implemented |
+| OBJ2-04 | Phase 11 | Implemented |
+| OBJ2-05 | Phase 11 | Implemented |
+| OBJ2-06 | Phase 11 | Implemented |
+| OBJ2-07 | Phase 11 | Implemented |
+| OBJ2-08 | Phase 11 | Implemented |
 
 **Coverage:**
 - v1 requirements: 33 total
@@ -310,9 +331,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v2.2 requirements: 10 total
 - v2.3 requirements: 8 total
 - v2.4 requirements: 8 total
-- Mapped to phases: 86
+- v2.5 requirements: 8 total
+- Mapped to phases: 94
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-03*
-*Last updated: 2026-07-06 for v2.4 custom map spawn point MVP*
+*Last updated: 2026-07-06 for v2.5 gameplay objective MVP*

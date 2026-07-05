@@ -29,12 +29,18 @@ export const RuntimePlacementSchema = z.object({
         z: z.number()
     })
 });
+export const GameplayObjectiveSchema = z.object({
+    type: z.literal("score"),
+    targetScore: z.number().int().min(1).max(99).optional(),
+    tickIntervalSeconds: z.number().positive().max(60).optional()
+});
 export const CreateAddonInputSchema = z.object({
     target: TargetSchema,
     addonName: z.string().min(1),
     mapName: z.string().min(1).optional(),
     template: z.enum(["minimal", "playable"]).optional(),
     placement: RuntimePlacementSchema.optional(),
+    objective: GameplayObjectiveSchema.optional(),
     replace: z.boolean().optional()
 });
 export const PrepareCustomMapInputSchema = z.object({
@@ -94,6 +100,7 @@ export const RunPlayableSmokeInputSchema = z.object({
         replace: z.boolean().optional()
     }).optional(),
     placement: RuntimePlacementSchema.optional(),
+    objective: GameplayObjectiveSchema.optional(),
     expectedMarkers: z.array(z.string().min(1)).min(1).optional(),
     replace: z.boolean().optional(),
     dryRun: z.boolean().optional(),

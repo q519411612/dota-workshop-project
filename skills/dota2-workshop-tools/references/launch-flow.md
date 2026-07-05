@@ -96,6 +96,8 @@ By default it generates a unique addon name, polls marker validation for a bound
 
 When `placement` is provided, `run_playable_smoke` adds placement configured, origin, unit, and spawned markers to the default validation list. Use this to prove deterministic runtime placement on a stock launchable map before designing custom map spawn points.
 
+When `objective` is provided, `run_playable_smoke` adds objective configured, progress, and complete markers to the default validation list. Use this to prove a configurable score objective in the existing playable loop before adding complex quest, AI, unit, ability, item, hero, or UI systems.
+
 When `customMap` is provided, `run_playable_smoke` changes the sequence to:
 
 1. Create a playable addon with the custom map name in metadata.

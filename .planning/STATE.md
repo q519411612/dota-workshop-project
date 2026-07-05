@@ -7,7 +7,7 @@
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v2.4 Custom Map Spawn Point MVP complete; next work should define the gameplay objective slice on top of the validated custom-map smoke loop.
+**Current focus:** v2.5 Gameplay Objective MVP complete; next work should define minimal unit and ability scaffolding with fixture validation before any runtime claim.
 
 ## Current Roadmap
 
@@ -23,6 +23,7 @@ See: `.planning/PROJECT.md`
 | 8 | Safe Smoke Cleanup Controls | Complete |
 | 9 | Runtime Placement MVP | Complete |
 | 10 | Custom Map Spawn Point MVP | Complete |
+| 11 | Gameplay Objective MVP | Complete |
 
 ## Decisions In Effect
 
@@ -44,6 +45,8 @@ See: `.planning/PROJECT.md`
 | v2.3 placement should extend the playable template and marker validation before custom map editing or unit/ability generation | `.planning/ROADMAP.md` |
 | v2.4 should copy and compile the installed template map before attempting binary Hammer map entity editing | `.planning/phases/10-custom-map-spawn-point-mvp/10-SPEC.md` |
 | `resourcecompiler.exe -game` must receive the `game/dota` directory, and the compiled template map output is `<map>.vpk` | Real Windows v2.4 smoke |
+| v2.5 should parameterize the validated score/win loop before introducing complex quests, AI, custom units, abilities, items, or UI | `.planning/ROADMAP.md` |
+| Objective validation success requires objective markers from logs, not launch success alone | `.planning/phases/11-gameplay-objective-mvp/11-VERIFICATION.md` |
 
 ## Research Inputs
 
@@ -101,10 +104,13 @@ See: `.planning/PROJECT.md`
 - v2.4 implementation added `prepare_custom_map`, schema/server/tool exposure, template `.vmap` copy, spawn marker verification, `resourcecompiler.exe` compilation, `.vpk` output verification, optional `run_playable_smoke.customMap` orchestration, docs, and fixture/remote/smoke tests.
 - v2.4 verification passed `git diff --check`, `npm run typecheck`, `npm test` with 73 tests, `npm run build`, skill/reference validation, and strict secret scan.
 - Real Windows custom-map smoke passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `custommap_20260705222604` copied `addon_template/maps/template_map.vmap`, verified `info_player_start_goodguys` and `info_player_start_badguys`, compiled `template_spawn_smoke.vpk`, launched map `template_spawn_smoke`, found all gameplay markers in `game/dota/console.log`, and cleaned up only PID `35616` matching the smoke addon command line.
+- v2.5 implementation added optional score objective input for `create_addon` and `run_playable_smoke`, objective validation, generated Lua objective markers, inspect evidence, remote renderer parity, fixture/remote/smoke tests, and documentation.
+- v2.5 verification passed `git diff --check`, `npm run typecheck`, `npm test` with 80 tests, `npm run build`, manifest/reference validation, and strict secret scan.
+- Real Windows objective smoke passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `objective_20260705224126` prepared and compiled `template_objective_smoke.vpk`, launched map `template_objective_smoke`, found default gameplay markers plus objective configured/progress/complete markers in `game/dota/console.log`, and cleaned up only the matching Dota process.
 
 ## Next Action
 
-Plan the next gameplay objective slice, then proceed with spec, plan, implementation, verification, independent review, commit, and push.
+Define the next unit and ability scaffolding slice, then proceed with spec, plan, implementation, verification, independent review, commit, and push.
 
 ---
-*Last updated: 2026-07-06 for v2.4 custom map spawn point MVP*
+*Last updated: 2026-07-06 after v2.5 gameplay objective MVP*

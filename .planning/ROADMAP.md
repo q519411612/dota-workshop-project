@@ -19,6 +19,7 @@
 | 8 | Safe Smoke Cleanup Controls | Add explicit dry-run and execute cleanup for known smoke Dota processes before or after repeat playable smoke runs. | CLEN2-01, CLEN2-02, CLEN2-03, CLEN2-04, CLEN2-05, CLEN2-06, CLEN2-07, CLEN2-08, CLEN2-09, CLEN2-10 | Complete |
 | 9 | Runtime Placement MVP | Add deterministic spawn placement configuration and validation markers to the playable template without introducing map editing. | PLAC2-01, PLAC2-02, PLAC2-03, PLAC2-04, PLAC2-05, PLAC2-06, PLAC2-07, PLAC2-08 | Complete |
 | 10 | Custom Map Spawn Point MVP | Prepare, compile, launch, and validate a custom map copied from the installed Workshop template with spawn entity evidence. | MAP2-01, MAP2-02, MAP2-03, MAP2-04, MAP2-05, MAP2-06, MAP2-07, MAP2-08 | Complete |
+| 11 | Gameplay Objective MVP | Add a configurable score objective to the playable template with runtime objective markers and smoke validation. | OBJ2-01, OBJ2-02, OBJ2-03, OBJ2-04, OBJ2-05, OBJ2-06, OBJ2-07, OBJ2-08 | Complete |
 
 ## Phase Details
 
@@ -241,6 +242,32 @@
 - Real Windows custom-map smoke passed on 2026-07-06 using the remote SSH target adapter without storing private target credentials in the repository. The run copied `addon_template/maps/template_map.vmap`, verified `info_player_start_goodguys` and `info_player_start_badguys`, compiled `template_spawn_smoke.vpk` with `resourcecompiler.exe`, launched the custom map with remote `interactiveTask`, validated all gameplay markers from `game/dota/console.log`, and cleaned up only the matching Dota process.
 - Real compiler validation showed `resourcecompiler.exe -game` must receive the `game/dota` directory, not `game/dota/gameinfo.gi`, and the map output for this template is `<map>.vpk`.
 
+### Phase 11: Gameplay Objective MVP
+
+**Goal:** Add a configurable score objective to the playable template with runtime objective markers and smoke validation.
+**Mode:** mvp
+
+**Requirements:** OBJ2-01, OBJ2-02, OBJ2-03, OBJ2-04, OBJ2-05, OBJ2-06, OBJ2-07, OBJ2-08
+
+**Success Criteria**:
+
+1. `create_addon` accepts an optional score objective configuration for the playable template and rejects unsafe values before writing files.
+2. The generated Lua preserves the default playable loop when no objective is provided.
+3. When an objective is provided, the Lua emits objective configured, progress, and complete markers.
+4. `inspect_addon` reports objective configuration and marker evidence.
+5. Remote addon creation uses the same renderer and command contract as local generation.
+6. `run_playable_smoke` can include objective markers in expected validation when an objective is requested.
+7. Fixture tests cover schema parsing, invalid objective rejection, generated Lua objective content, inspect evidence, remote command construction, and smoke marker validation.
+8. Real Windows validation proves objective markers on a launchable map, preferably through the custom-map smoke path validated in Phase 10.
+
+**Notes:**
+
+- This phase should not introduce complex quest graphs, AI, custom units, abilities, items, or Panorama UI.
+- Use the existing score/win loop as the smallest rigorous objective surface.
+- Keep default smoke markers unchanged when no objective is requested.
+- Implementation added optional score objective input, objective validation, Lua objective markers, inspect evidence, smoke marker expansion, remote renderer parity, fixture and remote tests, and documentation.
+- Real Windows objective smoke passed on 2026-07-06 using the remote SSH target adapter without storing private target credentials in the repository. The run prepared and compiled `template_objective_smoke.vpk`, launched addon `objective_20260705224126`, validated default gameplay markers plus objective configured/progress/complete markers from `game/dota/console.log`, and cleaned up only the matching Dota process.
+
 ## Coverage
 
 | Metric | Count |
@@ -252,9 +279,10 @@
 | v2.2 requirements | 10 |
 | v2.3 requirements | 8 |
 | v2.4 requirements | 8 |
-| Mapped requirements | 86 |
+| v2.5 requirements | 8 |
+| Mapped requirements | 94 |
 | Unmapped requirements | 0 |
-| Phases | 10 |
+| Phases | 11 |
 
 ## Deferred Scope
 

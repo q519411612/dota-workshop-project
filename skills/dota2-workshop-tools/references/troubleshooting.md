@@ -56,6 +56,12 @@ If only the target-spawn marker is missing, remember that the stock `dota` map s
 
 If placement markers are missing, inspect the generated Lua for `self.placementOrigin`, `self.placementUnitName`, `self.placementTeam`, and the requested marker strings. Then read `game/dota/console.log` for Lua startup errors or `CreateUnitByName` failures. Placement markers prove runtime spawn intent and execution on a launchable map; they do not prove Hammer map spawn entity placement.
 
+### Objective marker missing
+
+If score objective markers are missing, inspect the generated Lua for `self.objectiveType`, `self.targetScore`, `objective configured`, `objective progress`, and `objective complete` strings. Then read `game/dota/console.log` for Lua startup errors and confirm the game reached `DOTA_GAMERULES_STATE_GAME_IN_PROGRESS`.
+
+Objective markers prove the configured score objective path in the minimal playable loop. They do not prove complex quest graphs, AI, custom units, abilities, items, heroes, or UI.
+
 ### Repeatable smoke failed
 
 `run_playable_smoke` stops at the failed operation and returns the transcript gathered so far. Use `failed smoke operation` to decide the next diagnostic path:

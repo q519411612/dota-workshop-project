@@ -1,4 +1,4 @@
-import { createAddon, inspectAddon, placementMarkers, validateAddonName, validateMapName, validateRuntimePlacement } from "./addon.js";
+import { createAddon, inspectAddon, objectiveMarkers, placementMarkers, validateAddonName, validateGameplayObjective, validateMapName, validateRuntimePlacement } from "./addon.js";
 import { launchCustomGame, validateAddon } from "./launch.js";
 import { prepareCustomMap } from "./map.js";
 import { createRemoteAddon, inspectRemoteAddon, launchRemoteCustomGame, validateRemoteAddon } from "./remote.js";
@@ -34,7 +34,7 @@ export async function runPlayableSmoke(input) {
     const operation = "run_playable_smoke";
     const mapName = input.customMap?.mapName ?? input.mapName ?? "dota";
     const addonName = input.addonName ?? generatePlayableSmokeAddonName(input.addonPrefix);
-    const expectedMarkers = input.expectedMarkers ?? playableSmokeMarkers(addonName).concat(input.placement ? placementMarkers(addonName, input.placement) : []);
+    const expectedMarkers = input.expectedMarkers ?? playableSmokeMarkers(addonName).concat(input.placement ? placementMarkers(addonName, input.placement) : [], input.objective ? objectiveMarkers(addonName, input.objective) : []);
     const validation = validateSmokeInput(addonName, mapName, input);
     if (validation) {
         return validation;
@@ -47,6 +47,7 @@ export async function runPlayableSmoke(input) {
             mapName,
             template: "playable",
             placement: input.placement,
+            objective: input.objective,
             replace: input.replace,
             executor: input.executor
         });
@@ -93,6 +94,7 @@ export async function runPlayableSmoke(input) {
         mapName,
         template: "playable",
         placement: input.placement,
+        objective: input.objective,
         replace: input.replace
     });
     transcript.push(createResult);
@@ -218,6 +220,20 @@ function validateSmokeInput(addonName, mapName, input) {
                     message: placementValidation.error ?? "Invalid runtime placement."
                 },
                 evidence: [placementValidation.error ?? "rejected runtime placement"]
+            });
+        }
+    }
+    if (input.objective) {
+        const objectiveValidation = validateGameplayObjective(input.objective);
+        if (!objectiveValidation.ok) {
+            return createFailureResult({
+                target: input.target,
+                operation: "run_playable_smoke",
+                error: {
+                    code: "INVALID_OBJECTIVE",
+                    message: objectiveValidation.error ?? "Invalid gameplay objective."
+                },
+                evidence: [objectiveValidation.error ?? "rejected gameplay objective"]
             });
         }
     }

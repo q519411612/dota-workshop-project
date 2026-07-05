@@ -148,6 +148,28 @@ When placement is present, the playable Lua emits additional markers:
 
 Runtime placement applies to the `playable` template and controls the generated Lua spawn call on an already launchable map. It does not generate Hammer maps, edit custom map spawn entities, or create unit/ability systems.
 
+`create_addon` and `run_playable_smoke` can also accept an optional score objective:
+
+```json
+{
+  "objective": {
+    "type": "score",
+    "targetScore": 2,
+    "tickIntervalSeconds": 1
+  }
+}
+```
+
+When objective configuration is present, the playable Lua keeps the existing score/win loop and emits additional objective markers:
+
+```text
+[DOTA_WORKSHOP_MCP] objective configured: <addon_name> type=score target=2
+[DOTA_WORKSHOP_MCP] objective progress: <addon_name> 1/2 source=think
+[DOTA_WORKSHOP_MCP] objective complete: <addon_name> type=score
+```
+
+Score objectives apply to the `playable` template only. They do not generate quest graphs, AI, custom units, abilities, items, heroes, or Panorama UI.
+
 Use `"template": "minimal"` only when you need the old marker-only smoke template.
 
 `validate_addon` only succeeds when expected log or console evidence is present.
@@ -235,6 +257,7 @@ Default behavior:
 - When `customMap` is provided, prepares that map before inspection and launch, then launches the custom map instead of `dota`.
 - Validates addon loaded, gamemode initialized, round started, score updated, and win condition markers.
 - When `placement` is provided, also validates placement configured, origin, unit, and spawned markers.
+- When `objective` is provided, also validates objective configured, progress, and complete markers.
 - Polls marker validation for a bounded window because Dota runtime logs may appear after launch returns.
 - Leaves generated addon files on the target for inspection.
 

@@ -60,6 +60,28 @@ describe("addon template", () => {
     expect(smokeInput.placement?.unitName).toBe("npc_dota_creep_badguys_melee");
   });
 
+  test("parses score objective through MCP input schemas", () => {
+    const objective = {
+      type: "score" as const,
+      targetScore: 2,
+      tickIntervalSeconds: 1
+    };
+
+    const createInput = CreateAddonInputSchema.parse({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      objective
+    });
+    const smokeInput = RunPlayableSmokeInputSchema.parse({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      objective
+    });
+
+    expect(createInput.objective?.targetScore).toBe(2);
+    expect(smokeInput.objective?.tickIntervalSeconds).toBe(1);
+  });
+
   test("creates the minimal game and content addon trees", async () => {
     const result = await createAddon({
       target: { kind: "fixture", root },
@@ -149,6 +171,30 @@ describe("addon template", () => {
     expect(lua).toContain("[DOTA_WORKSHOP_MCP] placement spawned: demo_addon");
   });
 
+  test("renders configured score objective markers in playable Lua", async () => {
+    const result = await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      mapName: "dota",
+      objective: {
+        type: "score",
+        targetScore: 2,
+        tickIntervalSeconds: 1
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("created score objective config for demo_addon");
+
+    const lua = await readFile(join(root, "game/dota_addons/demo_addon/scripts/vscripts/addon_game_mode.lua"), "utf8");
+    expect(lua).toContain("self.objectiveType = \"score\"");
+    expect(lua).toContain("self.targetScore = 2");
+    expect(lua).toContain("return 1");
+    expect(lua).toContain("[DOTA_WORKSHOP_MCP] objective configured: demo_addon type=score target=2");
+    expect(lua).toContain("[DOTA_WORKSHOP_MCP] objective progress: demo_addon");
+    expect(lua).toContain("[DOTA_WORKSHOP_MCP] objective complete: demo_addon type=score");
+  });
+
   test("rejects invalid runtime placement before writing addon files", async () => {
     const result = await createAddon({
       target: { kind: "fixture", root },
@@ -180,6 +226,38 @@ describe("addon template", () => {
     expect(result.ok).toBe(false);
     expect(result.error?.code).toBe("INVALID_PLACEMENT");
     expect(result.evidence).toContain("runtime placement requires the playable template");
+  });
+
+  test("rejects invalid score objective before writing addon files", async () => {
+    const result = await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      objective: {
+        type: "score",
+        targetScore: 0,
+        tickIntervalSeconds: 1
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_OBJECTIVE");
+    expect(result.evidence).toContain("rejected objective target score: 0");
+  });
+
+  test("rejects score objective on marker-only minimal template", async () => {
+    const result = await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      template: "minimal",
+      objective: {
+        type: "score",
+        targetScore: 2
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_OBJECTIVE");
+    expect(result.evidence).toContain("score objective requires the playable template");
   });
 
   test("can still create a marker-only minimal template", async () => {
@@ -258,5 +336,26 @@ describe("addon template", () => {
     expect(result.ok).toBe(true);
     expect(result.evidence).toContain("runtime placement config exists");
     expect(result.evidence).toContain("runtime placement markers exist");
+  });
+
+  test("inspects score objective evidence when present", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      objective: {
+        type: "score",
+        targetScore: 2,
+        tickIntervalSeconds: 1
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    const result = await inspectAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("score objective config exists");
+    expect(result.evidence).toContain("score objective markers exist");
   });
 });

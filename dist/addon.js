@@ -46,6 +46,29 @@ export function validateRuntimePlacement(placement) {
     }
     return { ok: true };
 }
+export function validateGameplayObjective(objective) {
+    if (objective.type !== "score") {
+        return {
+            ok: false,
+            error: `rejected objective type: ${objective.type}`
+        };
+    }
+    if (objective.targetScore !== undefined &&
+        (!Number.isInteger(objective.targetScore) || objective.targetScore < 1 || objective.targetScore > 99)) {
+        return {
+            ok: false,
+            error: `rejected objective target score: ${objective.targetScore}`
+        };
+    }
+    if (objective.tickIntervalSeconds !== undefined &&
+        (!Number.isFinite(objective.tickIntervalSeconds) || objective.tickIntervalSeconds <= 0 || objective.tickIntervalSeconds > 60)) {
+        return {
+            ok: false,
+            error: `rejected objective tick interval: ${objective.tickIntervalSeconds}`
+        };
+    }
+    return { ok: true };
+}
 export async function createAddon(input) {
     const operation = "create_addon";
     const nameValidation = validateAddonName(input.addonName);
@@ -99,6 +122,31 @@ export async function createAddon(input) {
             });
         }
     }
+    if (input.objective) {
+        if (template !== "playable") {
+            return createFailureResult({
+                target: input.target,
+                operation,
+                error: {
+                    code: "INVALID_OBJECTIVE",
+                    message: "Score objective requires the playable template."
+                },
+                evidence: ["score objective requires the playable template"]
+            });
+        }
+        const objectiveValidation = validateGameplayObjective(input.objective);
+        if (!objectiveValidation.ok) {
+            return createFailureResult({
+                target: input.target,
+                operation,
+                error: {
+                    code: "INVALID_OBJECTIVE",
+                    message: objectiveValidation.error ?? "Invalid gameplay objective."
+                },
+                evidence: [objectiveValidation.error ?? "rejected gameplay objective"]
+            });
+        }
+    }
     const root = targetRoot(input.target);
     if (!root) {
         return createFailureResult({
@@ -128,7 +176,7 @@ export async function createAddon(input) {
         await rm(paths.gameAddon, { recursive: true, force: true });
         await rm(paths.contentAddon, { recursive: true, force: true });
     }
-    await writeAddon(paths, input.addonName, mapName, template, input.placement);
+    await writeAddon(paths, input.addonName, mapName, template, input.placement, input.objective);
     return createSuccessResult({
         target: input.target,
         operation,
@@ -140,7 +188,8 @@ export async function createAddon(input) {
             template === "playable"
                 ? `created playable gameplay loop for ${input.addonName}`
                 : `created minimal runtime marker template for ${input.addonName}`,
-            ...(input.placement ? [`created runtime placement config for ${input.addonName}`] : [])
+            ...(input.placement ? [`created runtime placement config for ${input.addonName}`] : []),
+            ...(input.objective ? [`created score objective config for ${input.addonName}`] : [])
         ],
         paths
     });
@@ -190,6 +239,13 @@ export async function inspectAddon(input) {
             lua.includes(`[DOTA_WORKSHOP_MCP] placement spawned: ${input.addonName}`)
             ? "runtime placement markers exist"
             : "runtime placement markers missing");
+        evidence.push(lua.includes("self.objectiveType = \"score\"")
+            ? "score objective config exists"
+            : "score objective config missing");
+        evidence.push(lua.includes(`[DOTA_WORKSHOP_MCP] objective configured: ${input.addonName}`) &&
+            lua.includes(`[DOTA_WORKSHOP_MCP] objective complete: ${input.addonName}`)
+            ? "score objective markers exist"
+            : "score objective markers missing");
     }
     evidence.push(await pathExists(paths.unitData) ? "unit support file exists" : "unit support file missing");
     return createSuccessResult({
@@ -234,8 +290,8 @@ async function existingAddonEvidence(paths) {
     }
     return evidence;
 }
-async function writeAddon(paths, addonName, mapName, template, placement) {
-    const files = renderAddonFiles(addonName, mapName, template, placement);
+async function writeAddon(paths, addonName, mapName, template, placement, objective) {
+    const files = renderAddonFiles(addonName, mapName, template, placement, objective);
     await mkdir(join(paths.gameAddon, "scripts/vscripts"), { recursive: true });
     await mkdir(join(paths.gameAddon, "scripts/npc"), { recursive: true });
     await mkdir(join(paths.gameAddon, "resource"), { recursive: true });
@@ -247,10 +303,10 @@ async function writeAddon(paths, addonName, mapName, template, placement) {
     await writeFile(paths.unitData, files.unitData);
     await writeFile(paths.localization, files.localization);
 }
-export function renderAddonFiles(addonName, mapName, template = "playable", placement) {
+export function renderAddonFiles(addonName, mapName, template = "playable", placement, objective) {
     return {
         addonInfo: addonInfo(addonName, mapName),
-        luaEntry: template === "playable" ? playableLuaEntry(addonName, placement) : minimalLuaEntry(addonName),
+        luaEntry: template === "playable" ? playableLuaEntry(addonName, placement, objective) : minimalLuaEntry(addonName),
         heroList: heroList(),
         heroData: heroData(),
         unitData: unitData(),
@@ -264,6 +320,14 @@ export function playableMarkers(addonName) {
         `[DOTA_WORKSHOP_MCP] round started: ${addonName}`,
         `[DOTA_WORKSHOP_MCP] score updated: ${addonName}`,
         `[DOTA_WORKSHOP_MCP] win condition reached: ${addonName}`
+    ];
+}
+export function objectiveMarkers(addonName, objective) {
+    const normalized = normalizeObjective(objective);
+    return [
+        `[DOTA_WORKSHOP_MCP] objective configured: ${addonName} type=score target=${normalized.targetScore}`,
+        `[DOTA_WORKSHOP_MCP] objective progress: ${addonName} 1/${normalized.targetScore} source=think`,
+        `[DOTA_WORKSHOP_MCP] objective complete: ${addonName} type=score`
     ];
 }
 export function placementMarkers(addonName, placement) {
@@ -280,12 +344,15 @@ function addonInfo(addonName, mapName) {
 function minimalLuaEntry(addonName) {
     return `function Precache(context)\nend\n\nfunction Activate()\n  print("[DOTA_WORKSHOP_MCP] addon loaded: ${addonName}")\nend\n`;
 }
-function playableLuaEntry(addonName, placement) {
+function playableLuaEntry(addonName, placement, objective) {
     const spawn = placement ?? {
         unitName: "npc_dota_creep_badguys_melee",
         team: "badguys",
         origin: { x: 0, y: 0, z: 256 }
     };
+    const scoreObjective = objective ? normalizeObjective(objective) : undefined;
+    const targetScore = scoreObjective?.targetScore ?? 3;
+    const tickIntervalSeconds = scoreObjective?.tickIntervalSeconds ?? 3;
     const teamConstant = placementTeamConstant(spawn.team);
     const placementInit = placement ? `
   self.placementOrigin = Vector(${formatLuaNumber(spawn.origin.x)}, ${formatLuaNumber(spawn.origin.y)}, ${formatLuaNumber(spawn.origin.z)})
@@ -295,6 +362,16 @@ function playableLuaEntry(addonName, placement) {
   print("[DOTA_WORKSHOP_MCP] placement origin: ${addonName} x=${formatLuaNumber(spawn.origin.x)} y=${formatLuaNumber(spawn.origin.y)} z=${formatLuaNumber(spawn.origin.z)}")
   print("[DOTA_WORKSHOP_MCP] placement unit: ${addonName} ${spawn.unitName} team=${spawn.team}")
 ` : "";
+    const objectiveInit = scoreObjective ? `
+  self.objectiveType = "score"
+  print("[DOTA_WORKSHOP_MCP] objective configured: ${addonName} type=score target=${formatLuaNumber(scoreObjective.targetScore)}")
+` : "";
+    const objectiveProgress = scoreObjective
+        ? `  print("[DOTA_WORKSHOP_MCP] objective progress: ${addonName} " .. tostring(self.score) .. "/" .. tostring(self.targetScore) .. " source=" .. source)`
+        : "";
+    const objectiveComplete = scoreObjective
+        ? `  print("[DOTA_WORKSHOP_MCP] objective complete: ${addonName} type=score")`
+        : "";
     const spawnBody = placement
         ? `  local unit = CreateUnitByName(self.placementUnitName, self.placementOrigin, true, nil, nil, self.placementTeam)
   print("[DOTA_WORKSHOP_MCP] placement spawned: ${addonName} " .. unit:GetUnitName())`
@@ -320,13 +397,14 @@ end
 
 function DotaWorkshopMcpGameMode:InitGameMode()
   self.score = 0
-  self.targetScore = 3
+  self.targetScore = ${formatLuaNumber(targetScore)}
   self.roundStarted = false
   self.winReached = false
 
   print("[DOTA_WORKSHOP_MCP] addon loaded: ${addonName}")
   print("[DOTA_WORKSHOP_MCP] gamemode initialized: ${addonName}")
 ${placementInit}
+${objectiveInit}
 
   GameRules:SetCustomGameTeamMaxPlayers(DOTA_TEAM_GOODGUYS, 1)
   GameRules:SetCustomGameTeamMaxPlayers(DOTA_TEAM_BADGUYS, 0)
@@ -367,7 +445,7 @@ function DotaWorkshopMcpGameMode:OnThink()
 
   if self.score < self.targetScore then
     self:AddScore("think")
-    return 3.0
+    return ${formatLuaNumber(tickIntervalSeconds)}
   end
 
   if not self.winReached then
@@ -398,6 +476,7 @@ function DotaWorkshopMcpGameMode:AddScore(source)
 
   self.score = self.score + 1
   print("[DOTA_WORKSHOP_MCP] score updated: ${addonName} " .. tostring(self.score) .. "/" .. tostring(self.targetScore) .. " source=" .. source)
+${objectiveProgress}
 
   if self.score >= self.targetScore then
     self:FinishRound()
@@ -410,6 +489,7 @@ function DotaWorkshopMcpGameMode:FinishRound()
   end
 
   self.winReached = true
+${objectiveComplete}
   print("[DOTA_WORKSHOP_MCP] win condition reached: ${addonName}")
   GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)
 end
@@ -426,6 +506,13 @@ function placementTeamConstant(team) {
 }
 function formatLuaNumber(value) {
     return Object.is(value, -0) ? "0" : String(value);
+}
+function normalizeObjective(objective) {
+    return {
+        type: "score",
+        targetScore: objective.targetScore ?? 3,
+        tickIntervalSeconds: objective.tickIntervalSeconds ?? 3
+    };
 }
 function heroList() {
     return `"CustomHeroList"\n{\n  "npc_dota_hero_lina" "1"\n}\n`;

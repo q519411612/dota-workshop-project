@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { renderAddonFiles, validateAddonName, validateMapName, validateRuntimePlacement } from "./addon.js";
+import { renderAddonFiles, validateAddonName, validateGameplayObjective, validateMapName, validateRuntimePlacement } from "./addon.js";
 import { expectedMarkerList, findLuaStartupError, markerFoundEvidence, missingMarkers } from "./markers.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
-import type { RuntimePlacement } from "./addon.js";
+import type { GameplayObjective, RuntimePlacement } from "./addon.js";
 import type { CommandEvidence, RemoteTarget, ToolResult } from "./types.js";
 
 const execFileAsync = promisify(execFile);
@@ -44,6 +44,7 @@ export type RemoteAddonInput = RemoteEnvironmentInput & {
   mapName?: string;
   template?: "minimal" | "playable";
   placement?: RuntimePlacement;
+  objective?: GameplayObjective;
   replace?: boolean;
 };
 
@@ -211,6 +212,7 @@ export async function createRemoteAddon(input: RemoteAddonInput): Promise<ToolRe
       input.mapName ?? "dota",
       input.template ?? "playable",
       input.placement,
+      input.objective,
       input.replace ?? false
     ),
     executor: input.executor
@@ -591,6 +593,33 @@ function validateRemoteAddonInput(input: RemoteAddonInput, operation: string): T
     }
   }
 
+  if (input.objective) {
+    if (input.template && input.template !== "playable") {
+      return createFailureResult({
+        target: input.target,
+        operation,
+        error: {
+          code: "INVALID_OBJECTIVE",
+          message: "Score objective requires the playable template."
+        },
+        evidence: ["score objective requires the playable template"]
+      });
+    }
+
+    const objectiveValidation = validateGameplayObjective(input.objective);
+    if (!objectiveValidation.ok) {
+      return createFailureResult({
+        target: input.target,
+        operation,
+        error: {
+          code: "INVALID_OBJECTIVE",
+          message: objectiveValidation.error ?? "Invalid gameplay objective."
+        },
+        evidence: [objectiveValidation.error ?? "rejected gameplay objective"]
+      });
+    }
+  }
+
   if (!input.target.dotaRoot) {
     return createFailureResult({
       target: input.target,
@@ -616,11 +645,12 @@ function remoteCreateAddonScript(
   mapName: string,
   template: "minimal" | "playable",
   placement: RuntimePlacement | undefined,
+  objective: GameplayObjective | undefined,
   replace: boolean
 ): string {
   const gameAddon = `${dotaRoot}/game/dota_addons/${addonName}`;
   const contentAddon = `${dotaRoot}/content/dota_addons/${addonName}`;
-  const files = renderAddonFiles(addonName, mapName, template, placement);
+  const files = renderAddonFiles(addonName, mapName, template, placement, objective);
   const replaceScript = replace
     ? `Remove-Item -LiteralPath ${quoteForPowerShellSingleQuotedString(gameAddon)}, ${quoteForPowerShellSingleQuotedString(contentAddon)} -Recurse -Force -ErrorAction SilentlyContinue;`
     : `if ((Test-Path -LiteralPath ${quoteForPowerShellSingleQuotedString(gameAddon)}) -or (Test-Path -LiteralPath ${quoteForPowerShellSingleQuotedString(contentAddon)})) { throw 'ADDON_ALREADY_EXISTS' };`;

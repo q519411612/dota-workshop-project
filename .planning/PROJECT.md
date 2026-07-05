@@ -4,7 +4,7 @@
 
 Dota Workshop Project is a Codex plugin project for building Dota 2 custom games with AI assistance. It will package a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, and inspect a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The current focus is the next v2.x slice after custom-map preparation: build richer gameplay objective support on top of the validated playable addon and custom-map smoke loop.
+The current focus is the next v2.x slice after gameplay objectives: define minimal unit and ability scaffolding on top of the validated playable addon workflow.
 
 ## Core Value
 
@@ -36,7 +36,11 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 
 ### Active
 
-- [ ] Define and implement the next gameplay objective slice using the validated custom-map smoke loop.
+- [ ] Define the minimal unit and ability scaffolding slice with schema-first generation and fixture validation.
+
+### Recently Validated
+
+- [x] Add a configurable score objective to the playable template and validate objective markers through the same local or remote MCP contract.
 
 ### Out of Scope
 
@@ -79,6 +83,7 @@ The skill and MCP server should have separate responsibilities. The skill teache
 | Add deterministic runtime placement markers for v2.3 | The current playable loop proves scoring on stock `dota`; placement configuration is the next smallest step toward controlled custom game scenarios | Implemented |
 | Validate cleanup and placement on real Windows before expanding v2.x | Fixture tests proved contracts, but later map and unit work needs confidence in the remote runtime loop | Implemented |
 | Use installed template maps before binary map editing | The current `template_map.vmap` is binary DMX; copying, checking spawn entity strings, compiling, and launching it is a rigorous smaller slice than patching binary entity coordinates | Implemented |
+| Start gameplay objectives with score configuration | The existing score/win loop is already Windows-validated, so parameterizing it is the smallest objective slice before custom quests or unit systems | Implemented |
 
 ## Evolution
 
@@ -98,4 +103,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 for v2.4 custom map spawn point MVP*
+*Last updated: 2026-07-06 after v2.5 gameplay objective MVP*
