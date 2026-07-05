@@ -21,5 +21,5 @@ No unresolved implementation findings remain.
 
 ## Residual Risk
 
-- Real Windows placement smoke has not been exercised in this pass because no runtime target access was provided.
+- Real Windows placement smoke has now been exercised through the remote SSH target adapter with runtime log marker evidence for placement configuration, origin, unit/team, and spawned unit.
 - Runtime placement proves spawn intent and spawn execution through markers on launchable maps; it does not prove Hammer map spawn entity placement.

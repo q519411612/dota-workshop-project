@@ -21,5 +21,5 @@ No unresolved implementation findings remain.
 
 ## Residual Risk
 
-- Real Windows cleanup has not been exercised in this pass because no runtime target access was provided.
+- Real Windows cleanup has now been exercised against a remote Windows target with no-match, invalid-name, dry-run match, execute match, and post-cleanup no-match evidence.
 - The cleanup script is intentionally conservative and addon-scoped; users may still need a separate future file-cleanup operation for generated addon directories.

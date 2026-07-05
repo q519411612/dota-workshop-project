@@ -44,4 +44,4 @@ Modified:
 
 ## Verification Summary
 
-Automated verification passed on macOS with fixture coverage. Real Windows placement smoke was not run because no runtime Windows target access was provided.
+Automated verification passed on macOS with fixture coverage. Real Windows placement smoke passed on 2026-07-06 through the remote SSH target adapter with addon `placement_smoke_20260705215923395`, placement unit `npc_dota_creep_badguys_melee`, team `badguys`, origin `x=256 y=-384 z=128`, and runtime `console.log` evidence for placement configured, origin, unit/team, spawned unit, gameplay score, and win-condition markers. Addon-scoped cleanup then stopped the matched Dota process and post-cleanup inspection returned no matching process.

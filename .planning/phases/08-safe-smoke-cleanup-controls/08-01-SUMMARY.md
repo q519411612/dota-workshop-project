@@ -19,10 +19,9 @@
 - Focused cleanup tests first failed because `src/cleanup.ts` did not exist, then passed after implementation.
 - An independent review found local cleanup on a non-Windows host without an injected executor would otherwise fall through to command failure; a failing test was added and then fixed with an explicit `UNSUPPORTED_HOST_PLATFORM` result.
 - Full fixture validation passed with 59 Vitest tests.
-- Real Windows cleanup and repeat smoke validation were not run because no runtime Windows target access was provided.
+- Real Windows cleanup validation passed on 2026-07-06 through the remote SSH target adapter. The run verified remote Dota path discovery, invalid addon rejection before command construction, dry-run and execute no-match evidence, dry-run matching against one addon-scoped `dota2.exe` process, execute stopping only PID `43300`, and a post-cleanup `matchedCount: 0` inspection.
 
 ## Follow-Up Candidates
 
-- Run real Windows `cleanup_playable_smoke` dry-run and execute against a user-provided runtime target before a repeat smoke.
 - Add generated addon file cleanup as a separate explicit operation if users need target disk hygiene.
 - Add richer process evidence formatting if future real Windows output reveals useful extra fields.

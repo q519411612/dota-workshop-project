@@ -29,12 +29,23 @@
 
 ## Real Windows Cleanup
 
-Not run in this pass because no runtime Windows target access or credentials were provided. The implementation is covered by macOS fixture tests for schema, MCP contract, local command construction, remote command construction, dry-run, no-match, invalid addon name, and failure evidence.
+Real Windows validation passed on 2026-07-06 through the remote SSH target adapter without storing credentials in the repository.
+
+Evidence:
+
+- Remote environment discovery verified `dota2.exe`, `vconsole2.exe`, `game/dota_addons`, and `content/dota_addons` under the runtime Dota root.
+- Invalid cleanup addon name `Bad Addon Name` returned `INVALID_ADDON_NAME` before remote command construction.
+- Dry-run cleanup for `cleanup_smoke_nomatch_20260706` returned `matchedCount: 0` and no stopped process IDs.
+- Execute cleanup for `cleanup_smoke_nomatch_20260706` returned `matchedCount: 0` and no stopped process IDs.
+- After real placement smoke launch, dry-run cleanup for `placement_smoke_20260705215923395` matched exactly one `dota2.exe` process with the requested addon name in the command line and did not stop it.
+- Execute cleanup for `placement_smoke_20260705215923395` matched exactly that `dota2.exe` process and stopped PID `43300`.
+- A post-cleanup process inspection for `placement_smoke_20260705215923395` returned `matchedCount: 0`.
+- Cleanup warnings explicitly stated that cleanup only targets Dota processes whose command line contains the requested addon name, does not stop Steam, and does not delete generated addon files.
 
 ## Requirement Evidence
 
 - CLEN2-01 through CLEN2-03: schema, dispatcher, server registration, and invalid addon tests passed.
-- CLEN2-04 through CLEN2-06: dry-run, execute, no file deletion, no Steam stop, and no broad Dota kill command assertions passed.
+- CLEN2-04 through CLEN2-06: dry-run, execute, no file deletion, no Steam stop, no broad Dota kill command assertions, and real Windows addon-scoped process matching passed.
 - CLEN2-07 through CLEN2-08: result-shape, no-match, missing target info, and remote failure tests passed.
 - CLEN2-09: full macOS fixture test suite passed.
 - CLEN2-10: README and skill references updated and skill validation passed.

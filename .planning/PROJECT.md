@@ -4,7 +4,7 @@
 
 Dota Workshop Project is a Codex plugin project for building Dota 2 custom games with AI assistance. It will package a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, and inspect a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The current focus is v2.3 complete: Runtime Placement MVP adds deterministic spawn placement configuration to the playable template so generated addons can prove basic runtime positioning through log markers before larger map or unit generation work begins.
+The current focus is v2.3 complete and real Windows validated: Runtime Placement MVP adds deterministic spawn placement configuration to the playable template so generated addons can prove basic runtime positioning through log markers before larger map or unit generation work begins.
 
 ## Core Value
 
@@ -76,6 +76,7 @@ The skill and MCP server should have separate responsibilities. The skill teache
 | Add a repeatable playable smoke workflow for v2.1 | Real v2 smoke succeeded, but the validated path was too manual for reliable reuse | Implemented |
 | Add explicit safe smoke cleanup controls for v2.2 | Real v2.1 repeat smoke found stale smoke Dota processes can block interactive launch matching | Implemented |
 | Add deterministic runtime placement markers for v2.3 | The current playable loop proves scoring on stock `dota`; placement configuration is the next smallest step toward controlled custom game scenarios | Implemented |
+| Validate cleanup and placement on real Windows before expanding v2.x | Fixture tests proved contracts, but later map and unit work needs confidence in the remote runtime loop | Implemented |
 
 ## Evolution
 
@@ -95,4 +96,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 after v2.3 runtime placement MVP implementation*
+*Last updated: 2026-07-06 after v2.2 cleanup and v2.3 runtime placement real Windows validation*

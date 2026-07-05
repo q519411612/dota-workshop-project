@@ -89,15 +89,15 @@ See: `.planning/PROJECT.md`
 - A repeat smoke attempt while a previous smoke Dota process was still running produced `INTERACTIVE_LAUNCH_PROCESS_NOT_FOUND`; stopping only the known smoke process by addon command line allowed the current build smoke to pass.
 - v2.2 implementation added `cleanup_playable_smoke`, local/fixture/remote target schema support, dry-run inspection, execute cleanup, addon-name validation, no-match evidence, remote failure evidence, and repeat-smoke documentation.
 - v2.2 cleanup fixture verification passed `git diff --check`, `npm run typecheck`, `npm test` with 59 tests, `npm run build`, plugin validation, skill validation, and strict secret scan.
-- Real Windows cleanup and repeat smoke validation were not run because no runtime target access was provided during this implementation pass.
+- Real Windows cleanup validation passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. The run verified remote Dota path discovery, invalid addon rejection before command construction, dry-run and execute no-match evidence, dry-run matching against one addon-scoped `dota2.exe` process, execute stopping only PID `43300`, and post-cleanup `matchedCount: 0` evidence.
 - v2.3 is scoped to deterministic runtime placement configuration and markers on launchable maps; Hammer map editing, UI automation, complex objectives, and unit/ability generators remain deferred.
 - v2.3 implementation added optional `placement` input for `create_addon` and `run_playable_smoke`, generated Lua placement markers, placement validation, inspect evidence, remote renderer parity, schema/server exposure, docs, and fixture tests.
 - v2.3 verification passed `git diff --check`, `npm run typecheck`, `npm test` with 66 tests, `npm run build`, plugin validation, skill validation, and strict secret scan.
-- Real Windows placement smoke was not run because no runtime target access was provided during this implementation pass.
+- Real Windows placement smoke passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `placement_smoke_20260705215923395` launched on map `dota` with placement unit `npc_dota_creep_badguys_melee`, team `badguys`, origin `x=256 y=-384 z=128`, and runtime `console.log` evidence for placement configured, origin, unit/team, spawned unit, gameplay score, and win-condition markers.
 
 ## Next Action
 
-Choose the next v2.x milestone: custom map spawn points, richer gameplay objectives, unit/ability scaffolding, or real Windows placement smoke validation.
+Choose the next v2.x milestone: custom map spawn points, richer gameplay objectives, unit/ability scaffolding, Panorama/toolchain boundaries, or publishing prerequisites.
 
 ---
-*Last updated: 2026-07-06 after v2.3 runtime placement MVP implementation*
+*Last updated: 2026-07-06 after v2.2 cleanup and v2.3 runtime placement real Windows validation*
