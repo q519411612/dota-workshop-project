@@ -17,6 +17,7 @@ game/dota_addons/<addon_name>/
   scripts/npc/herolist.txt
   scripts/npc/npc_heroes_custom.txt
   scripts/npc/npc_units_custom.txt
+  scripts/npc/npc_abilities_custom.txt
   resource/addon_<addon_name>_english.txt
 content/dota_addons/<addon_name>/
   maps/
@@ -61,6 +62,29 @@ print("[DOTA_WORKSHOP_MCP] objective complete: <addon_name> type=score")
 
 This is a minimal score objective in the existing runtime loop. It is not a quest graph, AI system, custom unit/ability/item generator, hero system, or UI.
 
+## Unit Ability Scaffold
+
+When a caller passes `unitAbilityScaffold`, generate deterministic KV entries for one custom unit and one linked custom ability:
+
+```text
+scripts/npc/npc_units_custom.txt
+scripts/npc/npc_abilities_custom.txt
+```
+
+The unit entry should include the requested unit name and:
+
+```text
+"Ability1" "<abilityName>"
+```
+
+The ability entry should include the requested ability name and passive behavior:
+
+```text
+"AbilityBehavior" "DOTA_ABILITY_BEHAVIOR_PASSIVE"
+```
+
+This scaffold proves file generation and inspect evidence. It does not prove custom ability runtime execution, Lua modifiers, particles, sounds, balance, items, heroes, AI, UI, or publishing.
+
 ## Runtime Placement
 
 When a caller passes placement configuration, the playable template should set deterministic Lua placement values before spawning the validation unit. Runtime placement requires the `playable` template; do not claim placement support for `template: "minimal"`.
@@ -88,4 +112,4 @@ This is runtime spawn placement on a launchable map. It is not Hammer map editin
 
 ## Boundaries
 
-Do not generate complex gameplay systems, custom map editing, custom abilities, React Panorama, TypeScript-to-Lua scaffolding, publishing scripts, or large starter kits for the playable MVP template.
+Do not generate complex gameplay systems, custom map editing, runtime custom ability behavior, React Panorama, TypeScript-to-Lua scaffolding, publishing scripts, or large starter kits for the playable MVP template.

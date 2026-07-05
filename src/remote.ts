@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { renderAddonFiles, validateAddonName, validateGameplayObjective, validateMapName, validateRuntimePlacement } from "./addon.js";
+import { renderAddonFiles, validateAddonName, validateGameplayObjective, validateMapName, validateRuntimePlacement, validateUnitAbilityScaffold } from "./addon.js";
 import { expectedMarkerList, findLuaStartupError, markerFoundEvidence, missingMarkers } from "./markers.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
-import type { GameplayObjective, RuntimePlacement } from "./addon.js";
+import type { GameplayObjective, RuntimePlacement, UnitAbilityScaffold } from "./addon.js";
 import type { CommandEvidence, RemoteTarget, ToolResult } from "./types.js";
 
 const execFileAsync = promisify(execFile);
@@ -45,6 +45,7 @@ export type RemoteAddonInput = RemoteEnvironmentInput & {
   template?: "minimal" | "playable";
   placement?: RuntimePlacement;
   objective?: GameplayObjective;
+  unitAbilityScaffold?: UnitAbilityScaffold;
   replace?: boolean;
 };
 
@@ -213,6 +214,7 @@ export async function createRemoteAddon(input: RemoteAddonInput): Promise<ToolRe
       input.template ?? "playable",
       input.placement,
       input.objective,
+      input.unitAbilityScaffold,
       input.replace ?? false
     ),
     executor: input.executor
@@ -620,6 +622,21 @@ function validateRemoteAddonInput(input: RemoteAddonInput, operation: string): T
     }
   }
 
+  if (input.unitAbilityScaffold) {
+    const scaffoldValidation = validateUnitAbilityScaffold(input.unitAbilityScaffold);
+    if (!scaffoldValidation.ok) {
+      return createFailureResult({
+        target: input.target,
+        operation,
+        error: {
+          code: "INVALID_SCAFFOLD",
+          message: scaffoldValidation.error ?? "Invalid unit ability scaffold."
+        },
+        evidence: [scaffoldValidation.error ?? "rejected unit ability scaffold"]
+      });
+    }
+  }
+
   if (!input.target.dotaRoot) {
     return createFailureResult({
       target: input.target,
@@ -646,11 +663,12 @@ function remoteCreateAddonScript(
   template: "minimal" | "playable",
   placement: RuntimePlacement | undefined,
   objective: GameplayObjective | undefined,
+  scaffold: UnitAbilityScaffold | undefined,
   replace: boolean
 ): string {
   const gameAddon = `${dotaRoot}/game/dota_addons/${addonName}`;
   const contentAddon = `${dotaRoot}/content/dota_addons/${addonName}`;
-  const files = renderAddonFiles(addonName, mapName, template, placement, objective);
+  const files = renderAddonFiles(addonName, mapName, template, placement, objective, scaffold);
   const replaceScript = replace
     ? `Remove-Item -LiteralPath ${quoteForPowerShellSingleQuotedString(gameAddon)}, ${quoteForPowerShellSingleQuotedString(contentAddon)} -Recurse -Force -ErrorAction SilentlyContinue;`
     : `if ((Test-Path -LiteralPath ${quoteForPowerShellSingleQuotedString(gameAddon)}) -or (Test-Path -LiteralPath ${quoteForPowerShellSingleQuotedString(contentAddon)})) { throw 'ADDON_ALREADY_EXISTS' };`;
@@ -666,6 +684,7 @@ function remoteCreateAddonScript(
     [`${gameAddon}/scripts/npc/herolist.txt`, files.heroList],
     [`${gameAddon}/scripts/npc/npc_heroes_custom.txt`, files.heroData],
     [`${gameAddon}/scripts/npc/npc_units_custom.txt`, files.unitData],
+    [`${gameAddon}/scripts/npc/npc_abilities_custom.txt`, files.abilityData],
     [`${gameAddon}/resource/addon_${addonName}_english.txt`, files.localization]
   ].map(([path, value]) => `Set-Content -LiteralPath ${quoteForPowerShellSingleQuotedString(path)} -Value ${quoteForPowerShellSingleQuotedString(value)}`).join("; ");
 

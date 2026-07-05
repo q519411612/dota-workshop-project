@@ -69,6 +69,21 @@ export function validateGameplayObjective(objective) {
     }
     return { ok: true };
 }
+export function validateUnitAbilityScaffold(scaffold) {
+    if (!/^npc_[a-z0-9_]{1,124}$/.test(scaffold.unitName)) {
+        return {
+            ok: false,
+            error: `rejected scaffold unit name: ${scaffold.unitName}`
+        };
+    }
+    if (!/^ability_[a-z0-9_]{1,120}$/.test(scaffold.abilityName)) {
+        return {
+            ok: false,
+            error: `rejected scaffold ability name: ${scaffold.abilityName}`
+        };
+    }
+    return { ok: true };
+}
 export async function createAddon(input) {
     const operation = "create_addon";
     const nameValidation = validateAddonName(input.addonName);
@@ -147,6 +162,20 @@ export async function createAddon(input) {
             });
         }
     }
+    if (input.unitAbilityScaffold) {
+        const scaffoldValidation = validateUnitAbilityScaffold(input.unitAbilityScaffold);
+        if (!scaffoldValidation.ok) {
+            return createFailureResult({
+                target: input.target,
+                operation,
+                error: {
+                    code: "INVALID_SCAFFOLD",
+                    message: scaffoldValidation.error ?? "Invalid unit ability scaffold."
+                },
+                evidence: [scaffoldValidation.error ?? "rejected unit ability scaffold"]
+            });
+        }
+    }
     const root = targetRoot(input.target);
     if (!root) {
         return createFailureResult({
@@ -176,7 +205,7 @@ export async function createAddon(input) {
         await rm(paths.gameAddon, { recursive: true, force: true });
         await rm(paths.contentAddon, { recursive: true, force: true });
     }
-    await writeAddon(paths, input.addonName, mapName, template, input.placement, input.objective);
+    await writeAddon(paths, input.addonName, mapName, template, input.placement, input.objective, input.unitAbilityScaffold);
     return createSuccessResult({
         target: input.target,
         operation,
@@ -189,7 +218,8 @@ export async function createAddon(input) {
                 ? `created playable gameplay loop for ${input.addonName}`
                 : `created minimal runtime marker template for ${input.addonName}`,
             ...(input.placement ? [`created runtime placement config for ${input.addonName}`] : []),
-            ...(input.objective ? [`created score objective config for ${input.addonName}`] : [])
+            ...(input.objective ? [`created score objective config for ${input.addonName}`] : []),
+            ...(input.unitAbilityScaffold ? [`created unit ability scaffold for ${input.addonName}`] : [])
         ],
         paths
     });
@@ -248,6 +278,14 @@ export async function inspectAddon(input) {
             : "score objective markers missing");
     }
     evidence.push(await pathExists(paths.unitData) ? "unit support file exists" : "unit support file missing");
+    evidence.push(await pathExists(paths.abilityData) ? "ability support file exists" : "ability support file missing");
+    if (await pathExists(paths.unitData) && await pathExists(paths.abilityData)) {
+        const unitData = await readFile(paths.unitData, "utf8");
+        const abilityData = await readFile(paths.abilityData, "utf8");
+        evidence.push(hasLinkedAbilityScaffold(unitData, abilityData)
+            ? "unit ability scaffold exists"
+            : "unit ability scaffold missing");
+    }
     return createSuccessResult({
         target: input.target,
         operation,
@@ -276,6 +314,7 @@ function addonPaths(root, addonName) {
         heroList: join(gameAddon, "scripts/npc/herolist.txt"),
         heroData: join(gameAddon, "scripts/npc/npc_heroes_custom.txt"),
         unitData: join(gameAddon, "scripts/npc/npc_units_custom.txt"),
+        abilityData: join(gameAddon, "scripts/npc/npc_abilities_custom.txt"),
         localization: join(gameAddon, `resource/addon_${addonName}_english.txt`),
         mapDirectory: join(contentAddon, "maps")
     };
@@ -290,8 +329,8 @@ async function existingAddonEvidence(paths) {
     }
     return evidence;
 }
-async function writeAddon(paths, addonName, mapName, template, placement, objective) {
-    const files = renderAddonFiles(addonName, mapName, template, placement, objective);
+async function writeAddon(paths, addonName, mapName, template, placement, objective, scaffold) {
+    const files = renderAddonFiles(addonName, mapName, template, placement, objective, scaffold);
     await mkdir(join(paths.gameAddon, "scripts/vscripts"), { recursive: true });
     await mkdir(join(paths.gameAddon, "scripts/npc"), { recursive: true });
     await mkdir(join(paths.gameAddon, "resource"), { recursive: true });
@@ -301,15 +340,17 @@ async function writeAddon(paths, addonName, mapName, template, placement, object
     await writeFile(paths.heroList, files.heroList);
     await writeFile(paths.heroData, files.heroData);
     await writeFile(paths.unitData, files.unitData);
+    await writeFile(paths.abilityData, files.abilityData);
     await writeFile(paths.localization, files.localization);
 }
-export function renderAddonFiles(addonName, mapName, template = "playable", placement, objective) {
+export function renderAddonFiles(addonName, mapName, template = "playable", placement, objective, scaffold) {
     return {
         addonInfo: addonInfo(addonName, mapName),
         luaEntry: template === "playable" ? playableLuaEntry(addonName, placement, objective) : minimalLuaEntry(addonName),
         heroList: heroList(),
         heroData: heroData(),
-        unitData: unitData(),
+        unitData: unitData(scaffold),
+        abilityData: abilityData(scaffold),
         localization: localization(addonName)
     };
 }
@@ -520,8 +561,53 @@ function heroList() {
 function heroData() {
     return `"DOTAHeroes"\n{\n}\n`;
 }
-function unitData() {
-    return `"DOTAUnits"\n{\n}\n`;
+function unitData(scaffold) {
+    if (!scaffold) {
+        return `"DOTAUnits"\n{\n}\n`;
+    }
+    return `"DOTAUnits"\n{\n  "${scaffold.unitName}"\n  {\n    "BaseClass" "npc_dota_creature"\n    "Model" "models/creeps/lane_creeps/creep_bad_melee/creep_bad_melee.vmdl"\n    "SoundSet" "Creep_Bad_Melee"\n    "Level" "1"\n    "AttackCapabilities" "DOTA_UNIT_CAP_MELEE_ATTACK"\n    "MovementCapabilities" "DOTA_UNIT_CAP_MOVE_GROUND"\n    "BoundsHullName" "DOTA_HULL_SIZE_SMALL"\n    "StatusHealth" "300"\n    "StatusMana" "0"\n    "Ability1" "${scaffold.abilityName}"\n  }\n}\n`;
+}
+function abilityData(scaffold) {
+    if (!scaffold) {
+        return `"DOTAAbilities"\n{\n}\n`;
+    }
+    return `"DOTAAbilities"\n{\n  "${scaffold.abilityName}"\n  {\n    "BaseClass" "ability_datadriven"\n    "AbilityBehavior" "DOTA_ABILITY_BEHAVIOR_PASSIVE"\n  }\n}\n`;
+}
+function hasLinkedAbilityScaffold(unitData, abilityData) {
+    const abilityNames = Array.from(unitData.matchAll(/"Ability\d+"\s+"([^"]+)"/g), (match) => match[1]);
+    return abilityNames.some((abilityName) => hasPassiveAbilityDefinition(abilityData, abilityName));
+}
+function hasPassiveAbilityDefinition(abilityData, abilityName) {
+    const label = `"${abilityName}"`;
+    const labelIndex = abilityData.indexOf(label);
+    if (labelIndex === -1) {
+        return false;
+    }
+    const blockStart = abilityData.indexOf("{", labelIndex + label.length);
+    if (blockStart === -1) {
+        return false;
+    }
+    const blockEnd = matchingBraceIndex(abilityData, blockStart);
+    if (blockEnd === -1) {
+        return false;
+    }
+    return abilityData.slice(blockStart, blockEnd + 1).includes("\"AbilityBehavior\" \"DOTA_ABILITY_BEHAVIOR_PASSIVE\"");
+}
+function matchingBraceIndex(value, openIndex) {
+    let depth = 0;
+    for (let index = openIndex; index < value.length; index += 1) {
+        const character = value[index];
+        if (character === "{") {
+            depth += 1;
+        }
+        else if (character === "}") {
+            depth -= 1;
+            if (depth === 0) {
+                return index;
+            }
+        }
+    }
+    return -1;
 }
 function localization(addonName) {
     return `"lang"\n{\n  "Language" "english"\n  "Tokens"\n  {\n    "addon_game_name" "${addonName}"\n  }\n}\n`;

@@ -35,6 +35,10 @@ const objectiveInput = z.object({
     targetScore: z.number().int().min(1).max(99).optional(),
     tickIntervalSeconds: z.number().positive().max(60).optional()
 });
+const unitAbilityScaffoldInput = z.object({
+    unitName: z.string().min(1),
+    abilityName: z.string().min(1)
+});
 export function createServer() {
     const server = new McpServer({
         name: "dota-workshop-tools",
@@ -66,6 +70,7 @@ export function createServer() {
             template: z.enum(["minimal", "playable"]).optional(),
             placement: placementInput.optional(),
             objective: objectiveInput.optional(),
+            unitAbilityScaffold: unitAbilityScaffoldInput.optional(),
             replace: z.boolean().optional()
         }
     }, async (input) => asToolContent(await handleTool("create_addon", input)));
@@ -145,6 +150,7 @@ export function createServer() {
             }).optional(),
             placement: placementInput.optional(),
             objective: objectiveInput.optional(),
+            unitAbilityScaffold: unitAbilityScaffoldInput.optional(),
             expectedMarkers: z.array(z.string().min(1)).min(1).optional(),
             replace: z.boolean().optional(),
             dryRun: z.boolean().optional(),

@@ -20,6 +20,7 @@
 | 9 | Runtime Placement MVP | Add deterministic spawn placement configuration and validation markers to the playable template without introducing map editing. | PLAC2-01, PLAC2-02, PLAC2-03, PLAC2-04, PLAC2-05, PLAC2-06, PLAC2-07, PLAC2-08 | Complete |
 | 10 | Custom Map Spawn Point MVP | Prepare, compile, launch, and validate a custom map copied from the installed Workshop template with spawn entity evidence. | MAP2-01, MAP2-02, MAP2-03, MAP2-04, MAP2-05, MAP2-06, MAP2-07, MAP2-08 | Complete |
 | 11 | Gameplay Objective MVP | Add a configurable score objective to the playable template with runtime objective markers and smoke validation. | OBJ2-01, OBJ2-02, OBJ2-03, OBJ2-04, OBJ2-05, OBJ2-06, OBJ2-07, OBJ2-08 | Complete |
+| 12 | Unit Ability Scaffolding MVP | Generate minimal custom unit and linked ability KV scaffolds with local, remote, inspect, and smoke compatibility evidence. | UABL2-01, UABL2-02, UABL2-03, UABL2-04, UABL2-05, UABL2-06, UABL2-07, UABL2-08 | Complete |
 
 ## Phase Details
 
@@ -268,6 +269,32 @@
 - Implementation added optional score objective input, objective validation, Lua objective markers, inspect evidence, smoke marker expansion, remote renderer parity, fixture and remote tests, and documentation.
 - Real Windows objective smoke passed on 2026-07-06 using the remote SSH target adapter without storing private target credentials in the repository. The run prepared and compiled `template_objective_smoke.vpk`, launched addon `objective_20260705224126`, validated default gameplay markers plus objective configured/progress/complete markers from `game/dota/console.log`, and cleaned up only the matching Dota process.
 
+### Phase 12: Unit Ability Scaffolding MVP
+
+**Goal:** Generate minimal custom unit and linked ability KV scaffolds with local, remote, inspect, and smoke compatibility evidence.
+**Mode:** mvp
+
+**Requirements:** UABL2-01, UABL2-02, UABL2-03, UABL2-04, UABL2-05, UABL2-06, UABL2-07, UABL2-08
+
+**Success Criteria**:
+
+1. `create_addon` and `run_playable_smoke` accept optional `unitAbilityScaffold` input for one custom unit and one linked ability.
+2. Scaffold names are validated before local writes or remote command construction.
+3. Generated unit KV contains the requested unit and `Ability1` link.
+4. Generated ability KV exists and contains the requested ability scaffold.
+5. `inspect_addon` reports scaffold file and entry evidence.
+6. Remote addon creation uses the shared renderer for scaffold content.
+7. Scaffolded playable smoke preserves existing marker expectations.
+8. Real Windows validation proves scaffolded addons do not break the existing runtime marker loop.
+
+**Notes:**
+
+- This phase scaffolds KV files only; it does not prove custom ability runtime execution.
+- Lua ability behavior, modifiers, custom items, heroes, AI, UI, and publishing remain deferred.
+- Keep scaffold validation explicit; do not fall back to empty files after invalid input.
+- Implementation added optional `unitAbilityScaffold` input, scaffold validation, deterministic unit and ability KV generation, linked inspect evidence, remote renderer parity, smoke passthrough, fixture/remote/smoke tests, and documentation.
+- Real Windows scaffolded smoke passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `scaffold_20260705231402` launched on map `dota`, found the default gameplay markers in `game/dota/console.log`, and explicit cleanup stopped only the matching Dota process.
+
 ## Coverage
 
 | Metric | Count |
@@ -280,14 +307,15 @@
 | v2.3 requirements | 8 |
 | v2.4 requirements | 8 |
 | v2.5 requirements | 8 |
-| Mapped requirements | 94 |
+| v2.6 requirements | 8 |
+| Mapped requirements | 102 |
 | Unmapped requirements | 0 |
-| Phases | 11 |
+| Phases | 12 |
 
 ## Deferred Scope
 
 - Binary Hammer map entity editing.
-- Ability, item, unit, and hero generators.
+- Runtime ability behavior, item generators, full unit generators, and hero generators.
 - React Panorama generation.
 - TypeScript-to-Lua project templates.
 - Excel-to-KV workflows.
@@ -295,4 +323,4 @@
 - UI automation as a primary control strategy.
 
 ---
-*Roadmap updated: 2026-07-06 for v2.4 custom map spawn point MVP*
+*Roadmap updated: 2026-07-06 for v2.6 unit ability scaffolding MVP*

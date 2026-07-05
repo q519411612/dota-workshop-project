@@ -76,6 +76,8 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
           mapName: parsed.mapName,
           template: parsed.template,
           placement: parsed.placement,
+          objective: parsed.objective,
+          unitAbilityScaffold: parsed.unitAbilityScaffold,
           replace: parsed.replace
         });
       }

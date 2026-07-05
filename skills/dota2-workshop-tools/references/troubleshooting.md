@@ -62,6 +62,12 @@ If score objective markers are missing, inspect the generated Lua for `self.obje
 
 Objective markers prove the configured score objective path in the minimal playable loop. They do not prove complex quest graphs, AI, custom units, abilities, items, heroes, or UI.
 
+### Unit ability scaffold missing
+
+If scaffold evidence is missing, inspect `scripts/npc/npc_units_custom.txt` for the requested custom unit and `Ability1`, then inspect `scripts/npc/npc_abilities_custom.txt` for the requested ability and `AbilityBehavior`.
+
+Scaffold evidence proves deterministic KV generation only. Runtime custom ability execution, modifiers, item systems, heroes, AI, UI, and publishing need separate validation.
+
 ### Repeatable smoke failed
 
 `run_playable_smoke` stops at the failed operation and returns the transcript gathered so far. Use `failed smoke operation` to decide the next diagnostic path:

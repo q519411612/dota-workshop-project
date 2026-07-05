@@ -23,10 +23,13 @@ scripts/vscripts/addon_game_mode.lua
 scripts/npc/herolist.txt
 scripts/npc/npc_heroes_custom.txt
 scripts/npc/npc_units_custom.txt
+scripts/npc/npc_abilities_custom.txt
 resource/addon_<addon_name>_english.txt
 ```
 
 The Lua entry point is `scripts/vscripts/addon_game_mode.lua`. It should define `Precache(context)` and `Activate()`, emit a stable validation marker during startup, and for the playable template emit gameplay markers from the minimal Lua loop.
+
+`npc_units_custom.txt` and `npc_abilities_custom.txt` may contain a minimal unit/ability scaffold. Treat those KV files as generation evidence; runtime ability behavior needs separate Lua or engine validation work.
 
 ## Content Files
 

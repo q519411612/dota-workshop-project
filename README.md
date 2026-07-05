@@ -108,6 +108,7 @@ game/dota_addons/<addon_name>/
   scripts/npc/herolist.txt
   scripts/npc/npc_heroes_custom.txt
   scripts/npc/npc_units_custom.txt
+  scripts/npc/npc_abilities_custom.txt
   resource/addon_<addon_name>_english.txt
 content/dota_addons/<addon_name>/
   maps/
@@ -169,6 +170,26 @@ When objective configuration is present, the playable Lua keeps the existing sco
 ```
 
 Score objectives apply to the `playable` template only. They do not generate quest graphs, AI, custom units, abilities, items, heroes, or Panorama UI.
+
+`create_addon` and `run_playable_smoke` can also accept a minimal unit/ability KV scaffold:
+
+```json
+{
+  "unitAbilityScaffold": {
+    "unitName": "npc_dota_workshop_mcp_dummy",
+    "abilityName": "ability_dota_workshop_mcp_dummy"
+  }
+}
+```
+
+When scaffold configuration is present, generated addons include:
+
+```text
+scripts/npc/npc_units_custom.txt
+scripts/npc/npc_abilities_custom.txt
+```
+
+The unit KV links `Ability1` to the requested ability. This is scaffolded file generation and inspect evidence only; it does not prove custom ability runtime execution, Lua modifiers, items, heroes, AI, Panorama UI, or publishing behavior.
 
 Use `"template": "minimal"` only when you need the old marker-only smoke template.
 
@@ -258,6 +279,7 @@ Default behavior:
 - Validates addon loaded, gamemode initialized, round started, score updated, and win condition markers.
 - When `placement` is provided, also validates placement configured, origin, unit, and spawned markers.
 - When `objective` is provided, also validates objective configured, progress, and complete markers.
+- When `unitAbilityScaffold` is provided, creates scaffold files but does not add scaffold runtime markers.
 - Polls marker validation for a bounded window because Dota runtime logs may appear after launch returns.
 - Leaves generated addon files on the target for inspection.
 

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { renderAddonFiles, validateAddonName, validateGameplayObjective, validateMapName, validateRuntimePlacement } from "./addon.js";
+import { renderAddonFiles, validateAddonName, validateGameplayObjective, validateMapName, validateRuntimePlacement, validateUnitAbilityScaffold } from "./addon.js";
 import { expectedMarkerList, findLuaStartupError, markerFoundEvidence, missingMarkers } from "./markers.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
 const execFileAsync = promisify(execFile);
@@ -143,7 +143,7 @@ export async function createRemoteAddon(input) {
     }
     const result = await runRemoteCommand({
         target: input.target,
-        command: remoteCreateAddonScript(input.target.dotaRoot, input.addonName, input.mapName ?? "dota", input.template ?? "playable", input.placement, input.objective, input.replace ?? false),
+        command: remoteCreateAddonScript(input.target.dotaRoot, input.addonName, input.mapName ?? "dota", input.template ?? "playable", input.placement, input.objective, input.unitAbilityScaffold, input.replace ?? false),
         executor: input.executor
     });
     if (!result.ok) {
@@ -495,6 +495,20 @@ function validateRemoteAddonInput(input, operation) {
             });
         }
     }
+    if (input.unitAbilityScaffold) {
+        const scaffoldValidation = validateUnitAbilityScaffold(input.unitAbilityScaffold);
+        if (!scaffoldValidation.ok) {
+            return createFailureResult({
+                target: input.target,
+                operation,
+                error: {
+                    code: "INVALID_SCAFFOLD",
+                    message: scaffoldValidation.error ?? "Invalid unit ability scaffold."
+                },
+                evidence: [scaffoldValidation.error ?? "rejected unit ability scaffold"]
+            });
+        }
+    }
     if (!input.target.dotaRoot) {
         return createFailureResult({
             target: input.target,
@@ -511,10 +525,10 @@ function validateRemoteAddonInput(input, operation) {
 function remoteDiscoveryScript(dotaRoot) {
     return `$root = '${dotaRoot}'; $paths = @{ dotaExecutable = (Join-Path $root 'game/bin/win64/dota2.exe'); vconsoleExecutable = (Join-Path $root 'game/bin/win64/vconsole2.exe'); gameAddonsRoot = (Join-Path $root 'game/dota_addons'); contentAddonsRoot = (Join-Path $root 'content/dota_addons') }; $missing = @(); foreach ($key in $paths.Keys) { if (-not (Test-Path -LiteralPath $paths[$key])) { $missing += $key } }; @{ dotaRoot = $root; paths = $paths; missing = $missing } | ConvertTo-Json -Compress`;
 }
-function remoteCreateAddonScript(dotaRoot, addonName, mapName, template, placement, objective, replace) {
+function remoteCreateAddonScript(dotaRoot, addonName, mapName, template, placement, objective, scaffold, replace) {
     const gameAddon = `${dotaRoot}/game/dota_addons/${addonName}`;
     const contentAddon = `${dotaRoot}/content/dota_addons/${addonName}`;
-    const files = renderAddonFiles(addonName, mapName, template, placement, objective);
+    const files = renderAddonFiles(addonName, mapName, template, placement, objective, scaffold);
     const replaceScript = replace
         ? `Remove-Item -LiteralPath ${quoteForPowerShellSingleQuotedString(gameAddon)}, ${quoteForPowerShellSingleQuotedString(contentAddon)} -Recurse -Force -ErrorAction SilentlyContinue;`
         : `if ((Test-Path -LiteralPath ${quoteForPowerShellSingleQuotedString(gameAddon)}) -or (Test-Path -LiteralPath ${quoteForPowerShellSingleQuotedString(contentAddon)})) { throw 'ADDON_ALREADY_EXISTS' };`;
@@ -530,6 +544,7 @@ function remoteCreateAddonScript(dotaRoot, addonName, mapName, template, placeme
         [`${gameAddon}/scripts/npc/herolist.txt`, files.heroList],
         [`${gameAddon}/scripts/npc/npc_heroes_custom.txt`, files.heroData],
         [`${gameAddon}/scripts/npc/npc_units_custom.txt`, files.unitData],
+        [`${gameAddon}/scripts/npc/npc_abilities_custom.txt`, files.abilityData],
         [`${gameAddon}/resource/addon_${addonName}_english.txt`, files.localization]
     ].map(([path, value]) => `Set-Content -LiteralPath ${quoteForPowerShellSingleQuotedString(path)} -Value ${quoteForPowerShellSingleQuotedString(value)}`).join("; ");
     return `${replaceScript} New-Item -ItemType Directory -Force -Path ${directories} | Out-Null; ${writes}`;

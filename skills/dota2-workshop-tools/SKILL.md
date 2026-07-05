@@ -5,7 +5,7 @@ description: Use for Dota 2 Workshop Tools, Dota 2 custom game addons, addon tem
 
 # Dota 2 Workshop Tools
 
-Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, playable gameplay loop generation, score objective markers, runtime placement markers, template-derived custom map preparation, repeatable playable smoke workflows, explicit smoke cleanup controls, Workshop Tools launch, log evidence, and local or remote Windows validation.
+Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, minimal unit/ability KV scaffolding, playable gameplay loop generation, score objective markers, runtime placement markers, template-derived custom map preparation, repeatable playable smoke workflows, explicit smoke cleanup controls, Workshop Tools launch, log evidence, and local or remote Windows validation.
 
 ## Core Workflow
 
@@ -33,6 +33,7 @@ Use MCP tools when the request needs any of these operations:
 - Inspecting or stopping known smoke Dota processes through explicit addon-scoped cleanup.
 - Generating or validating runtime placement markers for the playable template.
 - Generating or validating score objective markers for the playable template.
+- Generating or inspecting minimal unit/ability KV scaffolds.
 - Preparing and compiling a template-derived custom map with spawn entity evidence.
 - Collecting evidence for a validation transcript.
 
@@ -47,6 +48,7 @@ Supported:
 - Minimal playable Lua loop with gamemode initialization, round start, score update, and win-condition markers.
 - Optional score objective configuration and objective markers in the playable template.
 - Optional runtime placement configuration and placement markers in the playable template.
+- Optional minimal custom unit plus linked ability KV scaffold files.
 - Template-derived custom map source copy, spawn entity marker verification, and `resourcecompiler.exe` compile evidence.
 - Addon metadata and minimal supporting KV files.
 - Local Windows target discovery and launch validation.
@@ -60,7 +62,7 @@ Deferred:
 - TypeScript-to-Lua project templates.
 - React Panorama projects.
 - Excel-to-KV pipelines.
-- Ability, item, unit, hero, complex AI, or gameplay generators beyond the minimal playable loop.
+- Runtime ability behavior, item, hero, complex AI, or gameplay generators beyond the minimal playable loop and scaffolded KV files.
 - Workshop publishing and encryption.
 - Binary `.vmap` spawn coordinate editing.
 - Hammer UI automation.
@@ -98,6 +100,8 @@ For v2.3 runtime placement, pass `placement` to `create_addon` or `run_playable_
 For v2.4 custom map preparation, call `prepare_custom_map` for an existing addon or pass `customMap` to `run_playable_smoke`. The operation copies `content/dota_addons/addon_template/maps/template_map.vmap`, verifies `info_player_start_goodguys` and `info_player_start_badguys`, runs `resourcecompiler.exe`, and returns source, compiler, command, and compiled-map evidence. Do not claim this edits binary `.vmap` spawn coordinates.
 
 For v2.5 score objectives, pass `objective: { type: "score", targetScore, tickIntervalSeconds }` to `create_addon` or `run_playable_smoke` only when the user wants configurable objective evidence in the existing playable loop. Validate objective configured, progress, and complete markers from logs. Do not imply this generates complex quests, AI, custom units, abilities, items, heroes, or UI.
+
+For v2.6 unit/ability scaffolding, pass `unitAbilityScaffold: { unitName, abilityName }` to `create_addon` or `run_playable_smoke` only when the user wants deterministic KV files for one custom unit and one linked ability. Inspect `npc_units_custom.txt` and `npc_abilities_custom.txt` for evidence. Do not claim this proves custom ability runtime execution, modifiers, items, heroes, AI, UI, publishing, or balancing.
 
 ## Editing Rules
 

@@ -6,7 +6,8 @@ import {
   validateAddonName,
   validateGameplayObjective,
   validateMapName,
-  validateRuntimePlacement
+  validateRuntimePlacement,
+  validateUnitAbilityScaffold
 } from "./addon.js";
 import { launchCustomGame, validateAddon } from "./launch.js";
 import { prepareCustomMap } from "./map.js";
@@ -18,7 +19,7 @@ import {
 } from "./remote.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
 import type { CommandEvidence, Target, ToolResult } from "./types.js";
-import type { GameplayObjective, RuntimePlacement } from "./addon.js";
+import type { GameplayObjective, RuntimePlacement, UnitAbilityScaffold } from "./addon.js";
 
 export type SmokeCommandOutput = {
   exitCode: number;
@@ -39,6 +40,7 @@ export type RunPlayableSmokeInput = {
   };
   placement?: RuntimePlacement;
   objective?: GameplayObjective;
+  unitAbilityScaffold?: UnitAbilityScaffold;
   expectedMarkers?: string[];
   replace?: boolean;
   dryRun?: boolean;
@@ -105,6 +107,7 @@ export async function runPlayableSmoke(input: RunPlayableSmokeInput): Promise<To
       template: "playable",
       placement: input.placement,
       objective: input.objective,
+      unitAbilityScaffold: input.unitAbilityScaffold,
       replace: input.replace,
       executor: input.executor
     });
@@ -153,6 +156,7 @@ export async function runPlayableSmoke(input: RunPlayableSmokeInput): Promise<To
     template: "playable",
     placement: input.placement,
     objective: input.objective,
+    unitAbilityScaffold: input.unitAbilityScaffold,
     replace: input.replace
   });
   transcript.push(createResult);
@@ -321,6 +325,21 @@ function validateSmokeInput(
           message: objectiveValidation.error ?? "Invalid gameplay objective."
         },
         evidence: [objectiveValidation.error ?? "rejected gameplay objective"]
+      });
+    }
+  }
+
+  if (input.unitAbilityScaffold) {
+    const scaffoldValidation = validateUnitAbilityScaffold(input.unitAbilityScaffold);
+    if (!scaffoldValidation.ok) {
+      return createFailureResult({
+        target: input.target,
+        operation: "run_playable_smoke",
+        error: {
+          code: "INVALID_SCAFFOLD",
+          message: scaffoldValidation.error ?? "Invalid unit ability scaffold."
+        },
+        evidence: [scaffoldValidation.error ?? "rejected unit ability scaffold"]
       });
     }
   }

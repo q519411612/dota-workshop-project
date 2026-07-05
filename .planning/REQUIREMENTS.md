@@ -175,6 +175,19 @@
 - [x] **OBJ2-07**: Fixture tests cover schema parsing, invalid objective rejection, generated Lua objective content, inspect evidence, remote command construction, and smoke marker validation on macOS.
 - [x] **OBJ2-08**: README and skill references explain the score objective workflow and explicitly defer complex quests, AI, custom units, abilities, items, and UI.
 
+## v2.6 Requirements
+
+### Unit Ability Scaffolding MVP
+
+- [x] **UABL2-01**: `create_addon` and `run_playable_smoke` can accept an optional `unitAbilityScaffold` containing one custom unit name and one linked ability name.
+- [x] **UABL2-02**: Scaffold names validate before local file generation or remote command construction, rejecting unsafe unit or ability names with explicit evidence.
+- [x] **UABL2-03**: Generated `npc_units_custom.txt` contains the requested unit scaffold and links `Ability1` to the requested ability.
+- [x] **UABL2-04**: Generated `npc_abilities_custom.txt` exists and contains the requested custom ability scaffold when scaffold input is present.
+- [x] **UABL2-05**: `inspect_addon` reports ability support file existence and unit/ability scaffold evidence for fixture addons.
+- [x] **UABL2-06**: Remote addon creation uses the same scaffold renderer as local addon creation and does not create a remote-only scaffold contract.
+- [x] **UABL2-07**: `run_playable_smoke` can create scaffolded playable addons while preserving default runtime marker expectations.
+- [x] **UABL2-08**: README and skill references explain scaffolded unit/ability KV generation and explicitly defer runtime ability behavior, item, hero, AI, UI, and publishing systems.
+
 ## Deferred v2.x Requirements
 
 Tracked but not in current roadmap.
@@ -322,6 +335,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OBJ2-06 | Phase 11 | Implemented |
 | OBJ2-07 | Phase 11 | Implemented |
 | OBJ2-08 | Phase 11 | Implemented |
+| UABL2-01 | Phase 12 | Implemented |
+| UABL2-02 | Phase 12 | Implemented |
+| UABL2-03 | Phase 12 | Implemented |
+| UABL2-04 | Phase 12 | Implemented |
+| UABL2-05 | Phase 12 | Implemented |
+| UABL2-06 | Phase 12 | Implemented |
+| UABL2-07 | Phase 12 | Implemented |
+| UABL2-08 | Phase 12 | Implemented |
 
 **Coverage:**
 - v1 requirements: 33 total
@@ -332,9 +353,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v2.3 requirements: 8 total
 - v2.4 requirements: 8 total
 - v2.5 requirements: 8 total
-- Mapped to phases: 94
+- v2.6 requirements: 8 total
+- Mapped to phases: 102
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-03*
-*Last updated: 2026-07-06 for v2.5 gameplay objective MVP*
+*Last updated: 2026-07-06 for v2.6 unit ability scaffolding MVP*

@@ -128,6 +128,29 @@ describe("repeatable playable smoke workflow", () => {
     expect(result.evidence).toContain(`found validation marker: [DOTA_WORKSHOP_MCP] objective complete: ${addonName} type=score`);
   });
 
+  test("creates scaffolded smoke addon without adding scaffold runtime markers", async () => {
+    const addonName = "smoke_scaffold";
+    const logPath = join(root, "game/dota/console.log");
+    await writeFile(logPath, playableSmokeMarkers(addonName).map((marker) => `[VScript] ${marker}`).join("\n"));
+
+    const result = await runPlayableSmoke({
+      target: { kind: "fixture", root },
+      addonName,
+      dryRun: true,
+      logPaths: [logPath],
+      validationTimeoutMs: 0,
+      unitAbilityScaffold: {
+        unitName: "npc_dota_workshop_mcp_dummy",
+        abilityName: "ability_dota_workshop_mcp_dummy"
+      }
+    } as Parameters<typeof runPlayableSmoke>[0]);
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("smoke operation create_addon succeeded");
+    expect(result.evidence).toContain(`found validation marker: [DOTA_WORKSHOP_MCP] win condition reached: ${addonName}`);
+    expect(result.evidence.some((line) => line.startsWith("found validation marker:") && line.includes("unit ability scaffold"))).toBe(false);
+  });
+
   test("fails smoke workflow when a required marker is missing", async () => {
     const addonName = "smoke_missing";
     const logPath = join(root, "game/dota/console.log");

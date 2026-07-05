@@ -98,6 +98,8 @@ When `placement` is provided, `run_playable_smoke` adds placement configured, or
 
 When `objective` is provided, `run_playable_smoke` adds objective configured, progress, and complete markers to the default validation list. Use this to prove a configurable score objective in the existing playable loop before adding complex quest, AI, unit, ability, item, hero, or UI systems.
 
+When `unitAbilityScaffold` is provided, `run_playable_smoke` creates the scaffold files during addon generation but does not add custom unit or ability runtime markers. Use inspect evidence for the KV files, and keep runtime ability behavior as separate validation work.
+
 When `customMap` is provided, `run_playable_smoke` changes the sequence to:
 
 1. Create a playable addon with the custom map name in metadata.

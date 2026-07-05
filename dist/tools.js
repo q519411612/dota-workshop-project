@@ -51,6 +51,8 @@ export async function handleTool(name, input) {
                     mapName: parsed.mapName,
                     template: parsed.template,
                     placement: parsed.placement,
+                    objective: parsed.objective,
+                    unitAbilityScaffold: parsed.unitAbilityScaffold,
                     replace: parsed.replace
                 });
             }

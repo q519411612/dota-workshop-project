@@ -313,6 +313,60 @@ describe("remote Windows operations", () => {
     expect(result.commands[0].command).toContain("[DOTA_WORKSHOP_MCP] objective complete: demo_addon type=score");
   });
 
+  test("creates remote addon with unit ability scaffold through shared renderer", async () => {
+    const result = await createRemoteAddon({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      mapName: "dota",
+      unitAbilityScaffold: {
+        unitName: "npc_dota_workshop_mcp_dummy",
+        abilityName: "ability_dota_workshop_mcp_dummy"
+      },
+      executor: async () => ({
+        exitCode: 0,
+        stdout: "created",
+        stderr: ""
+      })
+    } as Parameters<typeof createRemoteAddon>[0]);
+
+    expect(result.ok).toBe(true);
+    expect(result.commands[0].command).toContain("npc_abilities_custom.txt");
+    expect(result.commands[0].command).toContain("\"npc_dota_workshop_mcp_dummy\"");
+    expect(result.commands[0].command).toContain("\"Ability1\" \"ability_dota_workshop_mcp_dummy\"");
+    expect(result.commands[0].command).toContain("\"ability_dota_workshop_mcp_dummy\"");
+  });
+
+  test("rejects invalid remote unit ability scaffold before command construction", async () => {
+    const result = await createRemoteAddon({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      mapName: "dota",
+      unitAbilityScaffold: {
+        unitName: "npc_dota_workshop_mcp_dummy",
+        abilityName: "bad_ability"
+      }
+    } as Parameters<typeof createRemoteAddon>[0]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_SCAFFOLD");
+    expect(result.commands).toHaveLength(0);
+    expect(result.evidence).toContain("rejected scaffold ability name: bad_ability");
+  });
+
   test("prepares a custom map through remote resourcecompiler command evidence", async () => {
     let attemptedCommand = "";
     const result = await prepareCustomMap({

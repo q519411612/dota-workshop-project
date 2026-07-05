@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
@@ -82,6 +82,27 @@ describe("addon template", () => {
     expect(smokeInput.objective?.tickIntervalSeconds).toBe(1);
   });
 
+  test("parses unit ability scaffold through MCP input schemas", () => {
+    const unitAbilityScaffold = {
+      unitName: "npc_dota_workshop_mcp_dummy",
+      abilityName: "ability_dota_workshop_mcp_dummy"
+    };
+
+    const createInput = CreateAddonInputSchema.parse({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      unitAbilityScaffold
+    });
+    const smokeInput = RunPlayableSmokeInputSchema.parse({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      unitAbilityScaffold
+    });
+
+    expect(createInput.unitAbilityScaffold?.unitName).toBe("npc_dota_workshop_mcp_dummy");
+    expect(smokeInput.unitAbilityScaffold?.abilityName).toBe("ability_dota_workshop_mcp_dummy");
+  });
+
   test("creates the minimal game and content addon trees", async () => {
     const result = await createAddon({
       target: { kind: "fixture", root },
@@ -124,6 +145,8 @@ describe("addon template", () => {
 
     const unitData = await readFile(join(root, "game/dota_addons/demo_addon/scripts/npc/npc_units_custom.txt"), "utf8");
     expect(unitData).toContain("\"DOTAUnits\"");
+    const abilityData = await readFile(join(root, "game/dota_addons/demo_addon/scripts/npc/npc_abilities_custom.txt"), "utf8");
+    expect(abilityData).toContain("\"DOTAAbilities\"");
   });
 
   test("configures playable runtime to advance without manual hero selection", async () => {
@@ -195,6 +218,29 @@ describe("addon template", () => {
     expect(lua).toContain("[DOTA_WORKSHOP_MCP] objective complete: demo_addon type=score");
   });
 
+  test("renders configured unit ability scaffold files", async () => {
+    const result = await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      unitAbilityScaffold: {
+        unitName: "npc_dota_workshop_mcp_dummy",
+        abilityName: "ability_dota_workshop_mcp_dummy"
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("created unit ability scaffold for demo_addon");
+
+    const unitData = await readFile(join(root, "game/dota_addons/demo_addon/scripts/npc/npc_units_custom.txt"), "utf8");
+    const abilityData = await readFile(join(root, "game/dota_addons/demo_addon/scripts/npc/npc_abilities_custom.txt"), "utf8");
+
+    expect(unitData).toContain("\"npc_dota_workshop_mcp_dummy\"");
+    expect(unitData).toContain("\"Ability1\" \"ability_dota_workshop_mcp_dummy\"");
+    expect(abilityData).toContain("\"DOTAAbilities\"");
+    expect(abilityData).toContain("\"ability_dota_workshop_mcp_dummy\"");
+    expect(abilityData).toContain("\"AbilityBehavior\" \"DOTA_ABILITY_BEHAVIOR_PASSIVE\"");
+  });
+
   test("rejects invalid runtime placement before writing addon files", async () => {
     const result = await createAddon({
       target: { kind: "fixture", root },
@@ -260,6 +306,21 @@ describe("addon template", () => {
     expect(result.evidence).toContain("score objective requires the playable template");
   });
 
+  test("rejects invalid unit ability scaffold before writing addon files", async () => {
+    const result = await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      unitAbilityScaffold: {
+        unitName: "bad_unit",
+        abilityName: "ability_dota_workshop_mcp_dummy"
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_SCAFFOLD");
+    expect(result.evidence).toContain("rejected scaffold unit name: bad_unit");
+  });
+
   test("can still create a marker-only minimal template", async () => {
     await createAddon({
       target: { kind: "fixture", root },
@@ -315,6 +376,8 @@ describe("addon template", () => {
     expect(result.evidence).toContain("content addon root exists");
     expect(result.evidence).toContain("playable gameplay markers exist");
     expect(result.evidence).toContain("unit support file exists");
+    expect(result.evidence).toContain("ability support file exists");
+    expect(result.evidence).toContain("unit ability scaffold missing");
   });
 
   test("inspects runtime placement evidence when present", async () => {
@@ -357,5 +420,49 @@ describe("addon template", () => {
     expect(result.ok).toBe(true);
     expect(result.evidence).toContain("score objective config exists");
     expect(result.evidence).toContain("score objective markers exist");
+  });
+
+  test("inspects unit ability scaffold evidence when present", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      unitAbilityScaffold: {
+        unitName: "npc_dota_workshop_mcp_dummy",
+        abilityName: "ability_dota_workshop_mcp_dummy"
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    const result = await inspectAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("ability support file exists");
+    expect(result.evidence).toContain("unit ability scaffold exists");
+  });
+
+  test("does not report scaffold evidence when unit ability link is missing", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      unitAbilityScaffold: {
+        unitName: "npc_dota_workshop_mcp_dummy",
+        abilityName: "ability_dota_workshop_mcp_dummy"
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    await writeFile(
+      join(root, "game/dota_addons/demo_addon/scripts/npc/npc_abilities_custom.txt"),
+      `"DOTAAbilities"\n{\n  "ability_unlinked_dummy"\n  {\n    "AbilityBehavior" "DOTA_ABILITY_BEHAVIOR_PASSIVE"\n  }\n}\n`
+    );
+
+    const result = await inspectAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("unit ability scaffold missing");
   });
 });
