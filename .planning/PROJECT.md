@@ -4,7 +4,7 @@
 
 Dota Workshop Project is a Codex plugin project for building Dota 2 custom games with AI assistance. It will package a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, and inspect a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The current focus is v2.2 complete: Safe Smoke Cleanup Controls add an explicit, auditable cleanup operation so repeated playable smoke runs can inspect or stop only known Dota smoke processes whose command line matches a requested smoke addon name.
+The current focus is v2.3 complete: Runtime Placement MVP adds deterministic spawn placement configuration to the playable template so generated addons can prove basic runtime positioning through log markers before larger map or unit generation work begins.
 
 ## Core Value
 
@@ -31,10 +31,11 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 - [x] Document the workflow so a user can run a safe local or remote playable smoke without manually stitching every MCP operation together.
 - [x] Provide explicit safe cleanup controls so repeat playable smoke runs can dry-run inspect or stop only known Dota smoke processes matching a requested smoke addon name.
 - [x] Keep `run_playable_smoke` free of hidden cleanup side effects while documenting the explicit cleanup workflow.
+- [x] Generate a minimal runtime placement configuration for the playable template and validate placement markers through the existing local or remote runtime log path.
 
 ### Active
 
-(None - v2.2 Safe Smoke Cleanup Controls implementation is complete.)
+(None - v2.3 Runtime Placement MVP implementation is complete.)
 
 ### Out of Scope
 
@@ -74,6 +75,7 @@ The skill and MCP server should have separate responsibilities. The skill teache
 | Use a small Lua gameplay loop for v2 | Extends runtime evidence without importing large frameworks or UI automation | Implemented |
 | Add a repeatable playable smoke workflow for v2.1 | Real v2 smoke succeeded, but the validated path was too manual for reliable reuse | Implemented |
 | Add explicit safe smoke cleanup controls for v2.2 | Real v2.1 repeat smoke found stale smoke Dota processes can block interactive launch matching | Implemented |
+| Add deterministic runtime placement markers for v2.3 | The current playable loop proves scoring on stock `dota`; placement configuration is the next smallest step toward controlled custom game scenarios | Implemented |
 
 ## Evolution
 
@@ -93,4 +95,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-04 after v2.2 safe smoke cleanup controls implementation*
+*Last updated: 2026-07-06 after v2.3 runtime placement MVP implementation*

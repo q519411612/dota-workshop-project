@@ -9,12 +9,24 @@ export type AddonNameValidation = {
 };
 
 export type AddonTemplateKind = "minimal" | "playable";
+export type RuntimePlacementTeam = "goodguys" | "badguys" | "neutral";
+
+export type RuntimePlacement = {
+  unitName: string;
+  team: RuntimePlacementTeam;
+  origin: {
+    x: number;
+    y: number;
+    z: number;
+  };
+};
 
 export type CreateAddonInput = {
   target: Target;
   addonName: string;
   mapName?: string;
   template?: AddonTemplateKind;
+  placement?: RuntimePlacement;
   replace?: boolean;
 };
 
@@ -51,6 +63,33 @@ export function validateMapName(mapName: string): AddonNameValidation {
   return { ok: true };
 }
 
+export function validateRuntimePlacement(placement: RuntimePlacement): AddonNameValidation {
+  if (!/^[a-z][a-z0-9_]{0,127}$/.test(placement.unitName)) {
+    return {
+      ok: false,
+      error: `rejected placement unit name: ${placement.unitName}`
+    };
+  }
+
+  if (!["goodguys", "badguys", "neutral"].includes(placement.team)) {
+    return {
+      ok: false,
+      error: `rejected placement team: ${placement.team}`
+    };
+  }
+
+  for (const axis of ["x", "y", "z"] as const) {
+    if (!Number.isFinite(placement.origin[axis])) {
+      return {
+        ok: false,
+        error: `rejected placement origin ${axis}: ${placement.origin[axis]}`
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
 export async function createAddon(input: CreateAddonInput): Promise<ToolResult> {
   const operation = "create_addon";
   const nameValidation = validateAddonName(input.addonName);
@@ -80,6 +119,33 @@ export async function createAddon(input: CreateAddonInput): Promise<ToolResult> 
       },
       evidence: [`rejected map name: ${mapName}`]
     });
+  }
+
+  if (input.placement) {
+    if (template !== "playable") {
+      return createFailureResult({
+        target: input.target,
+        operation,
+        error: {
+          code: "INVALID_PLACEMENT",
+          message: "Runtime placement requires the playable template."
+        },
+        evidence: ["runtime placement requires the playable template"]
+      });
+    }
+
+    const placementValidation = validateRuntimePlacement(input.placement);
+    if (!placementValidation.ok) {
+      return createFailureResult({
+        target: input.target,
+        operation,
+        error: {
+          code: "INVALID_PLACEMENT",
+          message: placementValidation.error ?? "Invalid runtime placement."
+        },
+        evidence: [placementValidation.error ?? "rejected runtime placement"]
+      });
+    }
   }
 
   const root = targetRoot(input.target);
@@ -115,7 +181,7 @@ export async function createAddon(input: CreateAddonInput): Promise<ToolResult> 
     await rm(paths.contentAddon, { recursive: true, force: true });
   }
 
-  await writeAddon(paths, input.addonName, mapName, template);
+  await writeAddon(paths, input.addonName, mapName, template, input.placement);
 
   return createSuccessResult({
     target: input.target,
@@ -127,7 +193,8 @@ export async function createAddon(input: CreateAddonInput): Promise<ToolResult> 
       `created addon metadata with default map ${mapName}`,
       template === "playable"
         ? `created playable gameplay loop for ${input.addonName}`
-        : `created minimal runtime marker template for ${input.addonName}`
+        : `created minimal runtime marker template for ${input.addonName}`,
+      ...(input.placement ? [`created runtime placement config for ${input.addonName}`] : [])
     ],
     paths
   });
@@ -175,6 +242,13 @@ export async function inspectAddon(input: InspectAddonInput): Promise<ToolResult
     evidence.push(playableMarkers(input.addonName).every((marker) => lua.includes(marker))
       ? "playable gameplay markers exist"
       : "playable gameplay markers missing");
+    evidence.push(lua.includes("self.placementOrigin = Vector(") && lua.includes("self.placementUnitName = ")
+      ? "runtime placement config exists"
+      : "runtime placement config missing");
+    evidence.push(lua.includes(`[DOTA_WORKSHOP_MCP] placement configured: ${input.addonName}`) &&
+      lua.includes(`[DOTA_WORKSHOP_MCP] placement spawned: ${input.addonName}`)
+      ? "runtime placement markers exist"
+      : "runtime placement markers missing");
   }
 
   evidence.push(await pathExists(paths.unitData) ? "unit support file exists" : "unit support file missing");
@@ -235,9 +309,10 @@ async function writeAddon(
   paths: Record<string, string>,
   addonName: string,
   mapName: string,
-  template: AddonTemplateKind
+  template: AddonTemplateKind,
+  placement?: RuntimePlacement
 ): Promise<void> {
-  const files = renderAddonFiles(addonName, mapName, template);
+  const files = renderAddonFiles(addonName, mapName, template, placement);
 
   await mkdir(join(paths.gameAddon, "scripts/vscripts"), { recursive: true });
   await mkdir(join(paths.gameAddon, "scripts/npc"), { recursive: true });
@@ -264,11 +339,12 @@ export type RenderedAddonFiles = {
 export function renderAddonFiles(
   addonName: string,
   mapName: string,
-  template: AddonTemplateKind = "playable"
+  template: AddonTemplateKind = "playable",
+  placement?: RuntimePlacement
 ): RenderedAddonFiles {
   return {
     addonInfo: addonInfo(addonName, mapName),
-    luaEntry: template === "playable" ? playableLuaEntry(addonName) : minimalLuaEntry(addonName),
+    luaEntry: template === "playable" ? playableLuaEntry(addonName, placement) : minimalLuaEntry(addonName),
     heroList: heroList(),
     heroData: heroData(),
     unitData: unitData(),
@@ -286,6 +362,15 @@ export function playableMarkers(addonName: string): string[] {
   ];
 }
 
+export function placementMarkers(addonName: string, placement: RuntimePlacement): string[] {
+  return [
+    `[DOTA_WORKSHOP_MCP] placement configured: ${addonName}`,
+    `[DOTA_WORKSHOP_MCP] placement origin: ${addonName} x=${formatLuaNumber(placement.origin.x)} y=${formatLuaNumber(placement.origin.y)} z=${formatLuaNumber(placement.origin.z)}`,
+    `[DOTA_WORKSHOP_MCP] placement unit: ${addonName} ${placement.unitName} team=${placement.team}`,
+    `[DOTA_WORKSHOP_MCP] placement spawned: ${addonName} ${placement.unitName}`
+  ];
+}
+
 function addonInfo(addonName: string, mapName: string): string {
   return `"AddonInfo"\n{\n  "AddonName" "${addonName}"\n  "IsPlayable" "1"\n  "DefaultMap" "${mapName}"\n  "maps" "${mapName}"\n  "MinPlayers" "1"\n  "MaxPlayers" "10"\n}\n`;
 }
@@ -294,13 +379,37 @@ function minimalLuaEntry(addonName: string): string {
   return `function Precache(context)\nend\n\nfunction Activate()\n  print("[DOTA_WORKSHOP_MCP] addon loaded: ${addonName}")\nend\n`;
 }
 
-function playableLuaEntry(addonName: string): string {
+function playableLuaEntry(addonName: string, placement?: RuntimePlacement): string {
+  const spawn = placement ?? {
+    unitName: "npc_dota_creep_badguys_melee",
+    team: "badguys" as const,
+    origin: { x: 0, y: 0, z: 256 }
+  };
+  const teamConstant = placementTeamConstant(spawn.team);
+  const placementInit = placement ? `
+  self.placementOrigin = Vector(${formatLuaNumber(spawn.origin.x)}, ${formatLuaNumber(spawn.origin.y)}, ${formatLuaNumber(spawn.origin.z)})
+  self.placementUnitName = "${spawn.unitName}"
+  self.placementTeam = ${teamConstant}
+  print("[DOTA_WORKSHOP_MCP] placement configured: ${addonName}")
+  print("[DOTA_WORKSHOP_MCP] placement origin: ${addonName} x=${formatLuaNumber(spawn.origin.x)} y=${formatLuaNumber(spawn.origin.y)} z=${formatLuaNumber(spawn.origin.z)}")
+  print("[DOTA_WORKSHOP_MCP] placement unit: ${addonName} ${spawn.unitName} team=${spawn.team}")
+` : "";
+  const spawnBody = placement
+    ? `  local unit = CreateUnitByName(self.placementUnitName, self.placementOrigin, true, nil, nil, self.placementTeam)
+  print("[DOTA_WORKSHOP_MCP] placement spawned: ${addonName} " .. unit:GetUnitName())`
+    : `  local unit = CreateUnitByName("npc_dota_creep_badguys_melee", Vector(0, 0, 256), true, nil, nil, DOTA_TEAM_BADGUYS)
+  print("[DOTA_WORKSHOP_MCP] target spawned: ${addonName} " .. unit:GetUnitName())`;
+  const extraPrecache = spawn.unitName === "npc_dota_creep_badguys_melee"
+    ? ""
+    : `  PrecacheUnitByNameSync("${spawn.unitName}", context)\n`;
+
   return `if DotaWorkshopMcpGameMode == nil then
   DotaWorkshopMcpGameMode = class({})
 end
 
 function Precache(context)
   PrecacheUnitByNameSync("npc_dota_creep_badguys_melee", context)
+${extraPrecache}
   PrecacheUnitByNameSync("npc_dota_hero_lina", context)
 end
 
@@ -317,6 +426,7 @@ function DotaWorkshopMcpGameMode:InitGameMode()
 
   print("[DOTA_WORKSHOP_MCP] addon loaded: ${addonName}")
   print("[DOTA_WORKSHOP_MCP] gamemode initialized: ${addonName}")
+${placementInit}
 
   GameRules:SetCustomGameTeamMaxPlayers(DOTA_TEAM_GOODGUYS, 1)
   GameRules:SetCustomGameTeamMaxPlayers(DOTA_TEAM_BADGUYS, 0)
@@ -378,8 +488,7 @@ function DotaWorkshopMcpGameMode:StartRound()
 end
 
 function DotaWorkshopMcpGameMode:SpawnTarget()
-  local unit = CreateUnitByName("npc_dota_creep_badguys_melee", Vector(0, 0, 256), true, nil, nil, DOTA_TEAM_BADGUYS)
-  print("[DOTA_WORKSHOP_MCP] target spawned: ${addonName} " .. unit:GetUnitName())
+${spawnBody}
 end
 
 function DotaWorkshopMcpGameMode:AddScore(source)
@@ -405,6 +514,22 @@ function DotaWorkshopMcpGameMode:FinishRound()
   GameRules:SetGameWinner(DOTA_TEAM_GOODGUYS)
 end
 `;
+}
+
+function placementTeamConstant(team: RuntimePlacementTeam): string {
+  if (team === "goodguys") {
+    return "DOTA_TEAM_GOODGUYS";
+  }
+
+  if (team === "neutral") {
+    return "DOTA_TEAM_NEUTRALS";
+  }
+
+  return "DOTA_TEAM_BADGUYS";
+}
+
+function formatLuaNumber(value: number): string {
+  return Object.is(value, -0) ? "0" : String(value);
 }
 
 function heroList(): string {

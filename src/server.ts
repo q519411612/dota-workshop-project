@@ -23,6 +23,16 @@ const targetInput = {
   ])
 };
 
+const placementInput = z.object({
+  unitName: z.string().min(1),
+  team: z.enum(["goodguys", "badguys", "neutral"]),
+  origin: z.object({
+    x: z.number(),
+    y: z.number(),
+    z: z.number()
+  })
+});
+
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "dota-workshop-tools",
@@ -65,6 +75,7 @@ export function createServer(): McpServer {
         addonName: z.string().min(1),
         mapName: z.string().min(1).optional(),
         template: z.enum(["minimal", "playable"]).optional(),
+        placement: placementInput.optional(),
         replace: z.boolean().optional()
       }
     },
@@ -149,6 +160,7 @@ export function createServer(): McpServer {
         addonName: z.string().min(1).optional(),
         addonPrefix: z.string().min(1).optional(),
         mapName: z.string().min(1).optional(),
+        placement: placementInput.optional(),
         expectedMarkers: z.array(z.string().min(1)).min(1).optional(),
         replace: z.boolean().optional(),
         dryRun: z.boolean().optional(),

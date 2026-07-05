@@ -72,6 +72,7 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
           addonName: parsed.addonName,
           mapName: parsed.mapName,
           template: parsed.template,
+          placement: parsed.placement,
           replace: parsed.replace
         });
       }

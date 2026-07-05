@@ -1,4 +1,4 @@
-import { createAddon, inspectAddon, validateAddonName, validateMapName } from "./addon.js";
+import { createAddon, inspectAddon, placementMarkers, validateAddonName, validateMapName, validateRuntimePlacement } from "./addon.js";
 import { launchCustomGame, validateAddon } from "./launch.js";
 import { createRemoteAddon, inspectRemoteAddon, launchRemoteCustomGame, validateRemoteAddon } from "./remote.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
@@ -33,7 +33,7 @@ export async function runPlayableSmoke(input) {
     const operation = "run_playable_smoke";
     const mapName = input.mapName ?? "dota";
     const addonName = input.addonName ?? generatePlayableSmokeAddonName(input.addonPrefix);
-    const expectedMarkers = input.expectedMarkers ?? playableSmokeMarkers(addonName);
+    const expectedMarkers = input.expectedMarkers ?? playableSmokeMarkers(addonName).concat(input.placement ? placementMarkers(addonName, input.placement) : []);
     const validation = validateSmokeInput(addonName, mapName, input);
     if (validation) {
         return validation;
@@ -45,6 +45,7 @@ export async function runPlayableSmoke(input) {
             addonName,
             mapName,
             template: "playable",
+            placement: input.placement,
             replace: input.replace,
             executor: input.executor
         });
@@ -84,6 +85,7 @@ export async function runPlayableSmoke(input) {
         addonName,
         mapName,
         template: "playable",
+        placement: input.placement,
         replace: input.replace
     });
     transcript.push(createResult);
@@ -180,6 +182,20 @@ function validateSmokeInput(addonName, mapName, input) {
             },
             evidence: [`rejected smoke map name: ${mapName}`]
         });
+    }
+    if (input.placement) {
+        const placementValidation = validateRuntimePlacement(input.placement);
+        if (!placementValidation.ok) {
+            return createFailureResult({
+                target: input.target,
+                operation: "run_playable_smoke",
+                error: {
+                    code: "INVALID_PLACEMENT",
+                    message: placementValidation.error ?? "Invalid runtime placement."
+                },
+                evidence: [placementValidation.error ?? "rejected runtime placement"]
+            });
+        }
     }
     if (input.target.kind === "remote" && input.dryRun) {
         return createFailureResult({

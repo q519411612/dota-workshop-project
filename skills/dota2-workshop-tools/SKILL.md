@@ -5,7 +5,7 @@ description: Use for Dota 2 Workshop Tools, Dota 2 custom game addons, addon tem
 
 # Dota 2 Workshop Tools
 
-Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, playable gameplay loop generation, repeatable playable smoke workflows, explicit smoke cleanup controls, Workshop Tools launch, log evidence, and local or remote Windows validation.
+Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, playable gameplay loop generation, runtime placement markers, repeatable playable smoke workflows, explicit smoke cleanup controls, Workshop Tools launch, log evidence, and local or remote Windows validation.
 
 ## Core Workflow
 
@@ -31,6 +31,7 @@ Use MCP tools when the request needs any of these operations:
 - Running commands on local Windows or remote Windows.
 - Running the repeatable playable smoke workflow.
 - Inspecting or stopping known smoke Dota processes through explicit addon-scoped cleanup.
+- Generating or validating runtime placement markers for the playable template.
 - Collecting evidence for a validation transcript.
 
 If MCP is unavailable, explain that target-control work cannot be performed deterministically. You may still edit repository files, write Lua/KV/Panorama source, or prepare a manual checklist, but do not claim Workshop validation.
@@ -42,6 +43,7 @@ Supported:
 - Minimal addon generation with `game/dota_addons/<addon>` and `content/dota_addons/<addon>`.
 - Lua gamemode entry point and startup validation marker.
 - Minimal playable Lua loop with gamemode initialization, round start, score update, and win-condition markers.
+- Optional runtime placement configuration and placement markers in the playable template.
 - Addon metadata and minimal supporting KV files.
 - Local Windows target discovery and launch validation.
 - Remote Windows target execution through SSH or PowerShell Remoting.
@@ -83,6 +85,8 @@ For v2 playable validation, call `validate_addon` with `expectedMarkers` when ch
 For v2.1 repeatable playable smoke, prefer `run_playable_smoke` when the user wants one end-to-end smoke transcript. Use the atomic tools when investigating a specific failure or preserving a hand-controlled launch sequence.
 
 For v2.2 repeat-smoke cleanup, call `cleanup_playable_smoke` explicitly. Start with `dryRun: true` to inspect matching Dota processes for the known smoke addon name, then call again with `dryRun: false` only when the matches are correct. Do not add hidden cleanup to `run_playable_smoke`.
+
+For v2.3 runtime placement, pass `placement` to `create_addon` or `run_playable_smoke` only when the user wants deterministic spawn evidence on an already launchable map. Validate the placement markers from logs. Do not imply this edits Hammer map spawn entities or generates full unit/ability systems.
 
 ## Editing Rules
 

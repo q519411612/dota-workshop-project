@@ -251,6 +251,36 @@ describe("remote Windows operations", () => {
     expect(result.commands[0].command).toContain("npc_units_custom.txt");
   });
 
+  test("creates remote addon with runtime placement through shared renderer", async () => {
+    const result = await createRemoteAddon({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      mapName: "dota",
+      placement: {
+        unitName: "npc_dota_creep_badguys_melee",
+        team: "badguys",
+        origin: { x: 128, y: -64, z: 256 }
+      },
+      executor: async () => ({
+        exitCode: 0,
+        stdout: "created",
+        stderr: ""
+      })
+    } as Parameters<typeof createRemoteAddon>[0]);
+
+    expect(result.ok).toBe(true);
+    expect(result.commands[0].command).toContain("self.placementOrigin = Vector(128, -64, 256)");
+    expect(result.commands[0].command).toContain("[DOTA_WORKSHOP_MCP] placement configured: demo_addon");
+    expect(result.commands[0].command).toContain("[DOTA_WORKSHOP_MCP] placement spawned: demo_addon");
+  });
+
   test("inspects addon on the remote target from JSON command output", async () => {
     const result = await inspectRemoteAddon({
       target: {

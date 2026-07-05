@@ -7,7 +7,7 @@
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v2.2 Safe Smoke Cleanup Controls complete; repeat playable smoke runs can explicitly dry-run inspect or stop known addon-matched Dota smoke processes before rerun.
+**Current focus:** v2.3 Runtime Placement MVP complete; generated playable addons can use deterministic runtime placement configuration and markers without custom map editing.
 
 ## Current Roadmap
 
@@ -21,6 +21,7 @@ See: `.planning/PROJECT.md`
 | 6 | Playable Gameplay Loop MVP | Complete |
 | 7 | Repeatable Playable Smoke Workflow | Complete |
 | 8 | Safe Smoke Cleanup Controls | Complete |
+| 9 | Runtime Placement MVP | Complete |
 
 ## Decisions In Effect
 
@@ -39,6 +40,7 @@ See: `.planning/PROJECT.md`
 | v2.1 should compose existing MCP operations instead of creating a separate local or remote smoke contract | `.planning/ROADMAP.md` |
 | v2.1 does not automatically delete target files or stop broad process sets; smoke cleanup remains explicit and user-controlled | `.planning/phases/07-repeatable-playable-smoke-workflow/07-REVIEW.md` |
 | v2.2 cleanup must be an explicit MCP operation and must not run silently inside `run_playable_smoke` | `.planning/phases/08-safe-smoke-cleanup-controls/08-SPEC.md` |
+| v2.3 placement should extend the playable template and marker validation before custom map editing or unit/ability generation | `.planning/ROADMAP.md` |
 
 ## Research Inputs
 
@@ -88,10 +90,14 @@ See: `.planning/PROJECT.md`
 - v2.2 implementation added `cleanup_playable_smoke`, local/fixture/remote target schema support, dry-run inspection, execute cleanup, addon-name validation, no-match evidence, remote failure evidence, and repeat-smoke documentation.
 - v2.2 cleanup fixture verification passed `git diff --check`, `npm run typecheck`, `npm test` with 59 tests, `npm run build`, plugin validation, skill validation, and strict secret scan.
 - Real Windows cleanup and repeat smoke validation were not run because no runtime target access was provided during this implementation pass.
+- v2.3 is scoped to deterministic runtime placement configuration and markers on launchable maps; Hammer map editing, UI automation, complex objectives, and unit/ability generators remain deferred.
+- v2.3 implementation added optional `placement` input for `create_addon` and `run_playable_smoke`, generated Lua placement markers, placement validation, inspect evidence, remote renderer parity, schema/server exposure, docs, and fixture tests.
+- v2.3 verification passed `git diff --check`, `npm run typecheck`, `npm test` with 66 tests, `npm run build`, plugin validation, skill validation, and strict secret scan.
+- Real Windows placement smoke was not run because no runtime target access was provided during this implementation pass.
 
 ## Next Action
 
-Choose the next v2.x milestone: custom map spawn points, richer gameplay objectives, generated unit/ability scaffolding, or another safe operations control.
+Choose the next v2.x milestone: custom map spawn points, richer gameplay objectives, unit/ability scaffolding, or real Windows placement smoke validation.
 
 ---
-*Last updated: 2026-07-04 after v2.2 safe smoke cleanup controls implementation*
+*Last updated: 2026-07-06 after v2.3 runtime placement MVP implementation*

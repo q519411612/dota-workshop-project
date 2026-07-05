@@ -94,6 +94,8 @@ Use `run_playable_smoke` for the standard v2 playable smoke path. It runs the sa
 
 By default it generates a unique addon name, polls marker validation for a bounded window, leaves generated files on the target, and returns a transcript with the generated addon name, commands, paths, warnings, logs, and marker evidence. Pass an explicit `addonName` only for deterministic fixtures or intentional repeat runs.
 
+When `placement` is provided, `run_playable_smoke` adds placement configured, origin, unit, and spawned markers to the default validation list. Use this to prove deterministic runtime placement on a stock launchable map before designing custom map spawn points.
+
 ## Explicit Smoke Cleanup
 
 Use `cleanup_playable_smoke` only when the user deliberately wants to inspect or stop a known smoke process before or after a repeat run. It is not part of `run_playable_smoke`.

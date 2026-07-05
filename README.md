@@ -124,6 +124,29 @@ The Lua entry point emits markers such as:
 [DOTA_WORKSHOP_MCP] win condition reached: <addon_name>
 ```
 
+`create_addon` and `run_playable_smoke` can also accept optional runtime placement configuration:
+
+```json
+{
+  "placement": {
+    "unitName": "npc_dota_creep_badguys_melee",
+    "team": "badguys",
+    "origin": { "x": 128, "y": -64, "z": 256 }
+  }
+}
+```
+
+When placement is present, the playable Lua emits additional markers:
+
+```text
+[DOTA_WORKSHOP_MCP] placement configured: <addon_name>
+[DOTA_WORKSHOP_MCP] placement origin: <addon_name> x=128 y=-64 z=256
+[DOTA_WORKSHOP_MCP] placement unit: <addon_name> npc_dota_creep_badguys_melee team=badguys
+[DOTA_WORKSHOP_MCP] placement spawned: <addon_name> npc_dota_creep_badguys_melee
+```
+
+Runtime placement applies to the `playable` template and controls the generated Lua spawn call on an already launchable map. It does not generate Hammer maps, edit custom map spawn entities, or create unit/ability systems.
+
 Use `"template": "minimal"` only when you need the old marker-only smoke template.
 
 `validate_addon` only succeeds when expected log or console evidence is present.
@@ -170,6 +193,7 @@ Default behavior:
 - Creates the default `playable` template.
 - Launches map `dota` with `"runtimeMode": "game"` and `"consoleLog": true`.
 - Validates addon loaded, gamemode initialized, round started, score updated, and win condition markers.
+- When `placement` is provided, also validates placement configured, origin, unit, and spawned markers.
 - Polls marker validation for a bounded window because Dota runtime logs may appear after launch returns.
 - Leaves generated addon files on the target for inspection.
 

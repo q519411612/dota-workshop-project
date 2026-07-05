@@ -136,6 +136,19 @@
 - [x] **CLEN2-09**: Fixture tests cover MCP schema/dispatcher exposure, local command construction, remote command construction, dry-run, no-match, invalid addon name, and failure evidence on macOS.
 - [x] **CLEN2-10**: README and skill references explain the safe repeat-smoke cleanup workflow and state that cleanup is explicit, addon-scoped, and non-file-deleting.
 
+## v2.3 Requirements
+
+### Runtime Placement MVP
+
+- [x] **PLAC2-01**: `create_addon` can accept an optional deterministic runtime placement configuration for the playable template without changing the default template behavior.
+- [x] **PLAC2-02**: Placement configuration validates unit name and numeric vector fields before file generation or remote command construction.
+- [x] **PLAC2-03**: The generated playable Lua template emits stable placement markers for configured unit name, team, origin, and spawn result.
+- [x] **PLAC2-04**: `inspect_addon` reports placement configuration and placement marker evidence for local fixture addons.
+- [x] **PLAC2-05**: Remote addon creation uses the same placement rendering path as local addon creation and does not create a separate remote-only contract.
+- [x] **PLAC2-06**: `run_playable_smoke` can include placement markers in expected validation when placement is requested, while preserving the default smoke marker set when it is not requested.
+- [x] **PLAC2-07**: Fixture tests cover schema parsing, invalid placement rejection, generated Lua placement content, inspect evidence, remote command construction, and smoke marker validation on macOS.
+- [x] **PLAC2-08**: README and skill references explain the placement workflow and explicitly defer custom map editing, Hammer UI automation, complex objectives, and unit/ability generators.
+
 ## Deferred v2.x Requirements
 
 Tracked but not in current roadmap.
@@ -258,6 +271,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLEN2-08 | Phase 8 | Implemented |
 | CLEN2-09 | Phase 8 | Implemented |
 | CLEN2-10 | Phase 8 | Implemented |
+| PLAC2-01 | Phase 9 | Implemented |
+| PLAC2-02 | Phase 9 | Implemented |
+| PLAC2-03 | Phase 9 | Implemented |
+| PLAC2-04 | Phase 9 | Implemented |
+| PLAC2-05 | Phase 9 | Implemented |
+| PLAC2-06 | Phase 9 | Implemented |
+| PLAC2-07 | Phase 9 | Implemented |
+| PLAC2-08 | Phase 9 | Implemented |
 
 **Coverage:**
 - v1 requirements: 33 total
@@ -265,9 +286,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v2 MVP requirements: 14 total
 - v2.1 requirements: 8 total
 - v2.2 requirements: 10 total
-- Mapped to phases: 70
+- v2.3 requirements: 8 total
+- Mapped to phases: 78
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-03*
-*Last updated: 2026-07-04 after v2.2 safe smoke cleanup controls implementation*
+*Last updated: 2026-07-06 after v2.3 runtime placement MVP implementation*

@@ -17,6 +17,7 @@
 | 6 | Playable Gameplay Loop MVP | Generate a minimal playable Lua gameplay loop and validate gameplay markers through the existing runtime console log path. | API2-01, API2-02, API2-03, GAME2-01, GAME2-02, GAME2-03, GAME2-04, GAME2-05, MCP2-01, MCP2-02, MCP2-03, MCP2-04, DOC2-01, DOC2-02 | Complete |
 | 7 | Repeatable Playable Smoke Workflow | Package the verified playable runtime smoke path into one repeatable MCP workflow with safe transcript output. | SMOK2-01, SMOK2-02, SMOK2-03, SMOK2-04, SMOK2-05, SMOK2-06, SMOK2-07, SMOK2-08 | Complete |
 | 8 | Safe Smoke Cleanup Controls | Add explicit dry-run and execute cleanup for known smoke Dota processes before or after repeat playable smoke runs. | CLEN2-01, CLEN2-02, CLEN2-03, CLEN2-04, CLEN2-05, CLEN2-06, CLEN2-07, CLEN2-08, CLEN2-09, CLEN2-10 | Complete |
+| 9 | Runtime Placement MVP | Add deterministic spawn placement configuration and validation markers to the playable template without introducing map editing. | PLAC2-01, PLAC2-02, PLAC2-03, PLAC2-04, PLAC2-05, PLAC2-06, PLAC2-07, PLAC2-08 | Complete |
 
 ## Phase Details
 
@@ -191,6 +192,29 @@
 - Real Windows cleanup and repeat smoke validation can run only when runtime target access is provided.
 - Implementation added `cleanup_playable_smoke`, dry-run default behavior, execute mode, local/remote command construction tests, explicit no-match evidence, remote failure evidence, and documentation.
 
+### Phase 9: Runtime Placement MVP
+
+**Goal:** Add deterministic spawn placement configuration and validation markers to the playable template without introducing map editing.
+**Mode:** mvp
+
+**Requirements:** PLAC2-01, PLAC2-02, PLAC2-03, PLAC2-04, PLAC2-05, PLAC2-06, PLAC2-07, PLAC2-08
+
+**Success Criteria**:
+
+1. `create_addon` accepts optional placement configuration for the playable template and rejects invalid unit names, teams, or vector values before writing files.
+2. The playable Lua template emits placement markers that validation can search for through existing `validate_addon` and `run_playable_smoke` paths.
+3. `inspect_addon` reports placement configuration and marker evidence when placement is present.
+4. Remote addon generation reuses the same renderer and command contract as local generation.
+5. Fixture tests cover local generation, remote command construction, smoke marker validation, invalid placement, and default-path compatibility.
+6. README and skill references explain runtime placement while keeping custom map editing, Hammer UI automation, complex objectives, and unit/ability generators deferred.
+
+**Notes:**
+
+- This phase controls runtime placement on stock launchable maps; it does not generate or edit Hammer maps.
+- The default playable template must remain compatible with v2/v2.1/v2.2 smoke tests.
+- Placement validation remains evidence-driven and uses log markers, not process launch success.
+- Implementation added optional placement input, placement validation, generated Lua placement markers, inspect evidence, smoke marker expansion, remote renderer parity, fixture tests, and documentation.
+
 ## Coverage
 
 | Metric | Count |
@@ -200,9 +224,10 @@
 | v2 MVP requirements | 14 |
 | v2.1 requirements | 8 |
 | v2.2 requirements | 10 |
-| Mapped requirements | 70 |
+| v2.3 requirements | 8 |
+| Mapped requirements | 78 |
 | Unmapped requirements | 0 |
-| Phases | 8 |
+| Phases | 9 |
 
 ## Deferred Scope
 
@@ -214,4 +239,4 @@
 - UI automation as a primary control strategy.
 
 ---
-*Roadmap updated: 2026-07-04 after v2.2 safe smoke cleanup controls implementation*
+*Roadmap updated: 2026-07-06 after v2.3 runtime placement MVP implementation*

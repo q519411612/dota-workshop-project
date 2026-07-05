@@ -42,10 +42,31 @@ The playable template should define `Precache(context)` and `Activate()`. `Activ
 
 The spawn marker is useful additional evidence. Real Windows runtime smoke on 2026-07-04 verified the stock `dota` map can emit `target spawned` for `npc_dota_creep_badguys_melee` at the generated origin position. Do not use `GameRules:SetCustomGameForceHero` for the v2 stable template; it produced a Lua runtime error in the tested current runtime.
 
+## Runtime Placement
+
+When a caller passes placement configuration, the playable template should set deterministic Lua placement values before spawning the validation unit. Runtime placement requires the `playable` template; do not claim placement support for `template: "minimal"`.
+
+```lua
+self.placementOrigin = Vector(128, -64, 256)
+self.placementUnitName = "npc_dota_creep_badguys_melee"
+self.placementTeam = DOTA_TEAM_BADGUYS
+```
+
+It should emit placement markers for configured state and spawn result:
+
+```lua
+print("[DOTA_WORKSHOP_MCP] placement configured: <addon_name>")
+print("[DOTA_WORKSHOP_MCP] placement origin: <addon_name> x=128 y=-64 z=256")
+print("[DOTA_WORKSHOP_MCP] placement unit: <addon_name> npc_dota_creep_badguys_melee team=badguys")
+print("[DOTA_WORKSHOP_MCP] placement spawned: <addon_name> npc_dota_creep_badguys_melee")
+```
+
+This is runtime spawn placement on a launchable map. It is not Hammer map editing and does not create custom spawn point entities.
+
 ## Metadata
 
 `addoninfo.txt` format may vary between classic KeyValues and KV3-like output. For fixture generation, use one deterministic compatibility format and keep the format choice explicit in the MCP result. When editing an existing addon, preserve the detected metadata format.
 
 ## Boundaries
 
-Do not generate complex gameplay systems, custom abilities, React Panorama, TypeScript-to-Lua scaffolding, publishing scripts, or large starter kits for the playable MVP template.
+Do not generate complex gameplay systems, custom map editing, custom abilities, React Panorama, TypeScript-to-Lua scaffolding, publishing scripts, or large starter kits for the playable MVP template.

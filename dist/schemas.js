@@ -20,11 +20,21 @@ export const TargetSchema = z.discriminatedUnion("kind", [
     LocalTargetSchema,
     RemoteTargetSchema
 ]);
+export const RuntimePlacementSchema = z.object({
+    unitName: z.string().min(1),
+    team: z.enum(["goodguys", "badguys", "neutral"]),
+    origin: z.object({
+        x: z.number(),
+        y: z.number(),
+        z: z.number()
+    })
+});
 export const CreateAddonInputSchema = z.object({
     target: TargetSchema,
     addonName: z.string().min(1),
     mapName: z.string().min(1).optional(),
     template: z.enum(["minimal", "playable"]).optional(),
+    placement: RuntimePlacementSchema.optional(),
     replace: z.boolean().optional()
 });
 export const InspectAddonInputSchema = z.object({
@@ -69,6 +79,7 @@ export const RunPlayableSmokeInputSchema = z.object({
     addonName: z.string().min(1).optional(),
     addonPrefix: z.string().min(1).optional(),
     mapName: z.string().min(1).optional(),
+    placement: RuntimePlacementSchema.optional(),
     expectedMarkers: z.array(z.string().min(1)).min(1).optional(),
     replace: z.boolean().optional(),
     dryRun: z.boolean().optional(),

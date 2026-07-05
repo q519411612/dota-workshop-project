@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { createAddon, inspectAddon, validateAddonName, validateMapName } from "../src/addon.js";
+import { CreateAddonInputSchema, RunPlayableSmokeInputSchema } from "../src/schemas.js";
 
 describe("addon template", () => {
   let root: string;
@@ -35,6 +36,28 @@ describe("addon template", () => {
     expect(validateMapName("../demo").ok).toBe(false);
     expect(validateMapName("demo map").ok).toBe(false);
     expect(validateMapName("demo;Start-Process").ok).toBe(false);
+  });
+
+  test("parses runtime placement through MCP input schemas", () => {
+    const placement = {
+      unitName: "npc_dota_creep_badguys_melee",
+      team: "badguys" as const,
+      origin: { x: 128, y: -64, z: 256 }
+    };
+
+    const createInput = CreateAddonInputSchema.parse({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      placement
+    });
+    const smokeInput = RunPlayableSmokeInputSchema.parse({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      placement
+    });
+
+    expect(createInput.placement?.origin.x).toBe(128);
+    expect(smokeInput.placement?.unitName).toBe("npc_dota_creep_badguys_melee");
   });
 
   test("creates the minimal game and content addon trees", async () => {
@@ -101,6 +124,64 @@ describe("addon template", () => {
     expect(heroList).toContain("\"npc_dota_hero_lina\" \"1\"");
   });
 
+  test("renders configured runtime placement markers in playable Lua", async () => {
+    const result = await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      mapName: "dota",
+      placement: {
+        unitName: "npc_dota_creep_badguys_melee",
+        team: "badguys",
+        origin: { x: 128, y: -64, z: 256 }
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("created runtime placement config for demo_addon");
+
+    const lua = await readFile(join(root, "game/dota_addons/demo_addon/scripts/vscripts/addon_game_mode.lua"), "utf8");
+    expect(lua).toContain("self.placementOrigin = Vector(128, -64, 256)");
+    expect(lua).toContain("self.placementUnitName = \"npc_dota_creep_badguys_melee\"");
+    expect(lua).toContain("self.placementTeam = DOTA_TEAM_BADGUYS");
+    expect(lua).toContain("[DOTA_WORKSHOP_MCP] placement configured: demo_addon");
+    expect(lua).toContain("[DOTA_WORKSHOP_MCP] placement origin: demo_addon x=128 y=-64 z=256");
+    expect(lua).toContain("[DOTA_WORKSHOP_MCP] placement unit: demo_addon npc_dota_creep_badguys_melee team=badguys");
+    expect(lua).toContain("[DOTA_WORKSHOP_MCP] placement spawned: demo_addon");
+  });
+
+  test("rejects invalid runtime placement before writing addon files", async () => {
+    const result = await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      placement: {
+        unitName: "../bad",
+        team: "badguys",
+        origin: { x: 0, y: 0, z: 256 }
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_PLACEMENT");
+    expect(result.evidence).toContain("rejected placement unit name: ../bad");
+  });
+
+  test("rejects runtime placement on marker-only minimal template", async () => {
+    const result = await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      template: "minimal",
+      placement: {
+        unitName: "npc_dota_creep_badguys_melee",
+        team: "badguys",
+        origin: { x: 0, y: 0, z: 256 }
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_PLACEMENT");
+    expect(result.evidence).toContain("runtime placement requires the playable template");
+  });
+
   test("can still create a marker-only minimal template", async () => {
     await createAddon({
       target: { kind: "fixture", root },
@@ -156,5 +237,26 @@ describe("addon template", () => {
     expect(result.evidence).toContain("content addon root exists");
     expect(result.evidence).toContain("playable gameplay markers exist");
     expect(result.evidence).toContain("unit support file exists");
+  });
+
+  test("inspects runtime placement evidence when present", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      placement: {
+        unitName: "npc_dota_creep_badguys_melee",
+        team: "badguys",
+        origin: { x: 128, y: -64, z: 256 }
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    const result = await inspectAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("runtime placement config exists");
+    expect(result.evidence).toContain("runtime placement markers exist");
   });
 });

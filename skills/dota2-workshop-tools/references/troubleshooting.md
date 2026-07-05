@@ -38,6 +38,10 @@ If the addon marker appears but gameplay markers are missing, inspect the genera
 
 If only the target-spawn marker is missing, remember that the stock `dota` map spawn position and built-in spawn unit are candidate runtime details until a real Windows smoke run verifies them.
 
+### Placement marker missing
+
+If placement markers are missing, inspect the generated Lua for `self.placementOrigin`, `self.placementUnitName`, `self.placementTeam`, and the requested marker strings. Then read `game/dota/console.log` for Lua startup errors or `CreateUnitByName` failures. Placement markers prove runtime spawn intent and execution on a launchable map; they do not prove Hammer map spawn entity placement.
+
 ### Repeatable smoke failed
 
 `run_playable_smoke` stops at the failed operation and returns the transcript gathered so far. Use `failed smoke operation` to decide the next diagnostic path:

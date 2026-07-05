@@ -63,6 +63,35 @@ describe("repeatable playable smoke workflow", () => {
     expect(result.paths.gameAddon).toContain("smoke_demo");
   });
 
+  test("validates placement markers when smoke placement is requested", async () => {
+    const addonName = "smoke_place";
+    const logPath = join(root, "game/dota/console.log");
+    const placementMarkers = [
+      `[DOTA_WORKSHOP_MCP] placement configured: ${addonName}`,
+      `[DOTA_WORKSHOP_MCP] placement origin: ${addonName} x=128 y=-64 z=256`,
+      `[DOTA_WORKSHOP_MCP] placement unit: ${addonName} npc_dota_creep_badguys_melee team=badguys`,
+      `[DOTA_WORKSHOP_MCP] placement spawned: ${addonName} npc_dota_creep_badguys_melee`
+    ];
+    await mkdir(join(root, "game/dota"), { recursive: true });
+    await writeFile(logPath, [...playableSmokeMarkers(addonName), ...placementMarkers].map((marker) => `[VScript] ${marker}`).join("\n"));
+
+    const result = await runPlayableSmoke({
+      target: { kind: "fixture", root },
+      addonName,
+      dryRun: true,
+      logPaths: [logPath],
+      validationTimeoutMs: 0,
+      placement: {
+        unitName: "npc_dota_creep_badguys_melee",
+        team: "badguys",
+        origin: { x: 128, y: -64, z: 256 }
+      }
+    } as Parameters<typeof runPlayableSmoke>[0]);
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain(`found validation marker: [DOTA_WORKSHOP_MCP] placement spawned: ${addonName} npc_dota_creep_badguys_melee`);
+  });
+
   test("fails smoke workflow when a required marker is missing", async () => {
     const addonName = "smoke_missing";
     const logPath = join(root, "game/dota/console.log");

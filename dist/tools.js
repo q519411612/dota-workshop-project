@@ -48,6 +48,7 @@ export async function handleTool(name, input) {
                     addonName: parsed.addonName,
                     mapName: parsed.mapName,
                     template: parsed.template,
+                    placement: parsed.placement,
                     replace: parsed.replace
                 });
             }
