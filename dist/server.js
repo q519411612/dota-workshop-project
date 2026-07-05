@@ -82,6 +82,14 @@ export function createServer() {
             addonName: z.string().min(1)
         }
     }, async (input) => asToolContent(await handleTool("inspect_addon", input)));
+    server.registerTool("inspect_workshop_preflight", {
+        title: "Inspect Workshop Preflight",
+        description: "Inspect addon layout, Panorama boundaries, toolchain markers, and publishing blockers without generating or uploading content.",
+        inputSchema: {
+            ...targetInput,
+            addonName: z.string().min(1)
+        }
+    }, async (input) => asToolContent(await handleTool("inspect_workshop_preflight", input)));
     server.registerTool("prepare_custom_map", {
         title: "Prepare Custom Map",
         description: "Copy an installed Workshop template map, verify spawn entity markers, and compile it with resourcecompiler.exe.",

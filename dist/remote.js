@@ -195,6 +195,81 @@ export async function inspectRemoteAddon(input) {
         });
     }
 }
+export async function inspectRemoteWorkshopPreflight(input) {
+    const operation = "inspect_workshop_preflight";
+    const nameValidation = validateAddonName(input.addonName);
+    if (!nameValidation.ok) {
+        return createFailureResult({
+            target: input.target,
+            operation,
+            error: {
+                code: "INVALID_ADDON_NAME",
+                message: nameValidation.error ?? "Invalid addon name."
+            },
+            evidence: [`rejected preflight addon name: ${input.addonName}`]
+        });
+    }
+    if (!input.target.dotaRoot) {
+        return createFailureResult({
+            target: input.target,
+            operation,
+            error: {
+                code: "REMOTE_DOTA_ROOT_REQUIRED",
+                message: "Remote preflight requires a Dota install root."
+            },
+            evidence: ["remote target did not include dotaRoot"]
+        });
+    }
+    const result = await runRemoteCommand({
+        target: input.target,
+        command: remoteWorkshopPreflightScript(input.target.dotaRoot, input.addonName),
+        executor: input.executor
+    });
+    if (!result.ok) {
+        return { ...result, operation };
+    }
+    const stdout = result.commands[0]?.stdout ?? "";
+    try {
+        const parsed = JSON.parse(stdout);
+        if (parsed.ok === false || parsed.error) {
+            return createFailureResult({
+                target: input.target,
+                operation,
+                error: parsed.error ?? {
+                    code: "REMOTE_PREFLIGHT_FAILED",
+                    message: "Remote preflight returned a failure payload."
+                },
+                evidence: parsed.evidence ?? ["remote preflight failed"],
+                warnings: parsed.warnings ?? [],
+                paths: parsed.paths ?? {},
+                commands: result.commands,
+                logs: result.logs
+            });
+        }
+        return createSuccessResult({
+            target: input.target,
+            operation,
+            evidence: parsed.evidence ?? ["remote workshop preflight inspected"],
+            warnings: parsed.warnings ?? [],
+            paths: parsed.paths ?? {},
+            commands: result.commands,
+            logs: result.logs
+        });
+    }
+    catch {
+        return createFailureResult({
+            target: input.target,
+            operation,
+            error: {
+                code: "REMOTE_PREFLIGHT_PARSE_FAILED",
+                message: "Remote workshop preflight did not return valid JSON."
+            },
+            evidence: ["remote preflight stdout was not valid JSON"],
+            commands: result.commands,
+            logs: result.logs
+        });
+    }
+}
 export async function readRemoteConsoleOrLogs(input) {
     const operation = "read_console_or_logs";
     const nameValidation = validateAddonName(input.addonName);
@@ -551,6 +626,43 @@ function remoteCreateAddonScript(dotaRoot, addonName, mapName, template, placeme
 }
 function remoteInspectAddonScript(dotaRoot, addonName) {
     return `$gameAddon = '${dotaRoot}/game/dota_addons/${addonName}'; $contentAddon = '${dotaRoot}/content/dota_addons/${addonName}'; $evidence = @(); if (Test-Path -LiteralPath $gameAddon) { $evidence += 'game addon root exists' } else { $evidence += 'game addon root missing' }; if (Test-Path -LiteralPath $contentAddon) { $evidence += 'content addon root exists' } else { $evidence += 'content addon root missing' }; @{ evidence = $evidence; paths = @{ gameAddon = $gameAddon; contentAddon = $contentAddon } } | ConvertTo-Json -Compress`;
+}
+function remoteWorkshopPreflightScript(dotaRoot, addonName) {
+    const root = quoteForPowerShellSingleQuotedString(dotaRoot);
+    const addon = quoteForPowerShellSingleQuotedString(addonName);
+    const localization = quoteForPowerShellSingleQuotedString(`resource/addon_${addonName}_english.txt`);
+    return [
+        "$ErrorActionPreference = 'Stop'",
+        `$root = ${root}`,
+        `$addonName = ${addon}`,
+        "$gameAddon = Join-Path $root (Join-Path 'game/dota_addons' $addonName)",
+        "$contentAddon = Join-Path $root (Join-Path 'content/dota_addons' $addonName)",
+        `$paths = @{ gameAddon = $gameAddon; contentAddon = $contentAddon; addonInfo = (Join-Path $gameAddon 'addoninfo.txt'); luaEntry = (Join-Path $gameAddon 'scripts/vscripts/addon_game_mode.lua'); localization = (Join-Path $gameAddon ${localization}); heroList = (Join-Path $gameAddon 'scripts/npc/herolist.txt'); heroData = (Join-Path $gameAddon 'scripts/npc/npc_heroes_custom.txt'); unitData = (Join-Path $gameAddon 'scripts/npc/npc_units_custom.txt'); abilityData = (Join-Path $gameAddon 'scripts/npc/npc_abilities_custom.txt'); contentMaps = (Join-Path $contentAddon 'maps'); panoramaSource = (Join-Path $contentAddon 'panorama'); panoramaRuntime = (Join-Path $gameAddon 'panorama'); packageJson = (Join-Path $contentAddon 'package.json') }`,
+        "$evidence = @()",
+        "function AddPathEvidence($path, $label) { if (Test-Path -LiteralPath $path) { $script:evidence += \"$label exists\" } else { $script:evidence += \"$label missing\" } }",
+        "AddPathEvidence $paths.gameAddon 'game addon root'",
+        "AddPathEvidence $paths.contentAddon 'content addon root'",
+        "AddPathEvidence $paths.addonInfo 'addon metadata'",
+        "AddPathEvidence $paths.luaEntry 'lua entry'",
+        "AddPathEvidence $paths.localization 'localization file'",
+        "AddPathEvidence $paths.heroList 'hero list'",
+        "AddPathEvidence $paths.heroData 'hero data'",
+        "AddPathEvidence $paths.unitData 'unit support file'",
+        "AddPathEvidence $paths.abilityData 'ability support file'",
+        "AddPathEvidence $paths.contentMaps 'content maps directory'",
+        "AddPathEvidence $paths.panoramaSource 'panorama source directory'",
+        "AddPathEvidence $paths.panoramaRuntime 'panorama runtime directory'",
+        "if (Test-Path -LiteralPath $paths.panoramaSource) { Get-ChildItem -LiteralPath $paths.panoramaSource -Recurse -File -ErrorAction SilentlyContinue | Where-Object { @('.xml', '.js', '.css') -contains $_.Extension } | Sort-Object FullName | ForEach-Object { $relative = $_.FullName.Substring($contentAddon.Length).TrimStart('\\', '/').Replace('\\', '/'); $evidence += \"panorama source file exists: $relative\" } }",
+        "$sawToolchainMarker = $false",
+        "foreach ($marker in @('package.json', 'tsconfig.json', 'tsconfig.tstl.json', 'vite.config.ts', 'vite.config.js', 'webpack.config.js')) { $markerPath = Join-Path $contentAddon $marker; if (Test-Path -LiteralPath $markerPath) { $sawToolchainMarker = $true; $evidence += \"toolchain marker exists: $marker\" } else { $evidence += \"toolchain marker missing: $marker\" } }",
+        "if ((Test-Path -LiteralPath $paths.packageJson) -and ((Get-Content -LiteralPath $paths.packageJson -Raw) -match '\"react\"\\s*:' -or (Get-Content -LiteralPath $paths.packageJson -Raw) -match '\"@moddota/panorama\"')) { $evidence += 'react panorama marker detected in package.json' }",
+        "if (-not $sawToolchainMarker) { $evidence += 'toolchain markers absent' }",
+        "$evidence += 'publishing preflight blockers reported'",
+        "$evidence += 'preflight is not runtime validation'",
+        "$warnings = @('publishing credentials are not accepted or inspected', 'Workshop upload is not supported by preflight', 'content encryption is not supported by preflight', 'preflight does not prove runtime validation')",
+        "if ($sawToolchainMarker) { $warnings += 'toolchain markers are inspection-only; builds are not run' }",
+        "@{ ok = $true; evidence = $evidence; warnings = $warnings; paths = $paths } | ConvertTo-Json -Depth 6 -Compress"
+    ].join("; ");
 }
 function remoteReadLogsScript(logPaths) {
     const paths = logPaths.map((path) => `'${path}'`).join(", ");

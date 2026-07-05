@@ -21,6 +21,7 @@
 | 10 | Custom Map Spawn Point MVP | Prepare, compile, launch, and validate a custom map copied from the installed Workshop template with spawn entity evidence. | MAP2-01, MAP2-02, MAP2-03, MAP2-04, MAP2-05, MAP2-06, MAP2-07, MAP2-08 | Complete |
 | 11 | Gameplay Objective MVP | Add a configurable score objective to the playable template with runtime objective markers and smoke validation. | OBJ2-01, OBJ2-02, OBJ2-03, OBJ2-04, OBJ2-05, OBJ2-06, OBJ2-07, OBJ2-08 | Complete |
 | 12 | Unit Ability Scaffolding MVP | Generate minimal custom unit and linked ability KV scaffolds with local, remote, inspect, and smoke compatibility evidence. | UABL2-01, UABL2-02, UABL2-03, UABL2-04, UABL2-05, UABL2-06, UABL2-07, UABL2-08 | Complete |
+| 13 | Panorama Toolchain Boundary and Publishing Preflight MVP | Inspect addon readiness across Panorama boundaries, toolchain markers, and publishing blockers without generating UI or uploading Workshop content. | PRE2-01, PRE2-02, PRE2-03, PRE2-04, PRE2-05, PRE2-06, PRE2-07, PRE2-08 | Complete |
 
 ## Phase Details
 
@@ -295,6 +296,33 @@
 - Implementation added optional `unitAbilityScaffold` input, scaffold validation, deterministic unit and ability KV generation, linked inspect evidence, remote renderer parity, smoke passthrough, fixture/remote/smoke tests, and documentation.
 - Real Windows scaffolded smoke passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `scaffold_20260705231402` launched on map `dota`, found the default gameplay markers in `game/dota/console.log`, and explicit cleanup stopped only the matching Dota process.
 
+### Phase 13: Panorama Toolchain Boundary and Publishing Preflight MVP
+
+**Goal:** Inspect addon readiness across Panorama boundaries, toolchain markers, and publishing blockers without generating UI or uploading Workshop content.
+**Mode:** mvp
+
+**Requirements:** PRE2-01, PRE2-02, PRE2-03, PRE2-04, PRE2-05, PRE2-06, PRE2-07, PRE2-08
+**Depends on:** Phase 12
+
+**Success Criteria**:
+
+1. `inspect_workshop_preflight` is exposed through schemas, dispatcher, and MCP server registration.
+2. Preflight validates addon names and target roots before filesystem reads or remote commands.
+3. Preflight reports runtime/content layout evidence for generated addon files.
+4. Preflight reports Panorama source/runtime directory evidence without generating UI.
+5. Preflight reports TypeScript-to-Lua and React Panorama marker evidence without running toolchains.
+6. Preflight reports publishing blockers without credentials, encryption, or Workshop upload.
+7. Local and remote preflight return the same logical evidence contract.
+8. Docs explain the preflight boundary and deferred generation/upload behavior.
+
+**Notes:**
+
+- This phase is inspection and readiness reporting only.
+- React Panorama generation, TypeScript-to-Lua templates, encryption, Steam credentials, and Workshop upload remain deferred.
+- Remote Windows validation should inspect a real addon tree and return path/command evidence, but does not need to launch Dota.
+- Implementation added `inspect_workshop_preflight`, local and remote evidence parity, Panorama directory/file checks, toolchain marker checks, publishing blocker warnings, fixture and remote command tests, and documentation.
+- Real Windows remote preflight passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `preflight_20260705233718` returned game/content layout evidence, missing Panorama directory evidence, missing toolchain marker evidence, publishing blocker warnings, path evidence, and one remote command record.
+
 ## Coverage
 
 | Metric | Count |
@@ -308,9 +336,10 @@
 | v2.4 requirements | 8 |
 | v2.5 requirements | 8 |
 | v2.6 requirements | 8 |
-| Mapped requirements | 102 |
+| v2.7 requirements | 8 |
+| Mapped requirements | 110 |
 | Unmapped requirements | 0 |
-| Phases | 12 |
+| Phases | 13 |
 
 ## Deferred Scope
 
@@ -323,4 +352,4 @@
 - UI automation as a primary control strategy.
 
 ---
-*Roadmap updated: 2026-07-06 for v2.6 unit ability scaffolding MVP*
+*Roadmap updated: 2026-07-06 for v2.7 panorama toolchain boundary and publishing preflight MVP completion*

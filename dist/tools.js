@@ -3,16 +3,18 @@ import { cleanupPlayableSmoke } from "./cleanup.js";
 import { discoverEnvironment, validateInstallRoot } from "./environment.js";
 import { launchCustomGame, launchTools, readConsoleOrLogs, validateAddon } from "./launch.js";
 import { prepareCustomMap } from "./map.js";
+import { inspectWorkshopPreflight } from "./preflight.js";
 import { createFailureResult } from "./result.js";
 import { runPlayableSmoke } from "./smoke.js";
-import { createRemoteAddon, discoverRemoteEnvironment, inspectRemoteAddon, launchRemoteCustomGame, launchRemoteTools, readRemoteConsoleOrLogs, runRemoteCommand, validateRemoteAddon } from "./remote.js";
-import { CreateAddonInputSchema, DiscoverEnvironmentInputSchema, InspectAddonInputSchema, LaunchCustomGameInputSchema, LaunchToolsInputSchema, PrepareCustomMapInputSchema, ReadLogsInputSchema, RemoteCommandInputSchema, RunPlayableSmokeInputSchema, CleanupPlayableSmokeInputSchema, ValidateAddonInputSchema, ValidateTargetInputSchema } from "./schemas.js";
+import { createRemoteAddon, discoverRemoteEnvironment, inspectRemoteAddon, inspectRemoteWorkshopPreflight, launchRemoteCustomGame, launchRemoteTools, readRemoteConsoleOrLogs, runRemoteCommand, validateRemoteAddon } from "./remote.js";
+import { CreateAddonInputSchema, DiscoverEnvironmentInputSchema, InspectAddonInputSchema, InspectWorkshopPreflightInputSchema, LaunchCustomGameInputSchema, LaunchToolsInputSchema, PrepareCustomMapInputSchema, ReadLogsInputSchema, RemoteCommandInputSchema, RunPlayableSmokeInputSchema, CleanupPlayableSmokeInputSchema, ValidateAddonInputSchema, ValidateTargetInputSchema } from "./schemas.js";
 export const toolNames = [
     "discover_environment",
     "validate_target",
     "create_addon",
     "prepare_custom_map",
     "inspect_addon",
+    "inspect_workshop_preflight",
     "launch_tools",
     "launch_custom_game",
     "run_playable_smoke",
@@ -71,6 +73,16 @@ export async function handleTool(name, input) {
                 });
             }
             return inspectAddon(parsed);
+        }
+        case "inspect_workshop_preflight": {
+            const parsed = InspectWorkshopPreflightInputSchema.parse(input);
+            if (parsed.target.kind === "remote") {
+                return inspectRemoteWorkshopPreflight({
+                    target: parsed.target,
+                    addonName: parsed.addonName
+                });
+            }
+            return inspectWorkshopPreflight(parsed);
         }
         case "launch_tools": {
             const parsed = LaunchToolsInputSchema.parse(input);

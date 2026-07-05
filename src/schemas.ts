@@ -71,6 +71,11 @@ export const InspectAddonInputSchema = z.object({
   addonName: z.string().min(1)
 });
 
+export const InspectWorkshopPreflightInputSchema = z.object({
+  target: TargetSchema,
+  addonName: z.string().min(1)
+});
+
 export const DiscoverEnvironmentInputSchema = z.object({
   target: TargetSchema,
   platform: z.enum(["aix", "android", "darwin", "freebsd", "haiku", "linux", "openbsd", "sunos", "win32", "cygwin", "netbsd"]).optional()
@@ -144,6 +149,7 @@ export const CleanupPlayableSmokeInputSchema = z.object({
 export type CreateAddonToolInput = z.infer<typeof CreateAddonInputSchema>;
 export type PrepareCustomMapToolInput = z.infer<typeof PrepareCustomMapInputSchema>;
 export type InspectAddonToolInput = z.infer<typeof InspectAddonInputSchema>;
+export type InspectWorkshopPreflightToolInput = z.infer<typeof InspectWorkshopPreflightInputSchema>;
 export type DiscoverEnvironmentToolInput = z.infer<typeof DiscoverEnvironmentInputSchema>;
 export type ValidateTargetToolInput = z.infer<typeof ValidateTargetInputSchema>;
 export type RemoteCommandToolInput = z.infer<typeof RemoteCommandInputSchema>;

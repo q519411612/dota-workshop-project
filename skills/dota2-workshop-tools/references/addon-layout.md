@@ -61,6 +61,19 @@ game/dota_addons/<addon_name>/maps/<map_name>.vpk
 
 This template-derived path does not edit binary `.vmap` spawn coordinates. Treat Hammer entity editing and generated maps from scratch as separate work.
 
+## Preflight Evidence
+
+Use `inspect_workshop_preflight` when the task is to inspect readiness before adding UI, toolchain, or publishing work. The tool reports:
+
+- Runtime layout evidence for `addoninfo.txt`, Lua entry, localization, hero data, unit data, and ability data.
+- Content layout evidence for the addon root and map directory.
+- Panorama source evidence under `content/dota_addons/<addon_name>/panorama`.
+- Panorama runtime directory evidence under `game/dota_addons/<addon_name>/panorama`.
+- Toolchain marker evidence for files such as `package.json`, `tsconfig.json`, `tsconfig.tstl.json`, `vite.config.*`, and `webpack.config.js`.
+- Publishing blocker warnings for credentials, encryption, and Workshop upload.
+
+Preflight is inspection only. It does not generate XML, CSS, JavaScript, React Panorama projects, TypeScript-to-Lua output, encrypted content, or Workshop uploads.
+
 ## Safety Rules
 
 - Validate addon names before writing. Use lowercase letters, digits, and underscores.

@@ -188,6 +188,19 @@
 - [x] **UABL2-07**: `run_playable_smoke` can create scaffolded playable addons while preserving default runtime marker expectations.
 - [x] **UABL2-08**: README and skill references explain scaffolded unit/ability KV generation and explicitly defer runtime ability behavior, item, hero, AI, UI, and publishing systems.
 
+## v2.7 Requirements
+
+### Panorama Toolchain Boundary and Publishing Preflight MVP
+
+- [x] **PRE2-01**: Agent can call an `inspect_workshop_preflight` MCP operation for fixture, local, and remote targets using the existing target contract.
+- [x] **PRE2-02**: Preflight validates addon names and required target roots before reading files or constructing remote commands.
+- [x] **PRE2-03**: Preflight reports deterministic addon layout evidence for runtime files, content files, metadata, localization, map directories, and unit/ability support files.
+- [x] **PRE2-04**: Preflight reports Panorama source/runtime directory evidence while explicitly limiting this slice to inspection only.
+- [x] **PRE2-05**: Preflight reports TypeScript-to-Lua and React Panorama toolchain marker evidence without generating or running those toolchains.
+- [x] **PRE2-06**: Preflight reports publishing readiness blockers and missing metadata evidence without storing credentials, using Steam secrets, encrypting content, or uploading to Workshop.
+- [x] **PRE2-07**: Remote preflight uses the same logical result contract as local preflight and returns command/path/log evidence when run on Windows.
+- [x] **PRE2-08**: README and skill references explain preflight scope, returned evidence, and deferred Panorama generation, TypeScript-to-Lua, React Panorama, encryption, and publishing behavior.
+
 ## Deferred v2.x Requirements
 
 Tracked but not in current roadmap.
@@ -343,6 +356,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UABL2-06 | Phase 12 | Implemented |
 | UABL2-07 | Phase 12 | Implemented |
 | UABL2-08 | Phase 12 | Implemented |
+| PRE2-01 | Phase 13 | Planned |
+| PRE2-02 | Phase 13 | Planned |
+| PRE2-03 | Phase 13 | Planned |
+| PRE2-04 | Phase 13 | Planned |
+| PRE2-05 | Phase 13 | Planned |
+| PRE2-06 | Phase 13 | Planned |
+| PRE2-07 | Phase 13 | Planned |
+| PRE2-08 | Phase 13 | Planned |
 
 **Coverage:**
 - v1 requirements: 33 total
@@ -354,9 +375,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v2.4 requirements: 8 total
 - v2.5 requirements: 8 total
 - v2.6 requirements: 8 total
-- Mapped to phases: 102
+- v2.7 requirements: 8 total
+- Mapped to phases: 110
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-03*
-*Last updated: 2026-07-06 for v2.6 unit ability scaffolding MVP*
+*Last updated: 2026-07-06 for v2.7 panorama toolchain boundary and publishing preflight MVP*

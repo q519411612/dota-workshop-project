@@ -6,7 +6,8 @@ import {
   readRemoteConsoleOrLogs,
   validateRemoteAddon,
   launchRemoteCustomGame,
-  launchRemoteTools
+  launchRemoteTools,
+  inspectRemoteWorkshopPreflight
 } from "../src/remote.js";
 import { prepareCustomMap } from "../src/map.js";
 
@@ -341,6 +342,70 @@ describe("remote Windows operations", () => {
     expect(result.commands[0].command).toContain("\"npc_dota_workshop_mcp_dummy\"");
     expect(result.commands[0].command).toContain("\"Ability1\" \"ability_dota_workshop_mcp_dummy\"");
     expect(result.commands[0].command).toContain("\"ability_dota_workshop_mcp_dummy\"");
+  });
+
+  test("inspects remote workshop preflight evidence through PowerShell", async () => {
+    const result = await inspectRemoteWorkshopPreflight({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      executor: async (command) => {
+        expect(command.command).toContain("addoninfo.txt");
+        expect(command.command).toContain("panorama");
+        expect(command.command).toContain("package.json");
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            evidence: [
+              "game addon root exists",
+              "content addon root exists",
+              "addon metadata exists",
+              "panorama source directory missing",
+              "toolchain marker missing: package.json"
+            ],
+            warnings: [
+              "publishing credentials are not accepted or inspected",
+              "Workshop upload is not supported by preflight"
+            ],
+            paths: {
+              gameAddon: "C:/Steam/steamapps/common/dota 2 beta/game/dota_addons/demo_addon"
+            }
+          }),
+          stderr: ""
+        };
+      }
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.operation).toBe("inspect_workshop_preflight");
+    expect(result.evidence).toContain("panorama source directory missing");
+    expect(result.warnings).toContain("Workshop upload is not supported by preflight");
+    expect(result.paths.gameAddon).toContain("demo_addon");
+  });
+
+  test("rejects invalid remote preflight before command construction", async () => {
+    const result = await inspectRemoteWorkshopPreflight({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "../demo"
+    } as Parameters<typeof inspectRemoteWorkshopPreflight>[0]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_ADDON_NAME");
+    expect(result.commands).toHaveLength(0);
+    expect(result.evidence).toContain("rejected preflight addon name: ../demo");
   });
 
   test("rejects invalid remote unit ability scaffold before command construction", async () => {

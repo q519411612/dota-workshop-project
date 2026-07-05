@@ -4,7 +4,7 @@
 
 Dota Workshop Project is a Codex plugin project for building Dota 2 custom games with AI assistance. It will package a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, and inspect a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The current focus is the next v2.x slice after unit ability scaffolding: define Panorama/toolchain boundaries and publishing preflight capabilities without expanding into full UI generation or Workshop upload automation.
+The current roadmap is complete through v2.7 Panorama Toolchain Boundary and Publishing Preflight MVP: agents can inspect addon readiness for Panorama, toolchain, and publishing boundaries without expanding into full UI generation or Workshop upload automation.
 
 ## Core Value
 
@@ -33,13 +33,11 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 - [x] Keep `run_playable_smoke` free of hidden cleanup side effects while documenting the explicit cleanup workflow.
 - [x] Generate a minimal runtime placement configuration for the playable template and validate placement markers through the existing local or remote runtime log path.
 - [x] Prepare a launchable custom map from the installed Workshop template and validate spawn entity evidence, compile evidence, and runtime marker evidence through the same local or remote MCP contract.
-
-### Active
-
-- [ ] Define the Panorama/toolchain boundary and publishing preflight slice with fixture-first validation.
+- [x] Add an inspection-only Panorama/toolchain boundary and publishing preflight capability with fixture, local, and remote evidence.
 
 ### Recently Validated
 
+- [x] Add an inspection-only Panorama/toolchain boundary and publishing preflight capability with fixture, local, and remote evidence.
 - [x] Add minimal custom unit and linked ability KV scaffolding with local, remote, inspect, and smoke compatibility evidence.
 - [x] Add a configurable score objective to the playable template and validate objective markers through the same local or remote MCP contract.
 
@@ -86,6 +84,7 @@ The skill and MCP server should have separate responsibilities. The skill teache
 | Use installed template maps before binary map editing | The current `template_map.vmap` is binary DMX; copying, checking spawn entity strings, compiling, and launching it is a rigorous smaller slice than patching binary entity coordinates | Implemented |
 | Start gameplay objectives with score configuration | The existing score/win loop is already Windows-validated, so parameterizing it is the smallest objective slice before custom quests or unit systems | Implemented |
 | Scaffold custom units and abilities as KV evidence before runtime behavior | File generation and inspect evidence are a smaller validated slice than proving custom ability execution | Implemented |
+| Add preflight before Panorama, toolchain, and publishing automation | Inspection-only evidence gives agents a safe boundary report before larger UI/toolchain/publishing workflows | Implemented |
 
 ## Evolution
 
@@ -105,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 after v2.6 unit ability scaffolding MVP*
+*Last updated: 2026-07-06 for v2.7 panorama toolchain boundary and publishing preflight MVP completion*

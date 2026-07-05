@@ -1,16 +1,16 @@
 # Graph Report - dota-workshop-project  (2026-07-06)
 
 ## Corpus Check
-- 120 files · ~208,017 words
+- 128 files · ~257,832 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1144 nodes · 1477 edges · 104 communities (103 shown, 1 thin omitted)
+- 1246 nodes · 1617 edges · 106 communities (105 shown, 1 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `6851764b`
+- Built from commit: `a07db22b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -95,9 +95,6 @@
 - [[_COMMUNITY_Community 77|Community 77]]
 - [[_COMMUNITY_Community 78|Community 78]]
 - [[_COMMUNITY_Community 79|Community 79]]
-- [[_COMMUNITY_Community 80|Community 80]]
-- [[_COMMUNITY_Community 81|Community 81]]
-- [[_COMMUNITY_Community 82|Community 82]]
 - [[_COMMUNITY_Community 83|Community 83]]
 - [[_COMMUNITY_Community 84|Community 84]]
 - [[_COMMUNITY_Community 85|Community 85]]
@@ -110,7 +107,6 @@
 - [[_COMMUNITY_Community 92|Community 92]]
 - [[_COMMUNITY_Community 93|Community 93]]
 - [[_COMMUNITY_Community 94|Community 94]]
-- [[_COMMUNITY_Community 95|Community 95]]
 - [[_COMMUNITY_Community 96|Community 96]]
 - [[_COMMUNITY_Community 97|Community 97]]
 - [[_COMMUNITY_Community 98|Community 98]]
@@ -119,59 +115,65 @@
 - [[_COMMUNITY_Community 101|Community 101]]
 - [[_COMMUNITY_Community 102|Community 102]]
 - [[_COMMUNITY_Community 103|Community 103]]
+- [[_COMMUNITY_Community 104|Community 104]]
+- [[_COMMUNITY_Community 105|Community 105]]
+- [[_COMMUNITY_Community 106|Community 106]]
+- [[_COMMUNITY_Community 107|Community 107]]
+- [[_COMMUNITY_Community 108|Community 108]]
+- [[_COMMUNITY_Community 109|Community 109]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Communities (80 total, 1 thin omitted)` - 80 edges
-2. `createFailureResult()` - 38 edges
-3. `handleTool()` - 25 edges
-4. `createSuccessResult()` - 24 edges
+1. `Communities (110 total, 1 thin omitted)` - 110 edges
+2. `createFailureResult()` - 41 edges
+3. `handleTool()` - 28 edges
+4. `createSuccessResult()` - 27 edges
 5. `runPlayableSmoke()` - 21 edges
-6. `runRemoteCommand()` - 18 edges
-7. `validateAddonName()` - 17 edges
-8. `createAddon()` - 17 edges
-9. `Common Failures` - 16 edges
-10. `Requirements: Dota Workshop Project` - 15 edges
+6. `validateAddonName()` - 20 edges
+7. `runRemoteCommand()` - 19 edges
+8. `createAddon()` - 18 edges
+9. `Common Failures` - 17 edges
+10. `Requirements: Dota Workshop Project` - 16 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `validateRemoteAddonInput()` --calls--> `validateAddonName()`  [EXTRACTED]
+- `validateCleanupInput()` --calls--> `validateAddonName()`  [EXTRACTED]
+  src/cleanup.ts → src/addon.ts
+- `inspectWorkshopPreflight()` --calls--> `validateAddonName()`  [EXTRACTED]
+  src/preflight.ts → src/addon.ts
+- `remoteCreateAddonScript()` --calls--> `renderAddonFiles()`  [EXTRACTED]
   src/remote.ts → src/addon.ts
-- `validateSmokeInput()` --calls--> `validateAddonName()`  [EXTRACTED]
+- `runPlayableSmoke()` --calls--> `objectiveMarkers()`  [EXTRACTED]
   src/smoke.ts → src/addon.ts
-- `launchCustomGame()` --calls--> `validateMapName()`  [EXTRACTED]
-  src/launch.ts → src/addon.ts
-- `validatePrepareInput()` --calls--> `validateMapName()`  [EXTRACTED]
-  src/map.ts → src/addon.ts
-- `launchRemoteCustomGame()` --calls--> `validateMapName()`  [EXTRACTED]
-  src/remote.ts → src/addon.ts
+- `runPlayableSmoke()` --calls--> `placementMarkers()`  [EXTRACTED]
+  src/smoke.ts → src/addon.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (104 total, 1 thin omitted)
+## Communities (106 total, 1 thin omitted)
 
 ### Community 0 - "Community 0"
-Cohesion: 0.10
-Nodes (24): UnitAbilityScaffold, buildRemoteCommand(), createRemoteAddon(), defaultExecutor(), execFileAsync, LaunchRemoteDotaInput, quoteForPosixShell(), quoteForPowerShellSingleQuotedString() (+16 more)
+Cohesion: 0.05
+Nodes (107): addonPaths(), createAddon(), GameplayObjective, inspectAddon(), RuntimePlacement, targetRoot(), UnitAbilityScaffold, validateAddonName() (+99 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.05
-Nodes (38): Acceptance Criteria, Addon, Automation, Custom Map Spawn Point MVP, Deferred v2.x Requirements, Documentation, Environment, Gameplay (+30 more)
+Nodes (40): Acceptance Criteria, Addon, Automation, Custom Map Spawn Point MVP, Deferred v2.x Requirements, Documentation, Environment, Gameplay (+32 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.08
-Nodes (32): CleanupPlayableSmokeInputSchema, CleanupPlayableSmokeToolInput, CreateAddonInputSchema, CreateAddonToolInput, DiscoverEnvironmentInputSchema, DiscoverEnvironmentToolInput, FixtureTargetSchema, GameplayObjectiveSchema (+24 more)
+Cohesion: 0.06
+Nodes (29): CleanupPlayableSmokeToolInput, CreateAddonToolInput, DiscoverEnvironmentInputSchema, DiscoverEnvironmentToolInput, FixtureTargetSchema, GameplayObjectiveSchema, InspectAddonInputSchema, InspectAddonToolInput (+21 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.09
 Nodes (21): bin, dota-workshop-mcp, dependencies, @modelcontextprotocol/sdk, zod, description, devDependencies, @types/node (+13 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.03
-Nodes (80): Communities (80 total, 1 thin omitted), Community 0 - "Community 0", Community 10 - "Community 10", Community 11 - "Community 11", Community 12 - "Community 12", Community 13 - "Community 13", Community 14 - "Community 14", Community 15 - "Community 15" (+72 more)
+Cohesion: 0.02
+Nodes (110): Communities (110 total, 1 thin omitted), Community 0 - "Community 0", Community 100 - "Community 100", Community 101 - "Community 101", Community 102 - "Community 102", Community 103 - "Community 103", Community 104 - "Community 104", Community 105 - "Community 105" (+102 more)
 
 ### Community 5 - "Community 5"
 Cohesion: 0.11
-Nodes (30): abilityData(), addonInfo(), AddonNameValidation, addonPaths(), AddonTemplateKind, CreateAddonInput, existingAddonEvidence(), formatLuaNumber() (+22 more)
+Nodes (27): abilityData(), addonInfo(), AddonNameValidation, AddonTemplateKind, CreateAddonInput, existingAddonEvidence(), formatLuaNumber(), hasLinkedAbilityScaffold() (+19 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.12
@@ -186,8 +188,8 @@ Cohesion: 0.13
 Nodes (14): API Evidence Gate, Deferred Ideas, Established Patterns, Existing Code Insights, Gameplay Loop Shape, Implementation Decisions, Integration Points, Marker Validation (+6 more)
 
 ### Community 9 - "Community 9"
-Cohesion: 0.11
-Nodes (18): Addon already exists, Common Failures, Custom map preparation failed, Dota install not found, Gameplay marker missing, Lua startup error, Metadata format mismatch, Missing map (+10 more)
+Cohesion: 0.10
+Nodes (19): Addon already exists, Common Failures, Custom map preparation failed, Dota install not found, Gameplay marker missing, Lua startup error, Metadata format mismatch, Missing map (+11 more)
 
 ### Community 10 - "Community 10"
 Cohesion: 0.13
@@ -203,7 +205,7 @@ Nodes (13): Canonical References, Credential Handling, Deferred Ideas, Establish
 
 ### Community 13 - "Community 13"
 Cohesion: 0.11
-Nodes (17): Coverage, Deferred Scope, Overview, Phase 10: Custom Map Spawn Point MVP, Phase 11: Gameplay Objective MVP, Phase 12: Unit Ability Scaffolding MVP, Phase 1: Plugin and Skill Foundation, Phase 2: MCP Contract and Addon Template (+9 more)
+Nodes (18): Coverage, Deferred Scope, Overview, Phase 10: Custom Map Spawn Point MVP, Phase 11: Gameplay Objective MVP, Phase 12: Unit Ability Scaffolding MVP, Phase 13: Panorama Toolchain Boundary and Publishing Preflight MVP, Phase 1: Plugin and Skill Foundation (+10 more)
 
 ### Community 14 - "Community 14"
 Cohesion: 0.14
@@ -222,12 +224,12 @@ Cohesion: 0.17
 Nodes (11): Acceptance Criteria, Ambiguity Report, Background, Boundaries, Constraints, Edge Coverage, Goal, Interview Log (+3 more)
 
 ### Community 18 - "Community 18"
-Cohesion: 0.15
-Nodes (12): Active, Constraints, Context, Core Value, Dota Workshop Project, Evolution, Key Decisions, Out of Scope (+4 more)
+Cohesion: 0.17
+Nodes (11): Constraints, Context, Core Value, Dota Workshop Project, Evolution, Key Decisions, Out of Scope, Recently Validated (+3 more)
 
 ### Community 19 - "Community 19"
-Cohesion: 0.15
-Nodes (12): Custom Map Preparation, Dota Workshop Project, Local Windows Smoke Checklist, MCP Tools, Playable Addon, Remote Windows Smoke Checklist, Repeatable Playable Smoke, Safe Repeat Cleanup (+4 more)
+Cohesion: 0.14
+Nodes (13): Custom Map Preparation, Dota Workshop Project, Local Windows Smoke Checklist, MCP Tools, Playable Addon, Remote Windows Smoke Checklist, Repeatable Playable Smoke, Safe Repeat Cleanup (+5 more)
 
 ### Community 20 - "Community 20"
 Cohesion: 0.17
@@ -338,8 +340,8 @@ Cohesion: 0.29
 Nodes (6): Evidence Requirements, Interactive Launches, Remote Windows Control, Same Logical Tools, Secrets, Supported Channels
 
 ### Community 47 - "Community 47"
-Cohesion: 0.09
-Nodes (37): checkRequiredPath(), discoverCandidateRoots(), discoverEnvironment(), DiscoverEnvironmentInput, installPaths(), readSteamLibraryRoots(), validateInstallRoot(), ValidateInstallRootInput (+29 more)
+Cohesion: 0.08
+Nodes (43): compileCommand(), compileLogs(), compilePayloadLogs(), defaultExecutor(), execFileAsync, executeLocalCompile(), inspectSpawnMarkers(), mapPaths() (+35 more)
 
 ### Community 48 - "Community 48"
 Cohesion: 0.33
@@ -406,8 +408,8 @@ Cohesion: 0.33
 Nodes (5): Implementation Rules, Project Focus, Project Instructions, Scope Discipline, Validation
 
 ### Community 64 - "Community 64"
-Cohesion: 0.33
-Nodes (5): Content Files, Dota 2 Addon Layout, Roots, Runtime Files, Safety Rules
+Cohesion: 0.29
+Nodes (6): Content Files, Dota 2 Addon Layout, Preflight Evidence, Roots, Runtime Files, Safety Rules
 
 ### Community 65 - "Community 65"
 Cohesion: 0.33
@@ -465,21 +467,9 @@ Nodes (5): Commands, Phase 9 Verification: Runtime Placement MVP, Real Windows P
 Cohesion: 0.40
 Nodes (4): Key Files, Phase 9 Summary: Runtime Placement MVP, Verification Summary, What Changed
 
-### Community 80 - "Community 80"
-Cohesion: 0.16
-Nodes (20): customGameArgs(), defaultExecutor(), defaultLogPaths(), execFileAsync, launchCustomGame(), LaunchCustomGameInput, LaunchDotaInput, LaunchOutput (+12 more)
-
-### Community 81 - "Community 81"
-Cohesion: 0.20
-Nodes (19): GameplayObjective, RuntimePlacement, compactTranscriptResults(), generatePlayableSmokeAddonName(), isRetryableValidationMiss(), playableSmokeMarkers(), pollValidation(), prepareCustomMapForSmoke() (+11 more)
-
-### Community 82 - "Community 82"
-Cohesion: 0.26
-Nodes (19): validateAddonName(), validateCleanupInput(), launchDota(), launchTools(), readConsoleOrLogs(), prepareCustomMap(), prepareRemoteCustomMap(), validatePrepareInput() (+11 more)
-
 ### Community 83 - "Community 83"
-Cohesion: 0.20
-Nodes (17): cleanupFromStdout(), CleanupOutput, cleanupPaths(), CleanupPayload, cleanupPlayableSmoke(), CleanupPlayableSmokeInput, CleanupProcess, cleanupProcessScript() (+9 more)
+Cohesion: 0.19
+Nodes (18): cleanupFromStdout(), CleanupOutput, cleanupPaths(), CleanupPayload, cleanupPlayableSmoke(), CleanupPlayableSmokeInput, CleanupProcess, cleanupProcessScript() (+10 more)
 
 ### Community 84 - "Community 84"
 Cohesion: 0.15
@@ -525,10 +515,6 @@ Nodes (6): Deferred Ideas, Existing Code Insights, Implementation Decisions, Pha
 Cohesion: 0.29
 Nodes (6): Checks Performed, Findings, Phase 12 Independent Review: Unit Ability Scaffolding MVP, Residual Risk, Review Outcome, Review Scope
 
-### Community 95 - "Community 95"
-Cohesion: 0.57
-Nodes (7): createAddon(), validateGameplayObjective(), validateMapName(), validateRuntimePlacement(), validateUnitAbilityScaffold(), validateRemoteAddonInput(), validateSmokeInput()
-
 ### Community 96 - "Community 96"
 Cohesion: 0.33
 Nodes (5): Decisions, Delivered, Next, Phase 10 Summary: Custom Map Spawn Point MVP, Validation
@@ -561,25 +547,49 @@ Nodes (4): Local Verification, Phase 10 Verification: Custom Map Spawn Point MVP
 Cohesion: 0.40
 Nodes (4): Delivered, Next Work, Phase 11: Gameplay Objective MVP - Summary, Verification
 
+### Community 104 - "Community 104"
+Cohesion: 0.17
+Nodes (11): Acceptance Criteria, Ambiguity Report, Background, Boundaries, Constraints, Edge Coverage, Goal, Interview Log (+3 more)
+
+### Community 105 - "Community 105"
+Cohesion: 0.29
+Nodes (6): Artifacts This Phase Produces, Must Haves, Objective, Phase 13 Plan: Panorama Toolchain Boundary and Publishing Preflight MVP, Tasks, Verification Commands
+
+### Community 106 - "Community 106"
+Cohesion: 0.29
+Nodes (6): Deferred Ideas, Existing Code Insights, Implementation Decisions, Phase 13: Panorama Toolchain Boundary and Publishing Preflight MVP - Context, Phase Boundary, Specific Ideas
+
+### Community 107 - "Community 107"
+Cohesion: 0.29
+Nodes (6): Checks Performed, Findings, Phase 13 Independent Review: Panorama Toolchain Boundary and Publishing Preflight MVP, Residual Risk, Review Outcome, Review Scope
+
+### Community 108 - "Community 108"
+Cohesion: 0.33
+Nodes (5): Delivered, Next Work, Phase 13 Summary: Panorama Toolchain Boundary and Publishing Preflight MVP, Tests Added, Verification
+
+### Community 109 - "Community 109"
+Cohesion: 0.33
+Nodes (5): Local Verification, Phase 13 Verification: Panorama Toolchain Boundary and Publishing Preflight MVP, Real Windows Verification, Requirement Trace, Residual Risk
+
 ## Knowledge Gaps
-- **728 isolated node(s):** `node`, `name`, `version`, `description`, `type` (+723 more)
+- **800 isolated node(s):** `node`, `name`, `version`, `description`, `type` (+795 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Communities (80 total, 1 thin omitted)` connect `Community 4` to `Community 73`?**
-  _High betweenness centrality (0.006) - this node is a cross-community bridge._
-- **Why does `createFailureResult()` connect `Community 82` to `Community 0`, `Community 2`, `Community 5`, `Community 47`, `Community 80`, `Community 81`, `Community 83`, `Community 95`?**
+- **Why does `Communities (110 total, 1 thin omitted)` connect `Community 4` to `Community 73`?**
+  _High betweenness centrality (0.013) - this node is a cross-community bridge._
+- **Why does `createFailureResult()` connect `Community 0` to `Community 83`, `Community 5`, `Community 47`?**
   _High betweenness centrality (0.003) - this node is a cross-community bridge._
 - **What connects `node`, `name`, `version` to the rest of the system?**
-  _728 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _800 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.09538461538461539 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05188998780653028 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.05128205128205128 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.04878048780487805 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.08108108108108109 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06451612903225806 - nodes in this community are weakly interconnected._
 - **Should `Community 3` be split into smaller, more focused modules?**
   _Cohesion score 0.09090909090909091 - nodes in this community are weakly interconnected._

@@ -52,6 +52,7 @@ The server exposes these logical operations:
 - `create_addon`
 - `prepare_custom_map`
 - `inspect_addon`
+- `inspect_workshop_preflight`
 - `launch_tools`
 - `launch_custom_game`
 - `run_playable_smoke`
@@ -195,6 +196,28 @@ Use `"template": "minimal"` only when you need the old marker-only smoke templat
 
 `validate_addon` only succeeds when expected log or console evidence is present.
 Map names are restricted to Dota map path characters: letters, digits, underscores, hyphens, and forward slashes.
+
+## Workshop Preflight
+
+Use `inspect_workshop_preflight` when you need an inspection-only readiness report for an existing addon before deciding what to build next. It accepts the same fixture, local, and remote target contract as `inspect_addon`:
+
+```json
+{
+  "target": {
+    "kind": "remote",
+    "name": "windows-lab",
+    "transport": "ssh",
+    "host": "windows.example.test",
+    "username": "builder",
+    "dotaRoot": "C:/Steam/steamapps/common/dota 2 beta"
+  },
+  "addonName": "demo_addon"
+}
+```
+
+The result reports addon layout evidence for runtime files, content roots, map directories, localization, and unit/ability support files. It also reports Panorama source/runtime directory evidence, XML/CSS/JavaScript files under `content/dota_addons/<addon>/panorama`, and toolchain marker files such as `package.json`, `tsconfig.json`, `tsconfig.tstl.json`, `vite.config.*`, and `webpack.config.js`.
+
+Publishing readiness is reported as blockers and warnings only. Workshop upload remains out of scope. Preflight does not accept Steam credentials, store publishing keys, encrypt content, upload to Workshop, generate Panorama UI, run `npm`, run TypeScript-to-Lua, run React builds, run bundlers, or prove runtime validation.
 
 ## Custom Map Preparation
 

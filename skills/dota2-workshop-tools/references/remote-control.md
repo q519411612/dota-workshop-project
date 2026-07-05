@@ -19,6 +19,7 @@ Remote Windows should use the same MCP operations as local Windows:
 - `validate_target`
 - `create_addon`
 - `inspect_addon`
+- `inspect_workshop_preflight`
 - `link_addon`
 - `launch_tools`
 - `launch_custom_game`
@@ -28,6 +29,8 @@ Remote Windows should use the same MCP operations as local Windows:
 - `validate_addon`
 
 The target object should select the adapter. The agent should not choose separate user-facing workflows for local and remote.
+
+Remote preflight inspection uses the same `inspect_workshop_preflight` operation as fixture and local targets. It checks addon layout, Panorama directories, TypeScript-to-Lua marker files, React marker files, and publishing blockers through remote command evidence; it does not launch Dota, run build tools, perform Workshop upload, or handle credentials.
 
 ## Interactive Launches
 

@@ -5,7 +5,7 @@ description: Use for Dota 2 Workshop Tools, Dota 2 custom game addons, addon tem
 
 # Dota 2 Workshop Tools
 
-Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, minimal unit/ability KV scaffolding, playable gameplay loop generation, score objective markers, runtime placement markers, template-derived custom map preparation, repeatable playable smoke workflows, explicit smoke cleanup controls, Workshop Tools launch, log evidence, and local or remote Windows validation.
+Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, minimal unit/ability KV scaffolding, playable gameplay loop generation, score objective markers, runtime placement markers, template-derived custom map preparation, Workshop preflight inspection, repeatable playable smoke workflows, explicit smoke cleanup controls, Workshop Tools launch, log evidence, and local or remote Windows validation.
 
 ## Core Workflow
 
@@ -35,6 +35,7 @@ Use MCP tools when the request needs any of these operations:
 - Generating or validating score objective markers for the playable template.
 - Generating or inspecting minimal unit/ability KV scaffolds.
 - Preparing and compiling a template-derived custom map with spawn entity evidence.
+- Inspecting addon layout, Panorama directories, toolchain markers, and publishing blockers through preflight.
 - Collecting evidence for a validation transcript.
 
 If MCP is unavailable, explain that target-control work cannot be performed deterministically. You may still edit repository files, write Lua/KV/Panorama source, or prepare a manual checklist, but do not claim Workshop validation.
@@ -50,6 +51,7 @@ Supported:
 - Optional runtime placement configuration and placement markers in the playable template.
 - Optional minimal custom unit plus linked ability KV scaffold files.
 - Template-derived custom map source copy, spawn entity marker verification, and `resourcecompiler.exe` compile evidence.
+- Inspection-only Workshop preflight for addon layout, Panorama source/runtime directories, toolchain marker files, and publishing blockers.
 - Addon metadata and minimal supporting KV files.
 - Local Windows target discovery and launch validation.
 - Remote Windows target execution through SSH or PowerShell Remoting.
@@ -79,6 +81,7 @@ Expected v1 operations:
 - `create_addon`
 - `prepare_custom_map`
 - `inspect_addon`
+- `inspect_workshop_preflight`
 - `link_addon`
 - `launch_tools`
 - `launch_custom_game`
@@ -102,6 +105,8 @@ For v2.4 custom map preparation, call `prepare_custom_map` for an existing addon
 For v2.5 score objectives, pass `objective: { type: "score", targetScore, tickIntervalSeconds }` to `create_addon` or `run_playable_smoke` only when the user wants configurable objective evidence in the existing playable loop. Validate objective configured, progress, and complete markers from logs. Do not imply this generates complex quests, AI, custom units, abilities, items, heroes, or UI.
 
 For v2.6 unit/ability scaffolding, pass `unitAbilityScaffold: { unitName, abilityName }` to `create_addon` or `run_playable_smoke` only when the user wants deterministic KV files for one custom unit and one linked ability. Inspect `npc_units_custom.txt` and `npc_abilities_custom.txt` for evidence. Do not claim this proves custom ability runtime execution, modifiers, items, heroes, AI, UI, publishing, or balancing.
+
+For v2.7 Workshop preflight, call `inspect_workshop_preflight` when the user asks whether an addon is ready around Panorama, TypeScript-to-Lua, React Panorama, or publishing boundaries. Treat its evidence as inspection only: Workshop upload remains out of scope, and it does not generate UI files, run `npm`, run compilers or bundlers, encrypt content, accept credentials, upload to Workshop, or prove runtime validation.
 
 ## Editing Rules
 

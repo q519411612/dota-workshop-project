@@ -7,7 +7,7 @@
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v2.6 Unit Ability Scaffolding MVP complete; next work should define Panorama/toolchain boundary and publishing preflight capabilities.
+**Current focus:** Current roadmap complete through v2.7 Panorama Toolchain Boundary and Publishing Preflight MVP; next project work should start from milestone audit or a new roadmap slice.
 
 ## Current Roadmap
 
@@ -25,6 +25,7 @@ See: `.planning/PROJECT.md`
 | 10 | Custom Map Spawn Point MVP | Complete |
 | 11 | Gameplay Objective MVP | Complete |
 | 12 | Unit Ability Scaffolding MVP | Complete |
+| 13 | Panorama Toolchain Boundary and Publishing Preflight MVP | Complete |
 
 ## Decisions In Effect
 
@@ -50,6 +51,7 @@ See: `.planning/PROJECT.md`
 | Objective validation success requires objective markers from logs, not launch success alone | `.planning/phases/11-gameplay-objective-mvp/11-VERIFICATION.md` |
 | v2.6 scaffolds custom unit and ability KV only; it must not claim custom ability runtime execution | `.planning/phases/12-unit-ability-scaffolding-mvp/12-SPEC.md` |
 | v2.6 scaffold validation success requires linked KV inspect evidence and runtime compatibility markers, not custom ability execution | `.planning/phases/12-unit-ability-scaffolding-mvp/12-VERIFICATION.md` |
+| v2.7 preflight is inspection-only; it must not generate Panorama UI, run TypeScript-to-Lua or React toolchains, store publishing credentials, encrypt content, or upload to Workshop | `.planning/ROADMAP.md` |
 
 ## Research Inputs
 
@@ -113,10 +115,13 @@ See: `.planning/PROJECT.md`
 - v2.6 implementation added optional `unitAbilityScaffold` input for `create_addon` and `run_playable_smoke`, scaffold validation, deterministic `npc_units_custom.txt` and `npc_abilities_custom.txt` generation, linked inspect evidence, remote renderer parity, fixture/remote/smoke tests, and documentation.
 - v2.6 verification passed `git diff --check`, `npm run typecheck`, `npm test` with 88 tests, `npm run build`, manifest/reference validation, and strict secret scan.
 - Real Windows scaffolded smoke passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `scaffold_20260705231402` launched on map `dota`, found default gameplay markers in `game/dota/console.log`, and explicit cleanup stopped only the matching Dota process.
+- v2.7 implementation added `inspect_workshop_preflight`, local/fixture and remote target support, addon layout evidence, Panorama boundary evidence, toolchain marker evidence, publishing blocker warnings, schema/server/tool exposure, docs, and fixture/remote tests.
+- v2.7 verification passed `git diff --check`, targeted preflight and remote-operation tests, `npm run typecheck`, `npm test` with 94 tests, `npm run build`, manifest/reference validation, strict secret scan, and graphify freshness checks.
+- Real Windows preflight passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `preflight_20260705233718` returned runtime/content layout evidence, missing Panorama source/runtime directory evidence, missing toolchain marker evidence, publishing blocker warnings, path evidence, and command evidence.
 
 ## Next Action
 
-Define the Panorama/toolchain boundary and publishing preflight slice, then proceed with spec, plan, implementation, verification, independent review, commit, and push.
+Run final verification, refresh graphify, commit and push v2.7, then run milestone audit or start the next roadmap.
 
 ---
-*Last updated: 2026-07-06 after v2.6 unit ability scaffolding MVP*
+*Last updated: 2026-07-06 for v2.7 panorama toolchain boundary and publishing preflight MVP completion*
