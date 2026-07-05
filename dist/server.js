@@ -71,6 +71,18 @@ export function createServer() {
             addonName: z.string().min(1)
         }
     }, async (input) => asToolContent(await handleTool("inspect_addon", input)));
+    server.registerTool("prepare_custom_map", {
+        title: "Prepare Custom Map",
+        description: "Copy an installed Workshop template map, verify spawn entity markers, and compile it with resourcecompiler.exe.",
+        inputSchema: {
+            ...targetInput,
+            addonName: z.string().min(1),
+            mapName: z.string().min(1),
+            templateAddonName: z.string().min(1).optional(),
+            templateMapName: z.string().min(1).optional(),
+            replace: z.boolean().optional()
+        }
+    }, async (input) => asToolContent(await handleTool("prepare_custom_map", input)));
     server.registerTool("remote_command", {
         title: "Run Remote Windows Command",
         description: "Run a command through the configured remote Windows transport and return command evidence.",
@@ -119,6 +131,12 @@ export function createServer() {
             addonName: z.string().min(1).optional(),
             addonPrefix: z.string().min(1).optional(),
             mapName: z.string().min(1).optional(),
+            customMap: z.object({
+                mapName: z.string().min(1),
+                templateAddonName: z.string().min(1).optional(),
+                templateMapName: z.string().min(1).optional(),
+                replace: z.boolean().optional()
+            }).optional(),
             placement: placementInput.optional(),
             expectedMarkers: z.array(z.string().min(1)).min(1).optional(),
             replace: z.boolean().optional(),

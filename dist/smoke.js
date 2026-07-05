@@ -1,5 +1,6 @@
 import { createAddon, inspectAddon, placementMarkers, validateAddonName, validateMapName, validateRuntimePlacement } from "./addon.js";
 import { launchCustomGame, validateAddon } from "./launch.js";
+import { prepareCustomMap } from "./map.js";
 import { createRemoteAddon, inspectRemoteAddon, launchRemoteCustomGame, validateRemoteAddon } from "./remote.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
 const DEFAULT_VALIDATION_TIMEOUT_MS = 120000;
@@ -31,7 +32,7 @@ export function generatePlayableSmokeAddonName(prefix = "playable_smoke") {
 }
 export async function runPlayableSmoke(input) {
     const operation = "run_playable_smoke";
-    const mapName = input.mapName ?? "dota";
+    const mapName = input.customMap?.mapName ?? input.mapName ?? "dota";
     const addonName = input.addonName ?? generatePlayableSmokeAddonName(input.addonPrefix);
     const expectedMarkers = input.expectedMarkers ?? playableSmokeMarkers(addonName).concat(input.placement ? placementMarkers(addonName, input.placement) : []);
     const validation = validateSmokeInput(addonName, mapName, input);
@@ -52,6 +53,12 @@ export async function runPlayableSmoke(input) {
         transcript.push(createResult);
         if (!createResult.ok)
             return smokeFailure(input.target, createResult, transcript, addonName);
+        const prepareResult = await prepareCustomMapForSmoke(input, addonName);
+        if (prepareResult) {
+            transcript.push(prepareResult);
+            if (!prepareResult.ok)
+                return smokeFailure(input.target, prepareResult, transcript, addonName);
+        }
         const inspectResult = await inspectRemoteAddon({
             target: input.target,
             addonName,
@@ -91,6 +98,12 @@ export async function runPlayableSmoke(input) {
     transcript.push(createResult);
     if (!createResult.ok)
         return smokeFailure(input.target, createResult, transcript, addonName);
+    const prepareResult = await prepareCustomMapForSmoke(input, addonName);
+    if (prepareResult) {
+        transcript.push(prepareResult);
+        if (!prepareResult.ok)
+            return smokeFailure(input.target, prepareResult, transcript, addonName);
+    }
     const inspectResult = await inspectAddon({
         target: input.target,
         addonName
@@ -183,6 +196,17 @@ function validateSmokeInput(addonName, mapName, input) {
             evidence: [`rejected smoke map name: ${mapName}`]
         });
     }
+    if (input.customMap && input.mapName && input.mapName !== input.customMap.mapName) {
+        return createFailureResult({
+            target: input.target,
+            operation: "run_playable_smoke",
+            error: {
+                code: "CUSTOM_MAP_NAME_CONFLICT",
+                message: "customMap.mapName must match mapName when both are provided."
+            },
+            evidence: [`mapName ${input.mapName} conflicts with customMap.mapName ${input.customMap.mapName}`]
+        });
+    }
     if (input.placement) {
         const placementValidation = validateRuntimePlacement(input.placement);
         if (!placementValidation.ok) {
@@ -209,6 +233,20 @@ function validateSmokeInput(addonName, mapName, input) {
         });
     }
     return undefined;
+}
+async function prepareCustomMapForSmoke(input, addonName) {
+    if (!input.customMap) {
+        return undefined;
+    }
+    return prepareCustomMap({
+        target: input.target,
+        addonName,
+        mapName: input.customMap.mapName,
+        templateAddonName: input.customMap.templateAddonName,
+        templateMapName: input.customMap.templateMapName,
+        replace: input.customMap.replace ?? input.replace,
+        executor: input.executor
+    });
 }
 function smokeSuccess(target, results, addonName) {
     const compacted = compactTranscriptResults(results);

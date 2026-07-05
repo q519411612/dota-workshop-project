@@ -20,6 +20,20 @@ If either `game/dota_addons/<addon>` or `content/dota_addons/<addon>` exists, in
 
 Launch may start but custom game validation can fail if the requested map is absent or not compiled. Report missing map evidence separately from addon startup.
 
+### Custom map preparation failed
+
+`prepare_custom_map` should fail before launch when required map inputs are missing or unsafe:
+
+- `CUSTOM_MAP_TEMPLATE_MISSING`: the installed `addon_template/maps/template_map.vmap` source is absent.
+- `CUSTOM_MAP_ALREADY_EXISTS`: the destination source map exists and replacement was not requested.
+- `CUSTOM_MAP_COMPILER_MISSING`: `game/bin/win64/resourcecompiler.exe` is absent.
+- `CUSTOM_MAP_GAMEINFO_MISSING`: `game/dota/gameinfo.gi` is absent.
+- `CUSTOM_MAP_SPAWN_MARKER_MISSING`: the copied source lacks `info_player_start_goodguys` or `info_player_start_badguys`.
+- `CUSTOM_MAP_COMPILE_FAILED`: `resourcecompiler.exe` returned a non-zero exit code.
+- `CUSTOM_MAP_OUTPUT_MISSING`: compilation returned success but the expected compiled map output was not found.
+
+Do not continue to launch when map preparation fails. Fix the path, source map, or compiler issue and rerun the preparation step.
+
 ### Metadata format mismatch
 
 `addoninfo.txt` may be classic KeyValues or KV3-like. Preserve existing format when editing. For generated fixtures, report which format was created.

@@ -2,14 +2,16 @@ import { createAddon, inspectAddon } from "./addon.js";
 import { cleanupPlayableSmoke } from "./cleanup.js";
 import { discoverEnvironment, validateInstallRoot } from "./environment.js";
 import { launchCustomGame, launchTools, readConsoleOrLogs, validateAddon } from "./launch.js";
+import { prepareCustomMap } from "./map.js";
 import { createFailureResult } from "./result.js";
 import { runPlayableSmoke } from "./smoke.js";
 import { createRemoteAddon, discoverRemoteEnvironment, inspectRemoteAddon, launchRemoteCustomGame, launchRemoteTools, readRemoteConsoleOrLogs, runRemoteCommand, validateRemoteAddon } from "./remote.js";
-import { CreateAddonInputSchema, DiscoverEnvironmentInputSchema, InspectAddonInputSchema, LaunchCustomGameInputSchema, LaunchToolsInputSchema, ReadLogsInputSchema, RemoteCommandInputSchema, RunPlayableSmokeInputSchema, CleanupPlayableSmokeInputSchema, ValidateAddonInputSchema, ValidateTargetInputSchema } from "./schemas.js";
+import { CreateAddonInputSchema, DiscoverEnvironmentInputSchema, InspectAddonInputSchema, LaunchCustomGameInputSchema, LaunchToolsInputSchema, PrepareCustomMapInputSchema, ReadLogsInputSchema, RemoteCommandInputSchema, RunPlayableSmokeInputSchema, CleanupPlayableSmokeInputSchema, ValidateAddonInputSchema, ValidateTargetInputSchema } from "./schemas.js";
 export const toolNames = [
     "discover_environment",
     "validate_target",
     "create_addon",
+    "prepare_custom_map",
     "inspect_addon",
     "launch_tools",
     "launch_custom_game",
@@ -53,6 +55,10 @@ export async function handleTool(name, input) {
                 });
             }
             return createAddon(parsed);
+        }
+        case "prepare_custom_map": {
+            const parsed = PrepareCustomMapInputSchema.parse(input);
+            return prepareCustomMap(parsed);
         }
         case "inspect_addon": {
             const parsed = InspectAddonInputSchema.parse(input);

@@ -5,7 +5,7 @@ description: Use for Dota 2 Workshop Tools, Dota 2 custom game addons, addon tem
 
 # Dota 2 Workshop Tools
 
-Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, playable gameplay loop generation, runtime placement markers, repeatable playable smoke workflows, explicit smoke cleanup controls, Workshop Tools launch, log evidence, and local or remote Windows validation.
+Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, playable gameplay loop generation, runtime placement markers, template-derived custom map preparation, repeatable playable smoke workflows, explicit smoke cleanup controls, Workshop Tools launch, log evidence, and local or remote Windows validation.
 
 ## Core Workflow
 
@@ -32,6 +32,7 @@ Use MCP tools when the request needs any of these operations:
 - Running the repeatable playable smoke workflow.
 - Inspecting or stopping known smoke Dota processes through explicit addon-scoped cleanup.
 - Generating or validating runtime placement markers for the playable template.
+- Preparing and compiling a template-derived custom map with spawn entity evidence.
 - Collecting evidence for a validation transcript.
 
 If MCP is unavailable, explain that target-control work cannot be performed deterministically. You may still edit repository files, write Lua/KV/Panorama source, or prepare a manual checklist, but do not claim Workshop validation.
@@ -44,6 +45,7 @@ Supported:
 - Lua gamemode entry point and startup validation marker.
 - Minimal playable Lua loop with gamemode initialization, round start, score update, and win-condition markers.
 - Optional runtime placement configuration and placement markers in the playable template.
+- Template-derived custom map source copy, spawn entity marker verification, and `resourcecompiler.exe` compile evidence.
 - Addon metadata and minimal supporting KV files.
 - Local Windows target discovery and launch validation.
 - Remote Windows target execution through SSH or PowerShell Remoting.
@@ -58,6 +60,8 @@ Deferred:
 - Excel-to-KV pipelines.
 - Ability, item, unit, hero, complex AI, or gameplay generators beyond the minimal playable loop.
 - Workshop publishing and encryption.
+- Binary `.vmap` spawn coordinate editing.
+- Hammer UI automation.
 - UI automation as the primary control path.
 
 ## MCP Tool Contract
@@ -69,6 +73,7 @@ Expected v1 operations:
 - `discover_environment`
 - `validate_target`
 - `create_addon`
+- `prepare_custom_map`
 - `inspect_addon`
 - `link_addon`
 - `launch_tools`
@@ -87,6 +92,8 @@ For v2.1 repeatable playable smoke, prefer `run_playable_smoke` when the user wa
 For v2.2 repeat-smoke cleanup, call `cleanup_playable_smoke` explicitly. Start with `dryRun: true` to inspect matching Dota processes for the known smoke addon name, then call again with `dryRun: false` only when the matches are correct. Do not add hidden cleanup to `run_playable_smoke`.
 
 For v2.3 runtime placement, pass `placement` to `create_addon` or `run_playable_smoke` only when the user wants deterministic spawn evidence on an already launchable map. Validate the placement markers from logs. Do not imply this edits Hammer map spawn entities or generates full unit/ability systems.
+
+For v2.4 custom map preparation, call `prepare_custom_map` for an existing addon or pass `customMap` to `run_playable_smoke`. The operation copies `content/dota_addons/addon_template/maps/template_map.vmap`, verifies `info_player_start_goodguys` and `info_player_start_badguys`, runs `resourcecompiler.exe`, and returns source, compiler, command, and compiled-map evidence. Do not claim this edits binary `.vmap` spawn coordinates.
 
 ## Editing Rules
 

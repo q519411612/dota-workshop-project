@@ -4,7 +4,7 @@
 
 Dota Workshop Project is a Codex plugin project for building Dota 2 custom games with AI assistance. It will package a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, and inspect a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The current focus is v2.3 complete and real Windows validated: Runtime Placement MVP adds deterministic spawn placement configuration to the playable template so generated addons can prove basic runtime positioning through log markers before larger map or unit generation work begins.
+The current focus is the next v2.x slice after custom-map preparation: build richer gameplay objective support on top of the validated playable addon and custom-map smoke loop.
 
 ## Core Value
 
@@ -32,10 +32,11 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 - [x] Provide explicit safe cleanup controls so repeat playable smoke runs can dry-run inspect or stop only known Dota smoke processes matching a requested smoke addon name.
 - [x] Keep `run_playable_smoke` free of hidden cleanup side effects while documenting the explicit cleanup workflow.
 - [x] Generate a minimal runtime placement configuration for the playable template and validate placement markers through the existing local or remote runtime log path.
+- [x] Prepare a launchable custom map from the installed Workshop template and validate spawn entity evidence, compile evidence, and runtime marker evidence through the same local or remote MCP contract.
 
 ### Active
 
-(None - v2.3 Runtime Placement MVP implementation is complete.)
+- [ ] Define and implement the next gameplay objective slice using the validated custom-map smoke loop.
 
 ### Out of Scope
 
@@ -77,6 +78,7 @@ The skill and MCP server should have separate responsibilities. The skill teache
 | Add explicit safe smoke cleanup controls for v2.2 | Real v2.1 repeat smoke found stale smoke Dota processes can block interactive launch matching | Implemented |
 | Add deterministic runtime placement markers for v2.3 | The current playable loop proves scoring on stock `dota`; placement configuration is the next smallest step toward controlled custom game scenarios | Implemented |
 | Validate cleanup and placement on real Windows before expanding v2.x | Fixture tests proved contracts, but later map and unit work needs confidence in the remote runtime loop | Implemented |
+| Use installed template maps before binary map editing | The current `template_map.vmap` is binary DMX; copying, checking spawn entity strings, compiling, and launching it is a rigorous smaller slice than patching binary entity coordinates | Implemented |
 
 ## Evolution
 
@@ -96,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 after v2.2 cleanup and v2.3 runtime placement real Windows validation*
+*Last updated: 2026-07-06 for v2.4 custom map spawn point MVP*

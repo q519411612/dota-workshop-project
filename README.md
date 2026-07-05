@@ -50,6 +50,7 @@ The server exposes these logical operations:
 - `discover_environment`
 - `validate_target`
 - `create_addon`
+- `prepare_custom_map`
 - `inspect_addon`
 - `launch_tools`
 - `launch_custom_game`
@@ -152,6 +153,45 @@ Use `"template": "minimal"` only when you need the old marker-only smoke templat
 `validate_addon` only succeeds when expected log or console evidence is present.
 Map names are restricted to Dota map path characters: letters, digits, underscores, hyphens, and forward slashes.
 
+## Custom Map Preparation
+
+`prepare_custom_map` prepares a launchable custom-map source for an existing addon by copying the installed Workshop template map:
+
+```text
+content/dota_addons/addon_template/maps/template_map.vmap
+```
+
+into:
+
+```text
+content/dota_addons/<addon_name>/maps/<map_name>.vmap
+```
+
+The tool refuses unsafe addon or map names, refuses to overwrite an existing destination unless `replace` is true, verifies the copied source contains both `info_player_start_goodguys` and `info_player_start_badguys`, and runs `game/bin/win64/resourcecompiler.exe`. Success requires compile evidence and an expected compiled output path such as:
+
+```text
+game/dota_addons/<addon_name>/maps/<map_name>.vpk
+```
+
+Example:
+
+```json
+{
+  "target": {
+    "kind": "remote",
+    "name": "windows-lab",
+    "transport": "ssh",
+    "host": "windows.example.test",
+    "username": "builder",
+    "dotaRoot": "C:/Steam/steamapps/common/dota 2 beta"
+  },
+  "addonName": "demo_addon",
+  "mapName": "demo_template_map"
+}
+```
+
+This MVP does not edit binary `.vmap` spawn coordinates and does not automate Hammer. It only copies the installed template map, proves known spawn entity names exist in the source, compiles it, and leaves runtime validation to `launch_custom_game`, `validate_addon`, or `run_playable_smoke`.
+
 ## Local Windows Smoke Checklist
 
 Use a real Windows machine with Dota 2 Workshop Tools installed.
@@ -192,6 +232,7 @@ Default behavior:
 - Generates a unique addon name like `playable_smoke_<date>_<time>_<suffix>`.
 - Creates the default `playable` template.
 - Launches map `dota` with `"runtimeMode": "game"` and `"consoleLog": true`.
+- When `customMap` is provided, prepares that map before inspection and launch, then launches the custom map instead of `dota`.
 - Validates addon loaded, gamemode initialized, round started, score updated, and win condition markers.
 - When `placement` is provided, also validates placement configured, origin, unit, and spawned markers.
 - Polls marker validation for a bounded window because Dota runtime logs may appear after launch returns.
@@ -208,6 +249,26 @@ Example:
     "host": "windows.example.test",
     "username": "builder",
     "dotaRoot": "C:/Steam/steamapps/common/dota 2 beta"
+  },
+  "launchMode": "interactiveTask"
+}
+```
+
+Custom-map smoke example:
+
+```json
+{
+  "target": {
+    "kind": "remote",
+    "name": "windows-lab",
+    "transport": "ssh",
+    "host": "windows.example.test",
+    "username": "builder",
+    "dotaRoot": "C:/Steam/steamapps/common/dota 2 beta"
+  },
+  "addonName": "demo_addon",
+  "customMap": {
+    "mapName": "demo_template_map"
   },
   "launchMode": "interactiveTask"
 }
@@ -263,7 +324,7 @@ Use SSH or PowerShell Remoting configured outside the repository.
 2. Call `discover_environment` with the remote target and `dotaRoot`.
 3. Call `create_addon`, `inspect_addon`, `launch_tools`, and `launch_custom_game` through the same logical MCP tools.
 4. Use `"launchMode": "interactiveTask"` when the remote transport is a service session and Workshop Tools must appear in the logged-in desktop session.
-5. For runtime validation, call `launch_custom_game` with `"runtimeMode": "game"`, `"consoleLog": true`, and a launchable map such as `dota` for the generated playable template.
+5. For runtime validation, call `launch_custom_game` with `"runtimeMode": "game"`, `"consoleLog": true`, and a launchable map such as `dota` for the generated playable template. For a template-derived custom map, call `prepare_custom_map` first or pass `customMap` to `run_playable_smoke`.
 6. Confirm command evidence includes stdout, stderr, exit code, and attempted command.
 7. If any remote command fails, fix remote configuration. The server does not fall back to local behavior.
 

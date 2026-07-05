@@ -149,12 +149,26 @@
 - [x] **PLAC2-07**: Fixture tests cover schema parsing, invalid placement rejection, generated Lua placement content, inspect evidence, remote command construction, and smoke marker validation on macOS.
 - [x] **PLAC2-08**: README and skill references explain the placement workflow and explicitly defer custom map editing, Hammer UI automation, complex objectives, and unit/ability generators.
 
+## v2.4 Requirements
+
+### Custom Map Spawn Point MVP
+
+- [x] **MAP2-01**: Agent can call a typed `prepare_custom_map` MCP operation using the same fixture, local Windows, and remote Windows target schema as existing addon tools.
+- [x] **MAP2-02**: `prepare_custom_map` validates addon and map names before filesystem operations or remote command construction.
+- [x] **MAP2-03**: `prepare_custom_map` copies an installed Workshop template map source into the selected addon's content map directory and refuses to overwrite an existing map unless replacement is requested.
+- [x] **MAP2-04**: `prepare_custom_map` verifies copied map source evidence for `info_player_start_goodguys` and `info_player_start_badguys`.
+- [x] **MAP2-05**: Local and remote Windows custom map preparation compiles the copied map through `resourcecompiler.exe` and returns command evidence, stdout, stderr, exit code, paths, warnings, and logs.
+- [x] **MAP2-06**: Custom map preparation returns explicit failures for missing Dota root, missing template source, missing spawn entity marker, missing compiler, existing destination without replacement, compile failure, and remote command failure.
+- [x] **MAP2-07**: `run_playable_smoke` can optionally prepare a custom map before launch while preserving the default stock `dota` smoke workflow.
+- [x] **MAP2-08**: README and skill references explain custom map preparation, spawn entity evidence, compiler requirements, runtime validation, and the boundary that binary Hammer spawn editing is deferred.
+
 ## Deferred v2.x Requirements
 
 Tracked but not in current roadmap.
 
 ### Gameplay
 
+- **MAP-X01**: Agent can edit or generate Hammer map spawn entities and coordinates directly.
 - **GAME-X01**: Agent can generate custom abilities, items, units, and heroes.
 - **GAME-X02**: Agent can generate complex AI or a full gameplay framework.
 
@@ -279,6 +293,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLAC2-06 | Phase 9 | Implemented |
 | PLAC2-07 | Phase 9 | Implemented |
 | PLAC2-08 | Phase 9 | Implemented |
+| MAP2-01 | Phase 10 | Implemented |
+| MAP2-02 | Phase 10 | Implemented |
+| MAP2-03 | Phase 10 | Implemented |
+| MAP2-04 | Phase 10 | Implemented |
+| MAP2-05 | Phase 10 | Implemented |
+| MAP2-06 | Phase 10 | Implemented |
+| MAP2-07 | Phase 10 | Implemented |
+| MAP2-08 | Phase 10 | Implemented |
 
 **Coverage:**
 - v1 requirements: 33 total
@@ -287,9 +309,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v2.1 requirements: 8 total
 - v2.2 requirements: 10 total
 - v2.3 requirements: 8 total
-- Mapped to phases: 78
+- v2.4 requirements: 8 total
+- Mapped to phases: 86
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-03*
-*Last updated: 2026-07-06 after v2.3 runtime placement MVP implementation*
+*Last updated: 2026-07-06 for v2.4 custom map spawn point MVP*

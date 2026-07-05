@@ -1,13 +1,13 @@
 # Project State: Dota Workshop Project
 
-**Updated:** 2026-07-04
+**Updated:** 2026-07-06
 
 ## Project Reference
 
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v2.3 Runtime Placement MVP complete; generated playable addons can use deterministic runtime placement configuration and markers without custom map editing.
+**Current focus:** v2.4 Custom Map Spawn Point MVP complete; next work should define the gameplay objective slice on top of the validated custom-map smoke loop.
 
 ## Current Roadmap
 
@@ -22,6 +22,7 @@ See: `.planning/PROJECT.md`
 | 7 | Repeatable Playable Smoke Workflow | Complete |
 | 8 | Safe Smoke Cleanup Controls | Complete |
 | 9 | Runtime Placement MVP | Complete |
+| 10 | Custom Map Spawn Point MVP | Complete |
 
 ## Decisions In Effect
 
@@ -41,6 +42,8 @@ See: `.planning/PROJECT.md`
 | v2.1 does not automatically delete target files or stop broad process sets; smoke cleanup remains explicit and user-controlled | `.planning/phases/07-repeatable-playable-smoke-workflow/07-REVIEW.md` |
 | v2.2 cleanup must be an explicit MCP operation and must not run silently inside `run_playable_smoke` | `.planning/phases/08-safe-smoke-cleanup-controls/08-SPEC.md` |
 | v2.3 placement should extend the playable template and marker validation before custom map editing or unit/ability generation | `.planning/ROADMAP.md` |
+| v2.4 should copy and compile the installed template map before attempting binary Hammer map entity editing | `.planning/phases/10-custom-map-spawn-point-mvp/10-SPEC.md` |
+| `resourcecompiler.exe -game` must receive the `game/dota` directory, and the compiled template map output is `<map>.vpk` | Real Windows v2.4 smoke |
 
 ## Research Inputs
 
@@ -94,10 +97,14 @@ See: `.planning/PROJECT.md`
 - v2.3 implementation added optional `placement` input for `create_addon` and `run_playable_smoke`, generated Lua placement markers, placement validation, inspect evidence, remote renderer parity, schema/server exposure, docs, and fixture tests.
 - v2.3 verification passed `git diff --check`, `npm run typecheck`, `npm test` with 66 tests, `npm run build`, plugin validation, skill validation, and strict secret scan.
 - Real Windows placement smoke passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `placement_smoke_20260705215923395` launched on map `dota` with placement unit `npc_dota_creep_badguys_melee`, team `badguys`, origin `x=256 y=-384 z=128`, and runtime `console.log` evidence for placement configured, origin, unit/team, spawned unit, gameplay score, and win-condition markers.
+- v2.4 remote Windows research found `resourcecompiler.exe` under `game/bin/win64`, an installed `addon_template/maps/template_map.vmap` source under `content/dota_addons`, and source strings for `info_player_start_goodguys` and `info_player_start_badguys`. The v2.4 slice should use that template as a deterministic custom-map source and defer binary map entity mutation.
+- v2.4 implementation added `prepare_custom_map`, schema/server/tool exposure, template `.vmap` copy, spawn marker verification, `resourcecompiler.exe` compilation, `.vpk` output verification, optional `run_playable_smoke.customMap` orchestration, docs, and fixture/remote/smoke tests.
+- v2.4 verification passed `git diff --check`, `npm run typecheck`, `npm test` with 73 tests, `npm run build`, skill/reference validation, and strict secret scan.
+- Real Windows custom-map smoke passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `custommap_20260705222604` copied `addon_template/maps/template_map.vmap`, verified `info_player_start_goodguys` and `info_player_start_badguys`, compiled `template_spawn_smoke.vpk`, launched map `template_spawn_smoke`, found all gameplay markers in `game/dota/console.log`, and cleaned up only PID `35616` matching the smoke addon command line.
 
 ## Next Action
 
-Choose the next v2.x milestone: custom map spawn points, richer gameplay objectives, unit/ability scaffolding, Panorama/toolchain boundaries, or publishing prerequisites.
+Plan the next gameplay objective slice, then proceed with spec, plan, implementation, verification, independent review, commit, and push.
 
 ---
-*Last updated: 2026-07-06 after v2.2 cleanup and v2.3 runtime placement real Windows validation*
+*Last updated: 2026-07-06 for v2.4 custom map spawn point MVP*

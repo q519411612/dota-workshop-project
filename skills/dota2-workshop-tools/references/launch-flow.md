@@ -96,6 +96,16 @@ By default it generates a unique addon name, polls marker validation for a bound
 
 When `placement` is provided, `run_playable_smoke` adds placement configured, origin, unit, and spawned markers to the default validation list. Use this to prove deterministic runtime placement on a stock launchable map before designing custom map spawn points.
 
+When `customMap` is provided, `run_playable_smoke` changes the sequence to:
+
+1. Create a playable addon with the custom map name in metadata.
+2. Call `prepare_custom_map` to copy `addon_template/maps/template_map.vmap`, verify goodguys and badguys spawn entity markers, and compile the map with `resourcecompiler.exe`.
+3. Inspect generated addon evidence.
+4. Launch `+dota_launch_custom_game <addon> <custom_map>` in game runtime mode with console logging.
+5. Validate all required gameplay markers.
+
+Custom-map smoke success requires both compile evidence and runtime log marker evidence. The custom-map MVP does not edit binary `.vmap` spawn coordinates or drive Hammer UI.
+
 ## Explicit Smoke Cleanup
 
 Use `cleanup_playable_smoke` only when the user deliberately wants to inspect or stop a known smoke process before or after a repeat run. It is not part of `run_playable_smoke`.

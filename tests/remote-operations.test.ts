@@ -8,6 +8,7 @@ import {
   launchRemoteCustomGame,
   launchRemoteTools
 } from "../src/remote.js";
+import { prepareCustomMap } from "../src/map.js";
 
 describe("remote Windows operations", () => {
   const gameplayMarkers = [
@@ -279,6 +280,60 @@ describe("remote Windows operations", () => {
     expect(result.commands[0].command).toContain("self.placementOrigin = Vector(128, -64, 256)");
     expect(result.commands[0].command).toContain("[DOTA_WORKSHOP_MCP] placement configured: demo_addon");
     expect(result.commands[0].command).toContain("[DOTA_WORKSHOP_MCP] placement spawned: demo_addon");
+  });
+
+  test("prepares a custom map through remote resourcecompiler command evidence", async () => {
+    let attemptedCommand = "";
+    const result = await prepareCustomMap({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      mapName: "demo_map",
+      executor: async (command) => {
+        attemptedCommand = command.command;
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            ok: true,
+            evidence: [
+              "prepared custom map source for demo_addon/demo_map",
+              "found spawn entity marker: info_player_start_goodguys",
+              "found spawn entity marker: info_player_start_badguys",
+              "compiled custom map with resourcecompiler"
+            ],
+            paths: {
+              templateMap: "C:/Steam/steamapps/common/dota 2 beta/content/dota_addons/addon_template/maps/template_map.vmap",
+              contentMap: "C:/Steam/steamapps/common/dota 2 beta/content/dota_addons/demo_addon/maps/demo_map.vmap",
+              compiledMap: "C:/Steam/steamapps/common/dota 2 beta/game/dota_addons/demo_addon/maps/demo_map.vpk",
+              resourceCompiler: "C:/Steam/steamapps/common/dota 2 beta/game/bin/win64/resourcecompiler.exe"
+            },
+            compile: {
+              exitCode: 0,
+              stdout: "compile ok",
+              stderr: ""
+            }
+          }),
+          stderr: ""
+        };
+      }
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("compiled custom map with resourcecompiler");
+    expect(result.paths.compiledMap).toContain("demo_map.vpk");
+    expect(result.commands[0].stdout).toContain("compile ok");
+    expect(attemptedCommand).toContain("ssh");
+    expect(attemptedCommand).toContain("resourcecompiler.exe");
+    expect(attemptedCommand).toContain("template_map.vmap");
+    expect(attemptedCommand).toContain("info_player_start_goodguys");
+    expect(attemptedCommand).toContain("info_player_start_badguys");
+    expect(attemptedCommand).toContain("ConvertTo-Json");
   });
 
   test("inspects addon on the remote target from JSON command output", async () => {

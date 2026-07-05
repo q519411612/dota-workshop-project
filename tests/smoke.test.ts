@@ -15,10 +15,18 @@ describe("repeatable playable smoke workflow", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "dota-smoke-"));
     await mkdir(join(root, "game/bin/win64"), { recursive: true });
+    await mkdir(join(root, "game/dota"), { recursive: true });
     await mkdir(join(root, "game/dota_addons"), { recursive: true });
+    await mkdir(join(root, "content/dota_addons/addon_template/maps"), { recursive: true });
     await mkdir(join(root, "content/dota_addons"), { recursive: true });
     await writeFile(join(root, "game/bin/win64/dota2.exe"), "");
     await writeFile(join(root, "game/bin/win64/vconsole2.exe"), "");
+    await writeFile(join(root, "game/bin/win64/resourcecompiler.exe"), "");
+    await writeFile(join(root, "game/dota/gameinfo.gi"), "");
+    await writeFile(
+      join(root, "content/dota_addons/addon_template/maps/template_map.vmap"),
+      "info_player_start_goodguys\ninfo_player_start_badguys\n"
+    );
   });
 
   afterEach(async () => {
@@ -198,6 +206,44 @@ describe("repeatable playable smoke workflow", () => {
     expect(attemptedCommands[2]).toContain("New-ScheduledTaskAction");
     expect(attemptedCommands[2]).toContain("-applaunch 570 -novid -addon remote_smoke +dota_launch_custom_game remote_smoke dota -console -condebug");
     expect(attemptedCommands[2]).not.toContain("-tools");
+  });
+
+  test("prepares a custom map before launching a custom-map smoke workflow", async () => {
+    const addonName = "smoke_custom_map";
+    const markers = playableSmokeMarkers(addonName);
+    const logPath = join(root, "game/dota/console.log");
+    const commandOrder: string[] = [];
+    await writeFile(logPath, markers.map((marker) => `[VScript] ${marker}`).join("\n"));
+
+    const result = await runPlayableSmoke({
+      target: { kind: "fixture", root },
+      addonName,
+      customMap: {
+        mapName: "template_spawn_demo"
+      },
+      dryRun: true,
+      logPaths: [logPath],
+      validationTimeoutMs: 0,
+      executor: async (command) => {
+        if (command.command.includes("resourcecompiler.exe")) {
+          commandOrder.push("prepare_custom_map");
+          const compiledMap = join(root, "game/dota_addons/smoke_custom_map/maps/template_spawn_demo.vpk");
+          await mkdir(join(root, "game/dota_addons/smoke_custom_map/maps"), { recursive: true });
+          await writeFile(compiledMap, "compiled");
+          return { exitCode: 0, stdout: "compile ok", stderr: "" };
+        }
+        commandOrder.push("unexpected");
+        return { exitCode: 1, stdout: "", stderr: "unexpected command" };
+      }
+    });
+
+    expect(result.ok).toBe(true);
+    expect(commandOrder).toEqual(["prepare_custom_map"]);
+    expect(result.evidence).toContain("smoke operation prepare_custom_map succeeded");
+    expect(result.evidence).toContain("compiled custom map with resourcecompiler");
+    expect(result.commands.some((command) => command.command.includes("resourcecompiler.exe"))).toBe(true);
+    expect(result.commands.some((command) => command.command.includes("+dota_launch_custom_game smoke_custom_map template_spawn_demo"))).toBe(true);
+    expect(result.paths.contentMap).toContain("template_spawn_demo.vmap");
   });
 
   test("exposes run_playable_smoke through the MCP dispatcher", async () => {

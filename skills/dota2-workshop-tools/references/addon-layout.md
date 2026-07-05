@@ -38,6 +38,26 @@ content/dota_addons/<addon_name>/maps/<map_name>.vmap
 
 The template may create the content root without a real compiled map when fixture validation is running outside Windows. Runtime marker validation can use a launchable stock map such as `dota`; custom map validation must report missing maps as an explicit failure instead of pretending the addon is runnable.
 
+`prepare_custom_map` copies the installed template source:
+
+```text
+content/dota_addons/addon_template/maps/template_map.vmap
+```
+
+to the selected addon map path, verifies the copied source contains `info_player_start_goodguys` and `info_player_start_badguys`, and compiles it with:
+
+```text
+game/bin/win64/resourcecompiler.exe
+```
+
+The expected compiled output is reported under:
+
+```text
+game/dota_addons/<addon_name>/maps/<map_name>.vpk
+```
+
+This template-derived path does not edit binary `.vmap` spawn coordinates. Treat Hammer entity editing and generated maps from scratch as separate work.
+
 ## Safety Rules
 
 - Validate addon names before writing. Use lowercase letters, digits, and underscores.

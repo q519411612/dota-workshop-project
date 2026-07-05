@@ -37,6 +37,14 @@ export const CreateAddonInputSchema = z.object({
     placement: RuntimePlacementSchema.optional(),
     replace: z.boolean().optional()
 });
+export const PrepareCustomMapInputSchema = z.object({
+    target: TargetSchema,
+    addonName: z.string().min(1),
+    mapName: z.string().min(1),
+    templateAddonName: z.string().min(1).optional(),
+    templateMapName: z.string().min(1).optional(),
+    replace: z.boolean().optional()
+});
 export const InspectAddonInputSchema = z.object({
     target: TargetSchema,
     addonName: z.string().min(1)
@@ -79,6 +87,12 @@ export const RunPlayableSmokeInputSchema = z.object({
     addonName: z.string().min(1).optional(),
     addonPrefix: z.string().min(1).optional(),
     mapName: z.string().min(1).optional(),
+    customMap: z.object({
+        mapName: z.string().min(1),
+        templateAddonName: z.string().min(1).optional(),
+        templateMapName: z.string().min(1).optional(),
+        replace: z.boolean().optional()
+    }).optional(),
     placement: RuntimePlacementSchema.optional(),
     expectedMarkers: z.array(z.string().min(1)).min(1).optional(),
     replace: z.boolean().optional(),

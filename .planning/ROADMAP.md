@@ -18,6 +18,7 @@
 | 7 | Repeatable Playable Smoke Workflow | Package the verified playable runtime smoke path into one repeatable MCP workflow with safe transcript output. | SMOK2-01, SMOK2-02, SMOK2-03, SMOK2-04, SMOK2-05, SMOK2-06, SMOK2-07, SMOK2-08 | Complete |
 | 8 | Safe Smoke Cleanup Controls | Add explicit dry-run and execute cleanup for known smoke Dota processes before or after repeat playable smoke runs. | CLEN2-01, CLEN2-02, CLEN2-03, CLEN2-04, CLEN2-05, CLEN2-06, CLEN2-07, CLEN2-08, CLEN2-09, CLEN2-10 | Complete |
 | 9 | Runtime Placement MVP | Add deterministic spawn placement configuration and validation markers to the playable template without introducing map editing. | PLAC2-01, PLAC2-02, PLAC2-03, PLAC2-04, PLAC2-05, PLAC2-06, PLAC2-07, PLAC2-08 | Complete |
+| 10 | Custom Map Spawn Point MVP | Prepare, compile, launch, and validate a custom map copied from the installed Workshop template with spawn entity evidence. | MAP2-01, MAP2-02, MAP2-03, MAP2-04, MAP2-05, MAP2-06, MAP2-07, MAP2-08 | Complete |
 
 ## Phase Details
 
@@ -215,6 +216,31 @@
 - Placement validation remains evidence-driven and uses log markers, not process launch success.
 - Implementation added optional placement input, placement validation, generated Lua placement markers, inspect evidence, smoke marker expansion, remote renderer parity, fixture tests, and documentation.
 
+### Phase 10: Custom Map Spawn Point MVP
+
+**Goal:** Prepare, compile, launch, and validate a custom map copied from the installed Workshop template with spawn entity evidence.
+**Mode:** mvp
+
+**Requirements:** MAP2-01, MAP2-02, MAP2-03, MAP2-04, MAP2-05, MAP2-06, MAP2-07, MAP2-08
+
+**Success Criteria**:
+
+1. `prepare_custom_map` is exposed through MCP schemas, dispatcher, and server registration.
+2. The tool copies the installed `addon_template/maps/template_map.vmap` into the selected addon's content map directory and rejects existing output unless replacement is requested.
+3. The copied source is inspected for `info_player_start_goodguys` and `info_player_start_badguys` before success is reported.
+4. Local and remote Windows compile paths use `resourcecompiler.exe` and return command evidence, output, exit code, paths, warnings, and logs.
+5. `run_playable_smoke` can optionally prepare the custom map before launch while preserving default stock-map behavior.
+6. Real Windows validation compiles the custom map, launches it, validates runtime gameplay markers from `game/dota/console.log`, and uses addon-scoped cleanup afterward.
+
+**Notes:**
+
+- This phase uses the installed Workshop template map as the deterministic source of spawn entities.
+- This phase does not edit binary `.vmap` spawn coordinates and does not automate Hammer UI.
+- Custom map validation remains evidence-driven: compile success plus runtime log markers are required.
+- Implementation added `prepare_custom_map`, custom-map smoke orchestration, local/remote command evidence, `.vpk` output verification, fixture and remote tests, and documentation.
+- Real Windows custom-map smoke passed on 2026-07-06 using the remote SSH target adapter without storing private target credentials in the repository. The run copied `addon_template/maps/template_map.vmap`, verified `info_player_start_goodguys` and `info_player_start_badguys`, compiled `template_spawn_smoke.vpk` with `resourcecompiler.exe`, launched the custom map with remote `interactiveTask`, validated all gameplay markers from `game/dota/console.log`, and cleaned up only the matching Dota process.
+- Real compiler validation showed `resourcecompiler.exe -game` must receive the `game/dota` directory, not `game/dota/gameinfo.gi`, and the map output for this template is `<map>.vpk`.
+
 ## Coverage
 
 | Metric | Count |
@@ -225,12 +251,14 @@
 | v2.1 requirements | 8 |
 | v2.2 requirements | 10 |
 | v2.3 requirements | 8 |
-| Mapped requirements | 78 |
+| v2.4 requirements | 8 |
+| Mapped requirements | 86 |
 | Unmapped requirements | 0 |
-| Phases | 9 |
+| Phases | 10 |
 
 ## Deferred Scope
 
+- Binary Hammer map entity editing.
 - Ability, item, unit, and hero generators.
 - React Panorama generation.
 - TypeScript-to-Lua project templates.
@@ -239,4 +267,4 @@
 - UI automation as a primary control strategy.
 
 ---
-*Roadmap updated: 2026-07-06 after v2.3 runtime placement MVP implementation*
+*Roadmap updated: 2026-07-06 for v2.4 custom map spawn point MVP*
