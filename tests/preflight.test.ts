@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { createAddon } from "../src/addon.js";
-import { inspectWorkshopPreflight } from "../src/preflight.js";
-import { InspectWorkshopPreflightInputSchema } from "../src/schemas.js";
+import { dryRunReleaseReport, inspectWorkshopPreflight } from "../src/preflight.js";
+import { DryRunReleaseReportInputSchema, InspectWorkshopPreflightInputSchema } from "../src/schemas.js";
 import { handleTool, toolNames } from "../src/tools.js";
 
 describe("workshop preflight inspection", () => {
@@ -122,4 +122,101 @@ describe("workshop preflight inspection", () => {
     expect(missingRoot.error?.code).toBe("TARGET_ROOT_REQUIRED");
     expect(missingRoot.evidence).toContain("target did not include a Dota root");
   });
+
+  test("exposes dry_run_release_report through schema and dispatcher", async () => {
+    const parsed = DryRunReleaseReportInputSchema.parse({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+
+    expect(parsed.addonName).toBe("demo_addon");
+    expect(toolNames).toContain("dry_run_release_report");
+
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+    await writeCompleteAddonInfo(root, "demo_addon", "dota");
+
+    const result = await handleTool("dry_run_release_report", {
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.operation).toBe("dry_run_release_report");
+    expect(result.evidence).toContain("dry-run release report generated");
+    expect(result.evidence).toContain("release blockers: 0");
+    expect(result.warnings).toContain("Steam login is manual and out of scope");
+    expect(result.warnings).toContain("Workshop upload is not performed by dry run");
+  });
+
+  test("reports metadata and package blockers without packaging", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+    await rm(join(root, "game/dota_addons/demo_addon/scripts/vscripts/addon_game_mode.lua"));
+
+    const result = await dryRunReleaseReport({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.evidence).toContain("release blockers: 5");
+    expect(result.evidence).toContain("metadata blocker: addonSteamAppID missing");
+    expect(result.evidence).toContain("metadata blocker: addontitle missing");
+    expect(result.evidence).toContain("metadata blocker: addonAuthor missing");
+    expect(result.evidence).toContain("metadata blocker: addonDescription missing");
+    expect(result.evidence).toContain("package blocker: lua entry missing");
+    expect(result.evidence).toContain("no package archive created");
+    expect(result.evidence).toContain("no Workshop upload attempted");
+  });
+
+  test("redacts sensitive material findings in dry-run report", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+    await writeCompleteAddonInfo(root, "demo_addon", "dota");
+    await writeFile(
+      join(root, "game/dota_addons/demo_addon/scripts/vscripts/secrets.lua"),
+      "local steam_password = 'super_secret_value_123'\n"
+    );
+
+    const result = await dryRunReleaseReport({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.evidence).toContain("secret blocker: scripts/vscripts/secrets.lua matches password");
+    expect(result.evidence.join("\n")).not.toContain("super_secret_value_123");
+  });
+
+  test("rejects invalid dry-run input before filesystem inspection", async () => {
+    const invalidName = await dryRunReleaseReport({
+      target: { kind: "fixture", root },
+      addonName: "../demo"
+    });
+    const missingRoot = await dryRunReleaseReport({
+      target: { kind: "local" },
+      addonName: "demo_addon"
+    });
+
+    expect(invalidName.ok).toBe(false);
+    expect(invalidName.error?.code).toBe("INVALID_ADDON_NAME");
+    expect(invalidName.evidence).toContain("rejected release report addon name: ../demo");
+    expect(missingRoot.ok).toBe(false);
+    expect(missingRoot.error?.code).toBe("TARGET_ROOT_REQUIRED");
+    expect(missingRoot.evidence).toContain("target did not include a Dota root");
+  });
 });
+
+async function writeCompleteAddonInfo(root: string, addonName: string, mapName: string): Promise<void> {
+  await writeFile(
+    join(root, "game/dota_addons", addonName, "addoninfo.txt"),
+    `"AddonInfo"\n{\n  "AddonName" "${addonName}"\n  "addonSteamAppID" "570"\n  "addontitle" "Demo Addon"\n  "addonAuthor" "Workshop Team"\n  "addonDescription" "Dry run release fixture."\n  "IsPlayable" "1"\n  "DefaultMap" "${mapName}"\n  "maps" "${mapName}"\n  "MinPlayers" "1"\n  "MaxPlayers" "10"\n}\n`
+  );
+}

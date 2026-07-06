@@ -53,6 +53,7 @@ The server exposes these logical operations:
 - `prepare_custom_map`
 - `inspect_addon`
 - `inspect_workshop_preflight`
+- `dry_run_release_report`
 - `launch_tools`
 - `launch_custom_game`
 - `run_playable_smoke`
@@ -218,6 +219,35 @@ Use `inspect_workshop_preflight` when you need an inspection-only readiness repo
 The result reports addon layout evidence for runtime files, content roots, map directories, localization, and unit/ability support files. It also reports Panorama source/runtime directory evidence, XML/CSS/JavaScript files under `content/dota_addons/<addon>/panorama`, and toolchain marker files such as `package.json`, `tsconfig.json`, `tsconfig.tstl.json`, `vite.config.*`, and `webpack.config.js`.
 
 Publishing readiness is reported as blockers and warnings only. Workshop upload remains out of scope. Preflight does not accept Steam credentials, store publishing keys, encrypt content, upload to Workshop, generate Panorama UI, run `npm`, run TypeScript-to-Lua, run React builds, run bundlers, or prove runtime validation.
+
+## Dry-Run Release Report
+
+Use `dry_run_release_report` when an addon is ready for manual release review and you need stricter pre-upload evidence:
+
+```json
+{
+  "target": {
+    "kind": "fixture",
+    "root": "/tmp/dota-fixture"
+  },
+  "addonName": "demo_addon"
+}
+```
+
+The report checks release-critical addon roots/files, publish-facing `addoninfo.txt` metadata, and text-like addon files for obvious sensitive material. Missing critical files, missing metadata keys, placeholder metadata values, and secret-like matches are release blockers. Blocker results return `ok: false`; clean dry runs return `ok: true` while still showing warnings.
+
+Required metadata keys are:
+
+```text
+addonSteamAppID
+addontitle
+addonAuthor
+addonDescription
+```
+
+The sensitive information scan reports only relative file paths and rule labels. It does not print full secret values. Binary and oversized files are not silently accepted; they are reported as skipped warnings.
+
+This is a dry run only. It does not create archives, encrypt content, run build tools, store credentials, log into Steam, mutate Workshop publish state, upload to Workshop, or prove runtime validation.
 
 ## Custom Map Preparation
 

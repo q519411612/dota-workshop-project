@@ -8,6 +8,7 @@
 ## Milestones
 
 - [x] **v1.1 Workshop MVP** - 13 delivery slices shipped on 2026-07-06.
+- [x] **v1.2 Publishing Readiness** - dry-run release/package readiness before real Workshop upload automation.
 
 ## Completed Work
 
@@ -43,19 +44,44 @@ Known residual items:
 
 </details>
 
-## Next Milestone Candidates
+## Active Work
 
 ### v1.2 Publishing Readiness
 
 Goal: turn the inspection-only publishing preflight into a stricter release-readiness workflow before any real Workshop upload automation.
 
-Candidate scope:
+Scope:
 
 - Package/build readiness checks that can run without Steam credentials.
 - Addon metadata completeness and publish-blocker reporting.
 - Secret and private target data scans before packaging.
 - Dry-run release report suitable for manual review.
 - Clear boundary around Steam login, encryption, and actual Workshop upload.
+
+### Phase 1: Release Package Preflight MVP
+
+**Status:** Complete
+**Goal:** Add a deterministic `dry_run_release_report` MCP operation for release/package preflight, addon metadata completeness, sensitive information scanning, and manual publishing boundary reporting.
+**Requirements:** PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08
+**Canonical refs:**
+
+- `.planning/REQUIREMENTS.md`
+- `.planning/phases/01-release-package-preflight-mvp/01-SPEC.md`
+- `.planning/phases/01-release-package-preflight-mvp/01-01-PLAN.md`
+
+**In scope:**
+
+- Fixture, local, and remote target support through the existing target contract.
+- Metadata completeness blockers for `addoninfo.txt`.
+- Package candidate root/file blockers.
+- Redacted sensitive information blockers.
+- Dry-run release report warnings for Steam login, encryption, and Workshop upload boundaries.
+
+**Out of scope:**
+
+- Real upload, encryption, credential handling, publish-state mutation, archive signing, toolchain execution, or same-machine local Windows smoke as a blocker.
+
+## Next Milestone Candidates
 
 ### Optional Validation Closure
 

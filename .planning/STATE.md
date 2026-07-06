@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Workshop MVP
-current_phase: null
-status: Awaiting next milestone
-last_updated: "2026-07-06T02:56:54.738Z"
+milestone: v1.2
+milestone_name: Publishing Readiness
+current_phase: 1
+status: Complete
+last_updated: "2026-07-06T03:45:00.000Z"
 last_activity: 2026-07-06
-last_activity_desc: Milestone v1.1 completed and archived
+last_activity_desc: Completed release package preflight MVP
 progress:
-  total_phases: 13
-  completed_phases: 13
-  total_plans: 13
-  completed_plans: 13
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
   percent: 100
 ---
 
@@ -24,25 +24,13 @@ progress:
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v1.1 Workshop MVP is archived; next project work should decide the local Windows smoke closure and then open a publishing readiness milestone.
+**Current focus:** v1.2 Publishing Readiness has a dry-run release report before any real Workshop upload automation.
 
 ## Current Roadmap
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Plugin and Skill Foundation | Complete |
-| 2 | MCP Contract and Addon Template | Complete |
-| 3 | Local Windows Workshop Validation | Complete |
-| 4 | Remote Windows Target Support | Complete |
-| 5 | Runtime Marker Validation | Complete |
-| 6 | Playable Gameplay Loop MVP | Complete |
-| 7 | Repeatable Playable Smoke Workflow | Complete |
-| 8 | Safe Smoke Cleanup Controls | Complete |
-| 9 | Runtime Placement MVP | Complete |
-| 10 | Custom Map Spawn Point MVP | Complete |
-| 11 | Gameplay Objective MVP | Complete |
-| 12 | Unit Ability Scaffolding MVP | Complete |
-| 13 | Panorama Toolchain Boundary and Publishing Preflight MVP | Complete |
+| 1 | Release Package Preflight MVP | Complete |
 
 ## Decisions In Effect
 
@@ -69,6 +57,7 @@ See: `.planning/PROJECT.md`
 | v2.6 scaffolds custom unit and ability KV only; it must not claim custom ability runtime execution | `.planning/milestones/v1.1-phases/12-unit-ability-scaffolding-mvp/12-SPEC.md` |
 | v2.6 scaffold validation success requires linked KV inspect evidence and runtime compatibility markers, not custom ability execution | `.planning/milestones/v1.1-phases/12-unit-ability-scaffolding-mvp/12-VERIFICATION.md` |
 | v2.7 preflight is inspection-only; it must not generate Panorama UI, run TypeScript-to-Lua or React toolchains, store publishing credentials, encrypt content, or upload to Workshop | `.planning/ROADMAP.md` |
+| v1.2 release readiness must stay dry-run only before real Workshop upload automation | `.planning/REQUIREMENTS.md` |
 
 ## Research Inputs
 
@@ -138,19 +127,19 @@ See: `.planning/PROJECT.md`
 
 ## Next Action
 
-Decide whether to run same-machine local Windows smoke, then start the publishing readiness milestone from fresh requirements.
+Review whether to run same-machine local Windows smoke or plan the next publishing readiness increment.
 
 ---
-*Last updated: 2026-07-06 after v1.1 milestone archival*
+*Last updated: 2026-07-06 after v1.2 release dry-run implementation*
 
 ## Current Position
 
-Phase: Milestone v1.1 complete
-Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-06 — Milestone v1.1 completed and archived
+Phase: 1 - Release Package Preflight MVP
+Plan: 01-01
+Status: Complete
+Last activity: 2026-07-06 — Completed release package preflight MVP
 
 ## Operator Next Steps
 
-- Decide whether to close the local Windows smoke gap.
-- Start the next milestone with `/gsd-new-milestone`.
+- Optionally run same-machine local Windows smoke after v1.2 core verification.
+- Plan the next publishing readiness increment only after confirming the dry-run boundary is sufficient.

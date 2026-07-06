@@ -1,4 +1,4 @@
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, readFile, readdir, stat } from "node:fs/promises";
 import { extname, join, relative, sep } from "node:path";
 import { validateAddonName } from "./addon.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
@@ -11,6 +11,35 @@ const TOOLCHAIN_MARKERS = [
     "webpack.config.js"
 ];
 const PANORAMA_EXTENSIONS = new Set([".xml", ".js", ".css"]);
+const RELEASE_METADATA_KEYS = ["addonSteamAppID", "addontitle", "addonAuthor", "addonDescription"];
+const TEXT_SCAN_EXTENSIONS = new Set([
+    ".cfg",
+    ".css",
+    ".ini",
+    ".js",
+    ".json",
+    ".kv",
+    ".lua",
+    ".md",
+    ".ps1",
+    ".ts",
+    ".tsx",
+    ".txt",
+    ".vdf",
+    ".xml",
+    ".yaml",
+    ".yml"
+]);
+const MAX_SECRET_SCAN_BYTES = 1024 * 1024;
+const PLACEHOLDER_VALUES = new Set(["", "changeme", "change me", "placeholder", "tbd", "todo", "unknown", "your name"]);
+const SECRET_PATTERNS = [
+    { label: "private key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/i },
+    { label: "github token", pattern: /gh[pousr]_[A-Za-z0-9_]{20,}/ },
+    { label: "steam credential", pattern: /\bsteam_(?:password|token|secret|apikey|api_key)\b/i },
+    { label: "password", pattern: /(?:\b|_)(?:password|passwd|pwd)\b\s*[:=]/i },
+    { label: "token", pattern: /\b(?:token|api[_-]?key|secret)\b\s*[:=]/i },
+    { label: "host credential", pattern: /\b(?:remote_|windows_)?(?:host|username)\b\s*[:=].*\b(?:password|token|secret|key)\b/i }
+];
 export async function inspectWorkshopPreflight(input) {
     const operation = "inspect_workshop_preflight";
     const nameValidation = validateAddonName(input.addonName);
@@ -47,6 +76,66 @@ export async function inspectWorkshopPreflight(input) {
         warnings,
         paths
     });
+}
+export async function dryRunReleaseReport(input) {
+    const operation = "dry_run_release_report";
+    const nameValidation = validateAddonName(input.addonName);
+    if (!nameValidation.ok) {
+        return createFailureResult({
+            target: input.target,
+            operation,
+            error: {
+                code: "INVALID_ADDON_NAME",
+                message: nameValidation.error ?? "Invalid addon name."
+            },
+            evidence: [`rejected release report addon name: ${input.addonName}`]
+        });
+    }
+    const root = targetRoot(input.target);
+    if (!root) {
+        return createFailureResult({
+            target: input.target,
+            operation,
+            error: {
+                code: "TARGET_ROOT_REQUIRED",
+                message: "Release dry run requires a fixture root or target Dota root."
+            },
+            evidence: ["target did not include a Dota root"]
+        });
+    }
+    const paths = preflightPaths(root, input.addonName);
+    const blockers = [];
+    const warnings = releaseBoundaryWarnings();
+    const evidence = [];
+    await appendPackageReadiness(evidence, blockers, paths);
+    await appendMetadataReadiness(evidence, blockers, paths.addonInfo);
+    await appendSecretScan(evidence, blockers, warnings, paths.gameAddon, paths.gameAddon);
+    await appendSecretScan(evidence, blockers, warnings, paths.contentAddon, paths.contentAddon);
+    evidence.push(`release blockers: ${blockers.length}`);
+    evidence.push(`release warnings: ${warnings.length}`);
+    evidence.push("dry-run release report generated");
+    evidence.push("no package archive created");
+    evidence.push("no content encryption performed");
+    evidence.push("no Workshop upload attempted");
+    evidence.push("release dry run is not runtime validation");
+    evidence.push(...blockers);
+    const base = {
+        target: input.target,
+        operation,
+        evidence,
+        warnings,
+        paths
+    };
+    if (blockers.length > 0) {
+        return createFailureResult({
+            ...base,
+            error: {
+                code: "RELEASE_PREFLIGHT_BLOCKED",
+                message: "Release dry run found blockers."
+            }
+        });
+    }
+    return createSuccessResult(base);
 }
 function targetRoot(target) {
     if (target.kind === "fixture")
@@ -125,6 +214,92 @@ async function preflightWarnings(paths) {
         warnings.push("toolchain markers are inspection-only; builds are not run");
     }
     return warnings;
+}
+function releaseBoundaryWarnings() {
+    return [
+        "Steam login is manual and out of scope",
+        "content encryption is manual and out of scope",
+        "Workshop upload is not performed by dry run",
+        "dry run does not prove runtime validation"
+    ];
+}
+async function appendPackageReadiness(evidence, blockers, paths) {
+    const requiredPaths = [
+        ["game addon root", paths.gameAddon],
+        ["content addon root", paths.contentAddon],
+        ["addon metadata", paths.addonInfo],
+        ["lua entry", paths.luaEntry],
+        ["localization file", paths.localization],
+        ["content maps directory", paths.contentMaps],
+        ["hero list", paths.heroList],
+        ["hero data", paths.heroData],
+        ["unit support file", paths.unitData],
+        ["ability support file", paths.abilityData]
+    ];
+    for (const [label, path] of requiredPaths) {
+        if (await pathExists(path)) {
+            evidence.push(`package evidence: ${label} exists`);
+        }
+        else {
+            blockers.push(`package blocker: ${label} missing`);
+        }
+    }
+}
+async function appendMetadataReadiness(evidence, blockers, addonInfoPath) {
+    if (!(await pathExists(addonInfoPath))) {
+        for (const key of RELEASE_METADATA_KEYS) {
+            blockers.push(`metadata blocker: ${key} missing`);
+        }
+        return;
+    }
+    const metadata = parseAddonInfo(await readFile(addonInfoPath, "utf8"));
+    for (const key of RELEASE_METADATA_KEYS) {
+        const value = metadata.get(key.toLowerCase());
+        if (value === undefined) {
+            blockers.push(`metadata blocker: ${key} missing`);
+        }
+        else if (PLACEHOLDER_VALUES.has(value.trim().toLowerCase())) {
+            blockers.push(`metadata blocker: ${key} placeholder`);
+        }
+        else {
+            evidence.push(`metadata evidence: ${key} present`);
+        }
+    }
+}
+function parseAddonInfo(content) {
+    const values = new Map();
+    const keyValuePattern = /^\s*"([^"]+)"\s+"([^"]*)"/gm;
+    for (const match of content.matchAll(keyValuePattern)) {
+        values.set(match[1].toLowerCase(), match[2]);
+    }
+    return values;
+}
+async function appendSecretScan(evidence, blockers, warnings, root, relativeRoot) {
+    if (!(await pathExists(root))) {
+        return;
+    }
+    const files = [];
+    await collectFiles(root, files);
+    for (const file of files) {
+        const relativePath = normalizeRelativePath(relative(relativeRoot, file));
+        const extension = extname(file).toLowerCase();
+        if (!TEXT_SCAN_EXTENSIONS.has(extension)) {
+            warnings.push(`secret scan skipped non-text file: ${relativePath}`);
+            continue;
+        }
+        const info = await stat(file);
+        if (info.size > MAX_SECRET_SCAN_BYTES) {
+            warnings.push(`secret scan skipped oversized file: ${relativePath}`);
+            continue;
+        }
+        const content = await readFile(file, "utf8");
+        for (const { label, pattern } of SECRET_PATTERNS) {
+            if (pattern.test(content)) {
+                blockers.push(`secret blocker: ${relativePath} matches ${label}`);
+            }
+        }
+    }
+    evidence.push(`secret scan completed: ${normalizeRelativePath(relativeRoot)}`);
 }
 async function pushExistsEvidence(evidence, path, label) {
     evidence.push(await pathExists(path) ? `${label} exists` : `${label} missing`);

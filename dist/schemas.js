@@ -64,6 +64,10 @@ export const InspectWorkshopPreflightInputSchema = z.object({
     target: TargetSchema,
     addonName: z.string().min(1)
 });
+export const DryRunReleaseReportInputSchema = z.object({
+    target: TargetSchema,
+    addonName: z.string().min(1)
+});
 export const DiscoverEnvironmentInputSchema = z.object({
     target: TargetSchema,
     platform: z.enum(["aix", "android", "darwin", "freebsd", "haiku", "linux", "openbsd", "sunos", "win32", "cygwin", "netbsd"]).optional()

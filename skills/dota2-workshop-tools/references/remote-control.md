@@ -20,6 +20,7 @@ Remote Windows should use the same MCP operations as local Windows:
 - `create_addon`
 - `inspect_addon`
 - `inspect_workshop_preflight`
+- `dry_run_release_report`
 - `link_addon`
 - `launch_tools`
 - `launch_custom_game`
@@ -31,6 +32,8 @@ Remote Windows should use the same MCP operations as local Windows:
 The target object should select the adapter. The agent should not choose separate user-facing workflows for local and remote.
 
 Remote preflight inspection uses the same `inspect_workshop_preflight` operation as fixture and local targets. It checks addon layout, Panorama directories, TypeScript-to-Lua marker files, React marker files, and publishing blockers through remote command evidence; it does not launch Dota, run build tools, perform Workshop upload, or handle credentials.
+
+Remote release readiness uses the same `dry_run_release_report` operation as fixture and local targets. It checks package candidate files, publish-facing addon metadata, and sensitive information markers through remote command evidence. It does not create archives, encrypt content, run toolchains, log into Steam, upload to Workshop, or store credentials.
 
 ## Interactive Launches
 

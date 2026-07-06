@@ -270,6 +270,81 @@ export async function inspectRemoteWorkshopPreflight(input) {
         });
     }
 }
+export async function dryRunRemoteReleaseReport(input) {
+    const operation = "dry_run_release_report";
+    const nameValidation = validateAddonName(input.addonName);
+    if (!nameValidation.ok) {
+        return createFailureResult({
+            target: input.target,
+            operation,
+            error: {
+                code: "INVALID_ADDON_NAME",
+                message: nameValidation.error ?? "Invalid addon name."
+            },
+            evidence: [`rejected release report addon name: ${input.addonName}`]
+        });
+    }
+    if (!input.target.dotaRoot) {
+        return createFailureResult({
+            target: input.target,
+            operation,
+            error: {
+                code: "REMOTE_DOTA_ROOT_REQUIRED",
+                message: "Remote release dry run requires a Dota install root."
+            },
+            evidence: ["remote target did not include dotaRoot"]
+        });
+    }
+    const result = await runRemoteCommand({
+        target: input.target,
+        command: remoteDryRunReleaseReportScript(input.target.dotaRoot, input.addonName),
+        executor: input.executor
+    });
+    if (!result.ok) {
+        return { ...result, operation };
+    }
+    const stdout = result.commands[0]?.stdout ?? "";
+    try {
+        const parsed = JSON.parse(stdout);
+        if (parsed.ok === false || parsed.error) {
+            return createFailureResult({
+                target: input.target,
+                operation,
+                error: parsed.error ?? {
+                    code: "RELEASE_PREFLIGHT_BLOCKED",
+                    message: "Release dry run found blockers."
+                },
+                evidence: parsed.evidence ?? ["remote release dry run blocked"],
+                warnings: parsed.warnings ?? [],
+                paths: parsed.paths ?? {},
+                commands: result.commands,
+                logs: result.logs
+            });
+        }
+        return createSuccessResult({
+            target: input.target,
+            operation,
+            evidence: parsed.evidence ?? ["remote dry-run release report generated"],
+            warnings: parsed.warnings ?? [],
+            paths: parsed.paths ?? {},
+            commands: result.commands,
+            logs: result.logs
+        });
+    }
+    catch {
+        return createFailureResult({
+            target: input.target,
+            operation,
+            error: {
+                code: "REMOTE_RELEASE_REPORT_PARSE_FAILED",
+                message: "Remote release dry run did not return valid JSON."
+            },
+            evidence: ["remote release report stdout was not valid JSON"],
+            commands: result.commands,
+            logs: result.logs
+        });
+    }
+}
 export async function readRemoteConsoleOrLogs(input) {
     const operation = "read_console_or_logs";
     const nameValidation = validateAddonName(input.addonName);
@@ -662,6 +737,50 @@ function remoteWorkshopPreflightScript(dotaRoot, addonName) {
         "$warnings = @('publishing credentials are not accepted or inspected', 'Workshop upload is not supported by preflight', 'content encryption is not supported by preflight', 'preflight does not prove runtime validation')",
         "if ($sawToolchainMarker) { $warnings += 'toolchain markers are inspection-only; builds are not run' }",
         "@{ ok = $true; evidence = $evidence; warnings = $warnings; paths = $paths } | ConvertTo-Json -Depth 6 -Compress"
+    ].join("; ");
+}
+function remoteDryRunReleaseReportScript(dotaRoot, addonName) {
+    const root = quoteForPowerShellSingleQuotedString(dotaRoot);
+    const addon = quoteForPowerShellSingleQuotedString(addonName);
+    const localization = quoteForPowerShellSingleQuotedString(`resource/addon_${addonName}_english.txt`);
+    return [
+        "$ErrorActionPreference = 'Stop'",
+        `$root = ${root}`,
+        `$addonName = ${addon}`,
+        "$gameAddon = Join-Path $root (Join-Path 'game/dota_addons' $addonName)",
+        "$contentAddon = Join-Path $root (Join-Path 'content/dota_addons' $addonName)",
+        `$paths = @{ gameAddon = $gameAddon; contentAddon = $contentAddon; addonInfo = (Join-Path $gameAddon 'addoninfo.txt'); luaEntry = (Join-Path $gameAddon 'scripts/vscripts/addon_game_mode.lua'); localization = (Join-Path $gameAddon ${localization}); heroList = (Join-Path $gameAddon 'scripts/npc/herolist.txt'); heroData = (Join-Path $gameAddon 'scripts/npc/npc_heroes_custom.txt'); unitData = (Join-Path $gameAddon 'scripts/npc/npc_units_custom.txt'); abilityData = (Join-Path $gameAddon 'scripts/npc/npc_abilities_custom.txt'); contentMaps = (Join-Path $contentAddon 'maps') }`,
+        "$evidence = @()",
+        "$blockers = @()",
+        "$warnings = @('Steam login is manual and out of scope', 'content encryption is manual and out of scope', 'Workshop upload is not performed by dry run', 'dry run does not prove runtime validation')",
+        "function AddReleasePath($path, $label) { if (Test-Path -LiteralPath $path) { $script:evidence += \"package evidence: $label exists\" } else { $script:blockers += \"package blocker: $label missing\" } }",
+        "AddReleasePath $paths.gameAddon 'game addon root'",
+        "AddReleasePath $paths.contentAddon 'content addon root'",
+        "AddReleasePath $paths.addonInfo 'addon metadata'",
+        "AddReleasePath $paths.luaEntry 'lua entry'",
+        "AddReleasePath $paths.localization 'localization file'",
+        "AddReleasePath $paths.contentMaps 'content maps directory'",
+        "AddReleasePath $paths.heroList 'hero list'",
+        "AddReleasePath $paths.heroData 'hero data'",
+        "AddReleasePath $paths.unitData 'unit support file'",
+        "AddReleasePath $paths.abilityData 'ability support file'",
+        "$metadataKeys = @('addonSteamAppID', 'addontitle', 'addonAuthor', 'addonDescription')",
+        "$placeholderValues = @('', 'changeme', 'change me', 'placeholder', 'tbd', 'todo', 'unknown', 'your name')",
+        "if (Test-Path -LiteralPath $paths.addonInfo) { $addonInfo = Get-Content -LiteralPath $paths.addonInfo -Raw; foreach ($key in $metadataKeys) { $match = [regex]::Match($addonInfo, '\"' + [regex]::Escape($key) + '\"\\s+\"([^\"]*)\"', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase); if (-not $match.Success) { $blockers += \"metadata blocker: $key missing\" } elseif ($placeholderValues -contains $match.Groups[1].Value.Trim().ToLowerInvariant()) { $blockers += \"metadata blocker: $key placeholder\" } else { $evidence += \"metadata evidence: $key present\" } } } else { foreach ($key in $metadataKeys) { $blockers += \"metadata blocker: $key missing\" } }",
+        "$textExts = @('.cfg', '.css', '.ini', '.js', '.json', '.kv', '.lua', '.md', '.ps1', '.ts', '.tsx', '.txt', '.vdf', '.xml', '.yaml', '.yml')",
+        "$secretPatterns = @(@{ label = 'private key'; pattern = '-----BEGIN [A-Z ]*PRIVATE KEY-----' }, @{ label = 'github token'; pattern = 'gh[pousr]_[A-Za-z0-9_]{20,}' }, @{ label = 'steam credential'; pattern = '\\bsteam_(?:password|token|secret|apikey|api_key)\\b' }, @{ label = 'password'; pattern = '(?:\\b|_)(?:password|passwd|pwd)\\b\\s*[:=]' }, @{ label = 'token'; pattern = '\\b(?:token|api[_-]?key|secret)\\b\\s*[:=]' }, @{ label = 'host credential'; pattern = '\\b(?:remote_|windows_)?(?:host|username)\\b\\s*[:=].*\\b(?:password|token|secret|key)\\b' })",
+        "foreach ($scanRoot in @($gameAddon, $contentAddon)) { if (Test-Path -LiteralPath $scanRoot) { Get-ChildItem -LiteralPath $scanRoot -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { $relative = $_.FullName.Substring($scanRoot.Length).TrimStart('\\', '/').Replace('\\', '/'); if ($textExts -notcontains $_.Extension.ToLowerInvariant()) { $warnings += \"secret scan skipped non-text file: $relative\"; return }; if ($_.Length -gt 1048576) { $warnings += \"secret scan skipped oversized file: $relative\"; return }; $content = Get-Content -LiteralPath $_.FullName -Raw; foreach ($rule in $secretPatterns) { if ($content -match $rule.pattern) { $blockers += \"secret blocker: $relative matches $($rule.label)\" } } }; $evidence += \"secret scan completed: $scanRoot\" } }",
+        "$evidence += \"release blockers: $($blockers.Count)\"",
+        "$evidence += \"release warnings: $($warnings.Count)\"",
+        "$evidence += 'dry-run release report generated'",
+        "$evidence += 'no package archive created'",
+        "$evidence += 'no content encryption performed'",
+        "$evidence += 'no Workshop upload attempted'",
+        "$evidence += 'release dry run is not runtime validation'",
+        "$evidence += $blockers",
+        "$ok = $blockers.Count -eq 0",
+        "$errorPayload = if ($ok) { $null } else { @{ code = 'RELEASE_PREFLIGHT_BLOCKED'; message = 'Release dry run found blockers.' } }",
+        "@{ ok = $ok; error = $errorPayload; evidence = $evidence; warnings = $warnings; paths = $paths } | ConvertTo-Json -Depth 6 -Compress"
     ].join("; ");
 }
 function remoteReadLogsScript(logPaths) {

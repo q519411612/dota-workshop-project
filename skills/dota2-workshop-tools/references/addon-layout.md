@@ -74,6 +74,17 @@ Use `inspect_workshop_preflight` when the task is to inspect readiness before ad
 
 Preflight is inspection only. It does not generate XML, CSS, JavaScript, React Panorama projects, TypeScript-to-Lua output, encrypted content, or Workshop uploads.
 
+## Dry-Run Release Evidence
+
+Use `dry_run_release_report` when the task is to decide whether an addon is ready for manual release review. The tool reports:
+
+- Package candidate evidence for the game addon root, content addon root, Lua entry, localization file, map directory, and NPC KV support files.
+- Metadata evidence or blockers for `addonSteamAppID`, `addontitle`, `addonAuthor`, and `addonDescription` in `addoninfo.txt`.
+- Redacted sensitive information blockers for obvious token, password, Steam credential, GitHub token, private key, or host credential markers in text-like addon files.
+- Boundary warnings for Steam login, content encryption, Workshop upload, and runtime validation.
+
+The dry-run report can fail with release blockers. A passing dry run still does not publish, upload, encrypt, create archives, or prove runtime validation.
+
 ## Safety Rules
 
 - Validate addon names before writing. Use lowercase letters, digits, and underscores.

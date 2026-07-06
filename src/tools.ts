@@ -3,13 +3,14 @@ import { cleanupPlayableSmoke } from "./cleanup.js";
 import { discoverEnvironment, validateInstallRoot } from "./environment.js";
 import { launchCustomGame, launchTools, readConsoleOrLogs, validateAddon } from "./launch.js";
 import { prepareCustomMap } from "./map.js";
-import { inspectWorkshopPreflight } from "./preflight.js";
+import { dryRunReleaseReport, inspectWorkshopPreflight } from "./preflight.js";
 import { createFailureResult } from "./result.js";
 import { runPlayableSmoke } from "./smoke.js";
 import {
   createRemoteAddon,
   discoverRemoteEnvironment,
   inspectRemoteAddon,
+  dryRunRemoteReleaseReport,
   inspectRemoteWorkshopPreflight,
   launchRemoteCustomGame,
   launchRemoteTools,
@@ -20,6 +21,7 @@ import {
 import {
   CreateAddonInputSchema,
   DiscoverEnvironmentInputSchema,
+  DryRunReleaseReportInputSchema,
   InspectAddonInputSchema,
   InspectWorkshopPreflightInputSchema,
   LaunchCustomGameInputSchema,
@@ -41,6 +43,7 @@ export const toolNames = [
   "prepare_custom_map",
   "inspect_addon",
   "inspect_workshop_preflight",
+  "dry_run_release_report",
   "launch_tools",
   "launch_custom_game",
   "run_playable_smoke",
@@ -110,6 +113,16 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
         });
       }
       return inspectWorkshopPreflight(parsed);
+    }
+    case "dry_run_release_report": {
+      const parsed = DryRunReleaseReportInputSchema.parse(input);
+      if (parsed.target.kind === "remote") {
+        return dryRunRemoteReleaseReport({
+          target: parsed.target,
+          addonName: parsed.addonName
+        });
+      }
+      return dryRunReleaseReport(parsed);
     }
     case "launch_tools": {
       const parsed = LaunchToolsInputSchema.parse(input);

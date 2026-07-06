@@ -7,7 +7,8 @@ import {
   validateRemoteAddon,
   launchRemoteCustomGame,
   launchRemoteTools,
-  inspectRemoteWorkshopPreflight
+  inspectRemoteWorkshopPreflight,
+  dryRunRemoteReleaseReport
 } from "../src/remote.js";
 import { prepareCustomMap } from "../src/map.js";
 
@@ -406,6 +407,74 @@ describe("remote Windows operations", () => {
     expect(result.error?.code).toBe("INVALID_ADDON_NAME");
     expect(result.commands).toHaveLength(0);
     expect(result.evidence).toContain("rejected preflight addon name: ../demo");
+  });
+
+  test("dry-runs remote release report through PowerShell evidence", async () => {
+    const result = await dryRunRemoteReleaseReport({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "demo_addon",
+      executor: async (command) => {
+        expect(command.command).toContain("addonSteamAppID");
+        expect(command.command).toContain("release blockers");
+        expect(command.command).toContain("private key");
+        expect(command.command).not.toContain("steam_password_value");
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            ok: false,
+            evidence: [
+              "metadata evidence: addonSteamAppID present",
+              "package evidence: game addon root exists",
+              "secret blocker: scripts/vscripts/secrets.lua matches password",
+              "release blockers: 1",
+              "dry-run release report generated",
+              "no package archive created",
+              "no Workshop upload attempted"
+            ],
+            warnings: [
+              "Steam login is manual and out of scope",
+              "content encryption is manual and out of scope",
+              "Workshop upload is not performed by dry run"
+            ],
+            paths: {
+              gameAddon: "C:/Steam/steamapps/common/dota 2 beta/game/dota_addons/demo_addon"
+            }
+          }),
+          stderr: ""
+        };
+      }
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.operation).toBe("dry_run_release_report");
+    expect(result.evidence).toContain("secret blocker: scripts/vscripts/secrets.lua matches password");
+    expect(result.warnings).toContain("Workshop upload is not performed by dry run");
+  });
+
+  test("rejects invalid remote dry-run release input before command construction", async () => {
+    const result = await dryRunRemoteReleaseReport({
+      target: {
+        kind: "remote",
+        name: "lab-windows",
+        transport: "ssh",
+        host: "dota.example.test",
+        username: "builder",
+        dotaRoot: "C:/Steam/steamapps/common/dota 2 beta"
+      },
+      addonName: "../demo"
+    } as Parameters<typeof dryRunRemoteReleaseReport>[0]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_ADDON_NAME");
+    expect(result.commands).toHaveLength(0);
+    expect(result.evidence).toContain("rejected release report addon name: ../demo");
   });
 
   test("rejects invalid remote unit ability scaffold before command construction", async () => {

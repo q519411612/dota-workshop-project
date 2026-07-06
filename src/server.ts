@@ -122,6 +122,19 @@ export function createServer(): McpServer {
   );
 
   server.registerTool(
+    "dry_run_release_report",
+    {
+      title: "Dry Run Release Report",
+      description: "Inspect release package readiness, addon metadata, sensitive information blockers, and publishing boundaries without uploading or encrypting content.",
+      inputSchema: {
+        ...targetInput,
+        addonName: z.string().min(1)
+      }
+    },
+    async (input) => asToolContent(await handleTool("dry_run_release_report", input))
+  );
+
+  server.registerTool(
     "prepare_custom_map",
     {
       title: "Prepare Custom Map",

@@ -38,3 +38,36 @@
 **What's next:** Decide whether to close the local Windows smoke gap, then plan a publishing readiness milestone before any real Workshop upload automation.
 
 ---
+
+## v1.2 Publishing Readiness (Implemented: 2026-07-06)
+
+**Goal:** Add a dry-run release/package readiness workflow before any real Workshop upload automation.
+
+**Work completed:** One delivery slice, one plan.
+
+**Key accomplishments:**
+
+- Added `dry_run_release_report` through schemas, dispatcher, MCP server registration, and tool discovery.
+- Added package candidate checks, addon metadata completeness checks, redacted sensitive information blockers, and release boundary warnings.
+- Added remote command parity through the existing SSH/PowerShell adapter.
+- Documented that Steam login, content encryption, Workshop upload, credential handling, and runtime validation are outside the dry-run report.
+
+**Key boundaries:**
+
+- No real Workshop upload.
+- No Steam login or credential handling.
+- No content encryption or signed upload package output.
+- No stored Steam, GitHub, Windows, remote, token, password, or private key material.
+- Same-machine local Windows smoke is optional and does not block the v1.2 mainline.
+
+**Artifacts:**
+
+- Requirements: `.planning/REQUIREMENTS.md`
+- Roadmap: `.planning/ROADMAP.md`
+- Phase: `.planning/phases/01-release-package-preflight-mvp/`
+
+**Verification:**
+
+- Targeted tests passed with 33 tests.
+- Full suite passed with 100 tests.
+- `npm run typecheck`, `npm run build`, `git diff --check`, and strict high-signal secret scan passed.

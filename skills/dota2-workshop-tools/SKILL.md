@@ -5,7 +5,7 @@ description: Use for Dota 2 Workshop Tools, Dota 2 custom game addons, addon tem
 
 # Dota 2 Workshop Tools
 
-Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, minimal unit/ability KV scaffolding, playable gameplay loop generation, score objective markers, runtime placement markers, template-derived custom map preparation, Workshop preflight inspection, repeatable playable smoke workflows, explicit smoke cleanup controls, Workshop Tools launch, log evidence, and local or remote Windows validation.
+Use this skill for Dota 2 custom game work. Keep the current scope focused on plugin packaging, addon layout, minimal Lua/KV generation, minimal unit/ability KV scaffolding, playable gameplay loop generation, score objective markers, runtime placement markers, template-derived custom map preparation, Workshop preflight inspection, dry-run release reporting, repeatable playable smoke workflows, explicit smoke cleanup controls, Workshop Tools launch, log evidence, and local or remote Windows validation.
 
 ## Core Workflow
 
@@ -36,6 +36,7 @@ Use MCP tools when the request needs any of these operations:
 - Generating or inspecting minimal unit/ability KV scaffolds.
 - Preparing and compiling a template-derived custom map with spawn entity evidence.
 - Inspecting addon layout, Panorama directories, toolchain markers, and publishing blockers through preflight.
+- Running dry-run release reports for metadata completeness, package blockers, sensitive information findings, and manual upload boundaries.
 - Collecting evidence for a validation transcript.
 
 If MCP is unavailable, explain that target-control work cannot be performed deterministically. You may still edit repository files, write Lua/KV/Panorama source, or prepare a manual checklist, but do not claim Workshop validation.
@@ -52,6 +53,7 @@ Supported:
 - Optional minimal custom unit plus linked ability KV scaffold files.
 - Template-derived custom map source copy, spawn entity marker verification, and `resourcecompiler.exe` compile evidence.
 - Inspection-only Workshop preflight for addon layout, Panorama source/runtime directories, toolchain marker files, and publishing blockers.
+- Dry-run release report for package readiness, addon metadata completeness, sensitive information scanning, and publishing boundaries.
 - Addon metadata and minimal supporting KV files.
 - Local Windows target discovery and launch validation.
 - Remote Windows target execution through SSH or PowerShell Remoting.
@@ -82,6 +84,7 @@ Expected v1 operations:
 - `prepare_custom_map`
 - `inspect_addon`
 - `inspect_workshop_preflight`
+- `dry_run_release_report`
 - `link_addon`
 - `launch_tools`
 - `launch_custom_game`
@@ -107,6 +110,8 @@ For v2.5 score objectives, pass `objective: { type: "score", targetScore, tickIn
 For v2.6 unit/ability scaffolding, pass `unitAbilityScaffold: { unitName, abilityName }` to `create_addon` or `run_playable_smoke` only when the user wants deterministic KV files for one custom unit and one linked ability. Inspect `npc_units_custom.txt` and `npc_abilities_custom.txt` for evidence. Do not claim this proves custom ability runtime execution, modifiers, items, heroes, AI, UI, publishing, or balancing.
 
 For v2.7 Workshop preflight, call `inspect_workshop_preflight` when the user asks whether an addon is ready around Panorama, TypeScript-to-Lua, React Panorama, or publishing boundaries. Treat its evidence as inspection only: Workshop upload remains out of scope, and it does not generate UI files, run `npm`, run compilers or bundlers, encrypt content, accept credentials, upload to Workshop, or prove runtime validation.
+
+For v1.2 release readiness, call `dry_run_release_report` when the user asks for a pre-upload release/package review. Treat blockers as release-stopping until resolved. The operation checks metadata completeness, package candidate files, and sensitive information markers; it never accepts credentials, logs into Steam, encrypts content, creates upload artifacts, uploads to Workshop, or proves runtime validation.
 
 ## Editing Rules
 

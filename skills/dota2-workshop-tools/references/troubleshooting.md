@@ -81,6 +81,16 @@ Use the returned paths to inspect:
 
 Do not treat preflight success as runtime validation. Do not continue into credential handling, encryption, Workshop upload, npm builds, TypeScript-to-Lua compilation, or React Panorama generation unless a later scope explicitly adds those workflows.
 
+### Dry-run release report blocked
+
+`dry_run_release_report` returns `ok: false` when metadata, package files, or sensitive information findings block release review. Treat these blockers as actionable release-readiness failures:
+
+- Metadata blockers mean `addoninfo.txt` is missing `addonSteamAppID`, `addontitle`, `addonAuthor`, or `addonDescription`, or one of those values is empty or placeholder text.
+- Package blockers mean a release-critical addon root or file is missing.
+- Secret blockers mean a text-like addon file matched a sensitive marker. The report intentionally redacts the value; inspect the file directly and remove the sensitive material.
+
+Do not bypass blockers by uploading manually from the agent workflow. Steam login, content encryption, and Workshop upload remain explicit manual boundaries.
+
 ### Repeatable smoke failed
 
 `run_playable_smoke` stops at the failed operation and returns the transcript gathered so far. Use `failed smoke operation` to decide the next diagnostic path:
