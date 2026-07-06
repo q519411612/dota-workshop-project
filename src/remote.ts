@@ -933,7 +933,7 @@ function remoteDryRunReleaseReportScript(dotaRoot: string, addonName: string): s
     "AddReleasePath $paths.heroData 'hero data'",
     "AddReleasePath $paths.unitData 'unit support file'",
     "AddReleasePath $paths.abilityData 'ability support file'",
-    "$metadataKeys = @('addonSteamAppID', 'addontitle', 'addonAuthor', 'addonDescription')",
+    "$metadataKeys = @('addonSteamAppID', 'addontitle', 'addonAuthor', 'addonDescription', 'addonVersion', 'DefaultMap', 'maps')",
     "$placeholderValues = @('', 'changeme', 'change me', 'placeholder', 'tbd', 'todo', 'unknown', 'your name')",
     "if (Test-Path -LiteralPath $paths.addonInfo) { $addonInfo = Get-Content -LiteralPath $paths.addonInfo -Raw; foreach ($key in $metadataKeys) { $match = [regex]::Match($addonInfo, '\"' + [regex]::Escape($key) + '\"\\s+\"([^\"]*)\"', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase); if (-not $match.Success) { $blockers += \"metadata blocker: $key missing\" } elseif ($placeholderValues -contains $match.Groups[1].Value.Trim().ToLowerInvariant()) { $blockers += \"metadata blocker: $key placeholder\" } else { $evidence += \"metadata evidence: $key present\" } } } else { foreach ($key in $metadataKeys) { $blockers += \"metadata blocker: $key missing\" } }",
     "$textExts = @('.cfg', '.css', '.ini', '.js', '.json', '.kv', '.lua', '.md', '.ps1', '.ts', '.tsx', '.txt', '.vdf', '.xml', '.yaml', '.yml')",

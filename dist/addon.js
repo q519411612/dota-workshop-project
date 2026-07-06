@@ -380,7 +380,14 @@ export function placementMarkers(addonName, placement) {
     ];
 }
 function addonInfo(addonName, mapName) {
-    return `"AddonInfo"\n{\n  "AddonName" "${addonName}"\n  "IsPlayable" "1"\n  "DefaultMap" "${mapName}"\n  "maps" "${mapName}"\n  "MinPlayers" "1"\n  "MaxPlayers" "10"\n}\n`;
+    return `"AddonInfo"\n{\n  "AddonName" "${addonName}"\n  "addontitle" "${addonTitle(addonName)}"\n  "addonAuthor" "Dota Workshop Project"\n  "addonDescription" "Generated Dota 2 Workshop addon for ${addonName}."\n  "addonVersion" "0.1.0"\n  "IsPlayable" "1"\n  "DefaultMap" "${mapName}"\n  "maps" "${mapName}"\n  "MinPlayers" "1"\n  "MaxPlayers" "10"\n}\n`;
+}
+function addonTitle(addonName) {
+    return addonName
+        .split("_")
+        .filter(Boolean)
+        .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+        .join(" ");
 }
 function minimalLuaEntry(addonName) {
     return `function Precache(context)\nend\n\nfunction Activate()\n  print("[DOTA_WORKSHOP_MCP] addon loaded: ${addonName}")\nend\n`;

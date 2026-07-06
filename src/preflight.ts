@@ -24,7 +24,15 @@ const TOOLCHAIN_MARKERS = [
 ];
 
 const PANORAMA_EXTENSIONS = new Set([".xml", ".js", ".css"]);
-const RELEASE_METADATA_KEYS = ["addonSteamAppID", "addontitle", "addonAuthor", "addonDescription"] as const;
+const RELEASE_METADATA_KEYS = [
+  "addonSteamAppID",
+  "addontitle",
+  "addonAuthor",
+  "addonDescription",
+  "addonVersion",
+  "DefaultMap",
+  "maps"
+] as const;
 const TEXT_SCAN_EXTENSIONS = new Set([
   ".cfg",
   ".css",

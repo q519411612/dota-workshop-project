@@ -510,7 +510,15 @@ export function placementMarkers(addonName: string, placement: RuntimePlacement)
 }
 
 function addonInfo(addonName: string, mapName: string): string {
-  return `"AddonInfo"\n{\n  "AddonName" "${addonName}"\n  "IsPlayable" "1"\n  "DefaultMap" "${mapName}"\n  "maps" "${mapName}"\n  "MinPlayers" "1"\n  "MaxPlayers" "10"\n}\n`;
+  return `"AddonInfo"\n{\n  "AddonName" "${addonName}"\n  "addontitle" "${addonTitle(addonName)}"\n  "addonAuthor" "Dota Workshop Project"\n  "addonDescription" "Generated Dota 2 Workshop addon for ${addonName}."\n  "addonVersion" "0.1.0"\n  "IsPlayable" "1"\n  "DefaultMap" "${mapName}"\n  "maps" "${mapName}"\n  "MinPlayers" "1"\n  "MaxPlayers" "10"\n}\n`;
+}
+
+function addonTitle(addonName: string): string {
+  return addonName
+    .split("_")
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join(" ");
 }
 
 function minimalLuaEntry(addonName: string): string {

@@ -11,7 +11,15 @@ const TOOLCHAIN_MARKERS = [
     "webpack.config.js"
 ];
 const PANORAMA_EXTENSIONS = new Set([".xml", ".js", ".css"]);
-const RELEASE_METADATA_KEYS = ["addonSteamAppID", "addontitle", "addonAuthor", "addonDescription"];
+const RELEASE_METADATA_KEYS = [
+    "addonSteamAppID",
+    "addontitle",
+    "addonAuthor",
+    "addonDescription",
+    "addonVersion",
+    "DefaultMap",
+    "maps"
+];
 const TEXT_SCAN_EXTENSIONS = new Set([
     ".cfg",
     ".css",

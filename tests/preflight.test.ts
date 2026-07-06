@@ -147,6 +147,9 @@ describe("workshop preflight inspection", () => {
     expect(result.operation).toBe("dry_run_release_report");
     expect(result.evidence).toContain("dry-run release report generated");
     expect(result.evidence).toContain("release blockers: 0");
+    expect(result.evidence).toContain("metadata evidence: addonVersion present");
+    expect(result.evidence).toContain("metadata evidence: DefaultMap present");
+    expect(result.evidence).toContain("metadata evidence: maps present");
     expect(result.warnings).toContain("Steam login is manual and out of scope");
     expect(result.warnings).toContain("Workshop upload is not performed by dry run");
   });
@@ -156,6 +159,7 @@ describe("workshop preflight inspection", () => {
       target: { kind: "fixture", root },
       addonName: "demo_addon"
     });
+    await writeAddonInfo(root, "demo_addon", `"AddonInfo"\n{\n  "AddonName" "demo_addon"\n  "IsPlayable" "1"\n  "DefaultMap" "dota"\n  "maps" "dota"\n  "MinPlayers" "1"\n  "MaxPlayers" "10"\n}\n`);
     await rm(join(root, "game/dota_addons/demo_addon/scripts/vscripts/addon_game_mode.lua"));
 
     const result = await dryRunReleaseReport({
@@ -164,14 +168,32 @@ describe("workshop preflight inspection", () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.evidence).toContain("release blockers: 5");
+    expect(result.evidence).toContain("release blockers: 6");
     expect(result.evidence).toContain("metadata blocker: addonSteamAppID missing");
     expect(result.evidence).toContain("metadata blocker: addontitle missing");
     expect(result.evidence).toContain("metadata blocker: addonAuthor missing");
     expect(result.evidence).toContain("metadata blocker: addonDescription missing");
+    expect(result.evidence).toContain("metadata blocker: addonVersion missing");
     expect(result.evidence).toContain("package blocker: lua entry missing");
     expect(result.evidence).toContain("no package archive created");
     expect(result.evidence).toContain("no Workshop upload attempted");
+  });
+
+  test("reports placeholder metadata blockers", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+    await writeAddonInfo(root, "demo_addon", `"AddonInfo"\n{\n  "AddonName" "demo_addon"\n  "addonSteamAppID" "570"\n  "addontitle" "TBD"\n  "addonAuthor" "Workshop Team"\n  "addonDescription" "Dry run release fixture."\n  "addonVersion" "0.1.0"\n  "IsPlayable" "1"\n  "DefaultMap" "dota"\n  "maps" "dota"\n  "MinPlayers" "1"\n  "MaxPlayers" "10"\n}\n`);
+
+    const result = await dryRunReleaseReport({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.evidence).toContain("metadata blocker: addontitle placeholder");
+    expect(result.evidence).toContain("release blockers: 1");
   });
 
   test("redacts sensitive material findings in dry-run report", async () => {
@@ -217,8 +239,13 @@ describe("workshop preflight inspection", () => {
 });
 
 async function writeCompleteAddonInfo(root: string, addonName: string, mapName: string): Promise<void> {
-  await writeFile(
-    join(root, "game/dota_addons", addonName, "addoninfo.txt"),
-    `"AddonInfo"\n{\n  "AddonName" "${addonName}"\n  "addonSteamAppID" "570"\n  "addontitle" "Demo Addon"\n  "addonAuthor" "Workshop Team"\n  "addonDescription" "Dry run release fixture."\n  "IsPlayable" "1"\n  "DefaultMap" "${mapName}"\n  "maps" "${mapName}"\n  "MinPlayers" "1"\n  "MaxPlayers" "10"\n}\n`
+  await writeAddonInfo(
+    root,
+    addonName,
+    `"AddonInfo"\n{\n  "AddonName" "${addonName}"\n  "addonSteamAppID" "570"\n  "addontitle" "Demo Addon"\n  "addonAuthor" "Workshop Team"\n  "addonDescription" "Dry run release fixture."\n  "addonVersion" "0.1.0"\n  "IsPlayable" "1"\n  "DefaultMap" "${mapName}"\n  "maps" "${mapName}"\n  "MinPlayers" "1"\n  "MaxPlayers" "10"\n}\n`
   );
+}
+
+async function writeAddonInfo(root: string, addonName: string, content: string): Promise<void> {
+  await writeFile(join(root, "game/dota_addons", addonName, "addoninfo.txt"), content);
 }

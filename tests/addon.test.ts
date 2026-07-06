@@ -119,7 +119,12 @@ describe("addon template", () => {
     expect(lua).toContain("[DOTA_WORKSHOP_MCP] addon loaded: demo_addon");
 
     const addonInfo = await readFile(join(root, "game/dota_addons/demo_addon/addoninfo.txt"), "utf8");
+    expect(addonInfo).toContain("\"addontitle\" \"Demo Addon\"");
+    expect(addonInfo).toContain("\"addonAuthor\" \"Dota Workshop Project\"");
+    expect(addonInfo).toContain("\"addonDescription\" \"Generated Dota 2 Workshop addon for demo_addon.\"");
+    expect(addonInfo).toContain("\"addonVersion\" \"0.1.0\"");
     expect(addonInfo).toContain("\"DefaultMap\" \"demo_map\"");
+    expect(addonInfo).toContain("\"maps\" \"demo_map\"");
   });
 
   test("creates a playable gameplay loop by default", async () => {

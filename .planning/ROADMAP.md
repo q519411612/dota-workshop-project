@@ -17,8 +17,53 @@
 - [x] **v1.8 Milestone Archive and Release Notes Readiness** - local closeout report for v1.2-v1.7 release readiness history.
 - [x] **v1.9 Same-Machine Windows Local Smoke Evidence** - local harness and sanitized evidence verifier for MCP running directly on Windows.
 - [x] **v1.10 Release Bundle Manifest / Source Snapshot Dry Run** - deterministic source snapshot manifest without archive, signing, encryption, or upload.
+- [x] **v1.11 Addon Metadata Polish** - richer addon metadata generation and dry-run metadata blockers.
 
 ## Active Work
+
+### v1.11 Addon Metadata Polish
+
+Goal: polish generated addon metadata and dry-run release metadata checks for title, author, description, version, default map, maps entry, missing-field blockers, placeholder blockers, and release report evidence.
+
+Scope:
+
+- Enhance generated `addoninfo.txt` metadata.
+- Extend dry-run release metadata checks.
+- Cover missing metadata fields and placeholder values with blockers.
+- Add metadata report evidence suitable for release review.
+- Keep the slice free of Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, archive creation, registry publish, global installation, remote Windows connections, Dota runtime work, or UI automation.
+
+### Phase 1: Addon Metadata Polish
+
+**Status:** Complete
+**Goal:** Enhance addon metadata generation and dry-run release metadata checks.
+**Requirements:** META-01, META-02, META-03, META-04, META-05
+**Canonical refs:**
+
+- `.planning/REQUIREMENTS.md`
+- `.planning/phases/01-addon-metadata-polish/01-SPEC.md`
+- `.planning/phases/01-addon-metadata-polish/01-01-PLAN.md`
+
+**In scope:**
+
+- `addoninfo.txt` title, author, description, version, default map, and maps entry generation.
+- Dry-run release metadata checks for missing fields and placeholders.
+- Metadata report evidence and release blocker counts.
+- Local-only tests and review artifacts.
+
+**Out of scope:**
+
+- Real Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, archive creation, registry publish, global installation, remote Windows connections, UI automation, or new gameplay/toolchain features.
+
+**Outcome:**
+
+- Generated `addoninfo.txt` now includes title, author, description, version, default map, and maps entry.
+- Dry-run release metadata checks now cover addon version, default map, and maps entry in addition to existing release metadata.
+- Missing and placeholder metadata fields produce release blockers and are included in the blocker count.
+- Local and remote dry-run release metadata key lists remain aligned.
+- No Steam, Workshop upload, encryption, signing, archive, or publishing behavior was added.
+
+## Latest Completed Work
 
 ### v1.10 Release Bundle Manifest / Source Snapshot Dry Run
 
@@ -62,8 +107,6 @@ Scope:
 - Added sensitive material scanning that reports relative path and category without file content or secret value leakage.
 - The manifest dry run excludes graph freshness output, generated dependency/output trees, and OS metadata.
 - Local verification passes without creating an archive, signing, encrypting, publishing, uploading, connecting to Windows, or mutating global install state.
-
-## Latest Completed Work
 
 ### v1.9 Same-Machine Windows Local Smoke Evidence
 
