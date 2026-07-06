@@ -14,8 +14,54 @@
 - [x] **v1.5 Operator Runbook and Example Workflows** - checked operator runbook and reusable safe workflow examples.
 - [x] **v1.6 Release Candidate Audit Gate** - local RC gate before any broader handoff or publishing work.
 - [x] **v1.7 Release Handoff Bundle Readiness** - local handoff report before external operator delivery or release review.
+- [x] **v1.8 Milestone Archive and Release Notes Readiness** - local closeout report for v1.2-v1.7 release readiness history.
 
 ## Active Work
+
+### v1.8 Milestone Archive and Release Notes Readiness
+
+Goal: establish a local, credential-free milestone closeout and release notes readiness report that aggregates v1.2-v1.7 goals, commits, delivery summaries, verification status, documentation coverage, release boundaries, and remaining non-blocking items.
+
+Scope:
+
+- Add `npm run verify:milestone` as a local-only gate.
+- Reuse the existing handoff gate as the milestone preflight.
+- Report v1.2-v1.7 version inventory with commit SHAs, goals, key delivery summaries, verification status, known boundaries, and remaining non-blocking items.
+- Check README, operator runbook, and handoff readiness output for review and handoff support.
+- Keep the command free of Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, credential storage, remote Windows connections, network access, Dota runtime work, or UI automation.
+
+### Phase 1: Milestone Archive and Release Notes Readiness
+
+**Status:** Complete
+**Goal:** Add `npm run verify:milestone`, structured milestone closeout evidence, tests, and docs.
+**Requirements:** MILESTONE-01, MILESTONE-02, MILESTONE-03, MILESTONE-04, MILESTONE-05, MILESTONE-06, MILESTONE-07
+**Canonical refs:**
+
+- `.planning/REQUIREMENTS.md`
+- `.planning/phases/01-milestone-archive-release-notes-readiness/01-SPEC.md`
+- `.planning/phases/01-milestone-archive-release-notes-readiness/01-01-PLAN.md`
+
+**In scope:**
+
+- Local milestone closeout report command.
+- Handoff gate preflight reuse.
+- v1.2-v1.7 version inventory and commit range reporting.
+- Documentation and handoff output coverage checks.
+- Explicit no-upload/no-login/no-credential/no-remote boundary reporting.
+
+**Out of scope:**
+
+- Real Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, archive creation, registry publish, global installation, Windows smoke, remote smoke, SSH, PowerShell Remoting, MCP runtime target operations, UI automation, or new gameplay/toolchain features.
+
+**Outcome:**
+
+- Added `npm run verify:milestone`.
+- Added a structured local milestone closeout verifier and CLI.
+- The milestone report records the v1.2-v1.7 commit range, version inventory, goals, delivery summaries, verification status, documentation status, release boundaries, and remaining non-blocking items.
+- The verifier reuses `verify:handoff` as the preflight and checks README, operator runbook, and handoff output coverage.
+- README and the operator runbook now include the milestone closeout gate after `verify:handoff`.
+
+## Latest Completed Work
 
 ### v1.7 Release Handoff Bundle Readiness
 
@@ -58,8 +104,6 @@ Scope:
 - The handoff report records commit SHA, RC preflight status, delivery checklist items, documentation coverage, and explicit release boundaries.
 - The report sanitizes RC command output so repository absolute paths are not leaked.
 - README and the operator runbook now include the handoff gate after `verify:rc`.
-
-## Latest Completed Work
 
 ### v1.6 Release Candidate Audit Gate
 

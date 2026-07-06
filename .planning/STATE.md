@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: Release Handoff Bundle Readiness
+milestone: v1.8
+milestone_name: Milestone Archive and Release Notes Readiness
 current_phase: 1
 status: Complete
-last_updated: "2026-07-06T10:22:30.000Z"
+last_updated: "2026-07-06T23:52:30.000Z"
 last_activity: 2026-07-06
-last_activity_desc: Completed release handoff bundle readiness
+last_activity_desc: Completed milestone archive and release notes readiness
 progress:
   total_phases: 1
   completed_phases: 1
@@ -24,13 +24,13 @@ progress:
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v1.7 Release Handoff Bundle Readiness added a local handoff report before external operator delivery or release review.
+**Current focus:** v1.8 Milestone Archive and Release Notes Readiness added a local closeout report for v1.2-v1.7 release readiness history.
 
 ## Current Roadmap
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Release Handoff Bundle Readiness | Complete |
+| 1 | Milestone Archive and Release Notes Readiness | Complete |
 
 ## Decisions In Effect
 
@@ -48,7 +48,8 @@ See: `.planning/PROJECT.md`
 | v1.4 handoff readiness is local-only and must not install globally or publish packages | `.planning/phases/01-plugin-install-handoff-readiness/01-VERIFICATION.md` |
 | v1.5 examples must be schema-valid safe templates and must not store private target or credential material | `.planning/phases/01-operator-runbook-example-workflows/01-VERIFICATION.md` |
 | v1.6 RC gate must be local-only and must not perform upload, login, encryption, signing, Windows smoke, or remote smoke | `.planning/REQUIREMENTS.md` |
-| v1.7 handoff report must be local-only and must aggregate RC evidence, delivery checklist, docs coverage, and explicit release boundaries | `.planning/REQUIREMENTS.md` |
+| v1.7 handoff report must be local-only and must aggregate RC evidence, delivery checklist, docs coverage, and explicit release boundaries | `.planning/phases/01-release-handoff-bundle-readiness/01-VERIFICATION.md` |
+| v1.8 milestone report must be local-only and must aggregate v1.2-v1.7 commits, delivery summaries, verification status, review docs, release boundaries, and remaining non-blocking items | `.planning/REQUIREMENTS.md` |
 
 ## Research Inputs
 
@@ -65,12 +66,13 @@ See: `.planning/PROJECT.md`
 - v1.5 shipped `docs/operator-runbook.md`, schema-valid workflow examples, and `verify:plugin`.
 - v1.6 shipped `npm run verify:rc`, a structured RC verifier, command aggregation, repository hygiene scanning, publishing boundary checks, docs, and tests.
 - v1.7 shipped `npm run verify:handoff`, a structured handoff verifier, delivery checklist reporting, documentation coverage checks, explicit release boundaries, and report path sanitization.
-- `main` matches `origin/main` except for local graphify freshness files under `.planning/graphs/`.
-- Real Windows remote smoke passed in v1.3; it remains optional supporting evidence, not part of this local RC gate.
+- v1.8 shipped `npm run verify:milestone`, a structured milestone closeout verifier, v1.2-v1.7 inventory, handoff preflight reuse, docs/handoff output checks, release boundary reporting, and remaining non-blocking item reporting.
+- `main` matches `origin/main` at the v1.7 baseline except for local graphify freshness files under `.planning/graphs/`; v1.8 changes are pending commit and push.
+- Real Windows remote smoke passed in v1.3; it remains optional supporting evidence, not part of this local milestone gate.
 
 ## Next Action
 
-Commit and push v1.7 Release Handoff Bundle Readiness while leaving graphify freshness files uncommitted. Then select the next version slice.
+Commit and push v1.8 Milestone Archive and Release Notes Readiness while leaving graphify freshness files uncommitted. Then select the next version slice.
 
 ---
-*Last updated: 2026-07-06 after v1.7 Release Handoff Bundle Readiness*
+*Last updated: 2026-07-06 after v1.8 Milestone Archive and Release Notes Readiness*

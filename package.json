@@ -14,6 +14,7 @@
     "verify:plugin": "node ./dist/verify-plugin.js",
     "verify:rc": "node ./dist/verify-rc.js",
     "verify:handoff": "node ./dist/verify-handoff.js",
+    "verify:milestone": "node ./dist/verify-milestone.js",
     "test:watch": "vitest"
   },
   "engines": {

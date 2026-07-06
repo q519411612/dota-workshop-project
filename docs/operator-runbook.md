@@ -12,6 +12,7 @@ npm run build
 npm run verify:plugin
 npm run verify:rc
 npm run verify:handoff
+npm run verify:milestone
 npm test
 ```
 
@@ -20,6 +21,8 @@ npm test
 `npm run verify:rc` is the local release-candidate gate. It runs plugin readiness, schema/example validation, typecheck, tests, build, repository hygiene scanning, and publishing boundary checks. It is not upload automation and does not log into Steam, upload to Workshop, encrypt content, sign packages, run Windows smoke, or contact remote targets.
 
 `npm run verify:handoff` is the local release handoff gate. It reuses `verify:rc`, records the current commit, checks the plugin manifest, MCP config, package entrypoints, skill references, workflow examples, README, and this runbook, and reports explicit release boundaries. It does not upload to Workshop, log into Steam, handle Steam Guard, encrypt content, sign packages, store credentials, or connect to remote Windows.
+
+`npm run verify:milestone` is the local milestone closeout gate for release notes review. It reuses `verify:handoff`, summarizes v1.2-v1.7 goals, commit SHAs, delivery summaries, verification status, documentation status, release boundaries, and remaining non-blocking items. It does not upload to Workshop, log into Steam, handle Steam Guard, encrypt content, sign packages, store credentials, connect to remote Windows, or require Dota 2, Steam, Workshop Tools, Windows, network access, or remote target credentials.
 
 Keep machine-specific target details runtime-only. Do not store Steam account secrets, GitHub tokens, Windows passwords, private keys, remote host details, or private target data in repository files.
 
@@ -41,7 +44,7 @@ Use `examples/workflows/remote-playable-smoke.template.json` only as a template.
 Recommended order:
 
 1. Build locally with `npm run build`.
-2. Verify the plugin with `npm run verify:plugin`, `npm run verify:rc`, and `npm run verify:handoff`.
+2. Verify the plugin with `npm run verify:plugin`, `npm run verify:rc`, `npm run verify:handoff`, and `npm run verify:milestone`.
 3. Discover or validate the Windows target outside repository files.
 4. Run `run_playable_smoke` with `launchMode: "interactiveTask"` when the remote command session is not the logged-in desktop session.
 5. Review the transcript for create, inspect, launch, and marker validation results.
