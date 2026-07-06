@@ -1,88 +1,107 @@
-# Requirements: v1.3 Windows Validation Closure
+# Requirements: v1.4 Plugin Install Handoff Readiness
 
 **Created:** 2026-07-06
-**Milestone:** v1.3 Windows Validation Closure
+**Milestone:** v1.4 Plugin Install Handoff Readiness
 **Status:** Complete
 
 ## Goal
 
-Close the remaining real-Windows validation gap by recording sanitized evidence from a Windows host with Dota 2 and Workshop Tools installed, without storing credentials or private host data in the repository.
+Make plugin installation and operator handoff readiness verifiable from the repository without needing Dota 2, Steam credentials, Windows credentials, or a real Workshop upload.
 
 ## Scope
 
 ### In Scope
 
-- Runtime-only SSH access to a Windows host provided by the user.
-- Dota install and Workshop Tools path discovery evidence.
-- Addon generation, launch, log reading, validation, cleanup, or release dry-run evidence through the existing tool concepts where practical.
-- Sanitized verification artifacts that prove what was checked without recording password, private host, private username, tokens, or Steam credential material.
-- Explicit failure evidence if Windows discovery, launch, log reading, or validation fails.
+- A local verification command that checks plugin package readiness before handoff.
+- Manifest, MCP config, package entrypoint, built server entrypoint, skill references, and documented tool contract consistency checks.
+- Tests that prove the verifier fails on drift and passes on the current repository.
+- Documentation that tells operators how to run the verifier before installing or handing off the plugin.
+- GSD verification and independent review artifacts for the v1.4 slice.
 
 ### Out of Scope
 
-- Storing SSH passwords, hostnames, usernames, Steam credentials, private keys, tokens, or private target data in repository files.
-- Real Workshop upload, Steam login, Steam Guard, encryption, publish-state mutation, or signed upload package output.
-- Desktop UI automation as a primary path.
-- Broad process cleanup outside known addon-scoped smoke processes.
-- Treating process launch as validation success without expected log or console evidence.
+- Installing the plugin into a global Codex profile.
+- Publishing a package to npm or any plugin registry.
+- Creating archives, signed packages, encrypted packages, or upload-ready bundles.
+- Real Workshop upload, Steam login, Steam Guard, content encryption, or publish-state mutation.
+- Storing Steam, GitHub, Windows, remote, token, password, private key, or private host material.
+- Real Windows smoke as a blocker for this slice.
 
 ## Requirements
 
-### VAL-01 Runtime-Only Target Handling
+### HAND-01 Local Plugin Readiness Verifier
 
-Use the provided Windows target only as runtime input.
-
-Acceptance:
-
-- No repository file contains the Windows password, private host, private username, Steam credentials, GitHub tokens, private keys, or private target details.
-- Verification artifacts identify the target generically, such as `user-provided Windows host`.
-- Any command transcript included in artifacts is sanitized.
-
-### VAL-02 Environment Discovery Evidence
-
-Verify the Windows host has a usable Dota 2 install and Workshop Tools paths.
+Provide a repository-local command for plugin handoff readiness.
 
 Acceptance:
 
-- Evidence includes Dota root discovery or explicit user-provided Dota root verification.
-- Evidence includes `dota2.exe` path verification.
-- Evidence includes at least one Workshop Tools-adjacent path, such as `vconsole2.exe`, `dota2cfg.exe`, `resourcecompiler.exe`, or installed template map evidence.
-- Missing path failures are recorded with command/path category evidence.
+- `npm run verify:plugin` exists and runs against the current repository.
+- The command exits non-zero when readiness blockers exist.
+- The command exits zero and prints evidence when no blockers exist.
+- The command does not require Dota 2, Steam, Windows, network access, or private credentials.
 
-### VAL-03 Existing Workflow Smoke Evidence
+### HAND-02 Manifest and Entrypoint Checks
 
-Exercise the smallest existing workflow that materially increases confidence.
-
-Acceptance:
-
-- Preferred path: run existing playable smoke or an equivalent generated-addon launch and marker validation through the Windows host.
-- If launch is blocked by environment constraints, record the exact blocker and still run non-launch checks such as addon generation, inspection, and dry-run release report.
-- Validation success requires expected log or console marker evidence, not launch success alone.
-
-### VAL-04 Safe Cleanup Evidence
-
-Clean up only known addon-scoped smoke processes when cleanup is needed.
+Verify plugin/package entrypoints point to files that exist after build.
 
 Acceptance:
 
-- Cleanup starts with dry-run matching evidence when a running process may block smoke.
-- Execute cleanup only targets command lines matching the requested smoke addon name.
-- Do not stop broad Dota, Steam, or unrelated processes.
+- The verifier checks `.codex-plugin/plugin.json`.
+- The verifier checks `.mcp.json`.
+- The verifier checks `package.json`.
+- The verifier confirms the plugin skill directory exists.
+- The verifier confirms MCP config points to `node ./dist/index.js`.
+- The verifier confirms package bin points to the built server entrypoint.
 
-### VAL-05 Verification Artifact
+### HAND-03 Skill Reference Checks
 
-Record the validation result in GSD artifacts.
+Verify skill guidance does not reference missing local reference files.
 
 Acceptance:
 
-- `01-VERIFICATION.md` records environment, smoke or fallback checks, cleanup, local automated verification, and residual risk.
-- `01-REVIEW.md` records independent review of credential hygiene and evidence claims.
-- `01-01-SUMMARY.md` records whether the same-machine/local-Windows gap is closed or remains partially open.
+- The verifier reads `skills/dota2-workshop-tools/SKILL.md`.
+- Every `references/*.md` path mentioned in the skill exists under the skill directory.
+- Missing reference files are blockers.
+
+### HAND-04 Tool Contract Drift Checks
+
+Verify documented MCP tool lists match the code tool registry.
+
+Acceptance:
+
+- The verifier compares `toolNames` from code against the README tool list.
+- The verifier compares `toolNames` from code against the skill MCP tool contract list.
+- Extra documented tools are blockers.
+- Missing documented tools are blockers.
+- The stale `link_addon` mention is removed or otherwise no longer causes drift.
+
+### HAND-05 Handoff Documentation
+
+Document the operator handoff command.
+
+Acceptance:
+
+- README includes a plugin handoff or installation readiness section.
+- The section includes `npm run build` and `npm run verify:plugin`.
+- The section repeats that credentials and private target details must not be stored in the repository.
+
+### HAND-06 Verification and Review
+
+Close the slice with automated verification and independent review.
+
+Acceptance:
+
+- Targeted plugin verifier tests pass.
+- `npm run verify:plugin` passes after build.
+- `git diff --check`, `npm run typecheck`, `npm test`, and `npm run build` pass.
+- A strict high-signal secret scan reports no stored credentials.
+- `01-VERIFICATION.md`, `01-REVIEW.md`, and `01-01-SUMMARY.md` record the outcome.
 
 ## Definition of Done
 
-- [x] Windows host evidence is collected or explicit blocker evidence is recorded.
-- [x] No credential or private target data is written to repository files.
-- [x] Existing local automated verification still passes.
+- [x] v1.4 requirements, roadmap, spec, and plan exist.
+- [x] The plugin readiness verifier is implemented and documented.
+- [x] Tests prove drift detection.
+- [x] Local verification passes.
 - [x] Independent review is recorded.
 - [ ] Changes are committed and pushed.

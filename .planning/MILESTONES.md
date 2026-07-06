@@ -110,3 +110,39 @@
 **Known residual item:**
 
 - A separate same-machine Windows-local MCP server run remains optional and unproven; v1.3 closure relies on the remote SSH path to a real Windows host.
+
+---
+
+## v1.4 Plugin Install Handoff Readiness (Implemented: 2026-07-06)
+
+**Goal:** Make plugin installation and operator handoff readiness verifiable from the repository.
+
+**Work completed:** One delivery slice, one plan.
+
+**Key accomplishments:**
+
+- Added `npm run verify:plugin`.
+- Added local readiness checks for plugin manifest, MCP config, package bin, built server entrypoint, skill references, README tool list, and skill tool list.
+- Added tests that prove manifest, entrypoint, reference, and tool-list drift blockers.
+- Corrected the skill MCP tool list to match the implemented `toolNames` registry.
+- Documented plugin handoff readiness commands in README.
+
+**Key boundaries:**
+
+- No global plugin installation.
+- No package registry publish.
+- No archive signing or encrypted package output.
+- No Steam login, Workshop upload, publish-state mutation, or credential storage.
+
+**Artifacts:**
+
+- Requirements: `.planning/REQUIREMENTS.md`
+- Roadmap: `.planning/ROADMAP.md`
+- Phase: `.planning/phases/01-plugin-install-handoff-readiness/`
+
+**Verification:**
+
+- Targeted verifier tests passed with 6 tests.
+- `npm run build` passed.
+- `npm run verify:plugin` passed.
+- `git diff --check`, typecheck, full test suite with 106 tests, build, `verify:plugin`, and strict high-signal secret scan passed.

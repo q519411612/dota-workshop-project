@@ -4,7 +4,7 @@
 
 Dota Workshop Project is a Codex plugin project for building Dota 2 custom games with AI assistance. It will package a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, and inspect a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The v1.1 Workshop MVP milestone is complete and archived. The project now has a validated end-to-end plugin slice: agents can generate playable addons, run evidence-driven smoke workflows on Windows targets, inspect custom map/objective/unit scaffold readiness, and report Panorama/toolchain/publishing boundaries without expanding into full UI generation or Workshop upload automation. v1.2 added dry-run release/package readiness before any real Workshop upload automation. v1.3 added sanitized real Windows validation closure through the remote SSH path.
+The v1.1 Workshop MVP milestone is complete and archived. The project now has a validated end-to-end plugin slice: agents can generate playable addons, run evidence-driven smoke workflows on Windows targets, inspect custom map/objective/unit scaffold readiness, and report Panorama/toolchain/publishing boundaries without expanding into full UI generation or Workshop upload automation. v1.2 added dry-run release/package readiness before any real Workshop upload automation. v1.3 added sanitized real Windows validation closure through the remote SSH path. v1.4 added local plugin installation and operator handoff readiness verification.
 
 ## Core Value
 
@@ -45,6 +45,7 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 
 - [x] Added a dry-run release report for release/package preflight, addon metadata completeness, sensitive information scanning, and publishing boundary reporting.
 - [x] Completed sanitized Windows validation closure on a user-provided Windows host through remote SSH runtime marker validation.
+- [x] Added local plugin handoff readiness verification for manifest, MCP config, entrypoints, skill references, and documented tool-list drift.
 
 ### Active
 
@@ -101,6 +102,7 @@ Milestone v1.1 is archived under `.planning/milestones/`. Current planning shoul
 | Start v1.2 with dry-run release readiness only | Publishing work has high credential and account risk, so v1.2 must prove local evidence and boundaries before any upload automation | Implemented |
 | Keep v1.3 Windows host details runtime-only | Validation closure uses a private user-provided target, so repository artifacts must record only sanitized evidence categories | Implemented |
 | Treat remote real-Windows validation as closure for v1.3 | The user-provided Windows host produced environment category evidence, runtime marker validation, release dry-run blockers, and addon-scoped cleanup evidence | Implemented |
+| Add handoff readiness before broader distribution | The project has real runtime evidence, but installation/package drift needs a local verifier before external handoff | Implemented |
 
 ## Evolution
 
@@ -120,4 +122,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 after v1.3 validation closure*
+*Last updated: 2026-07-06 after v1.4 plugin handoff readiness*

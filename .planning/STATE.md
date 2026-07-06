@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: Windows Validation Closure
+milestone: v1.4
+milestone_name: Plugin Install Handoff Readiness
 current_phase: 1
 status: Complete
-last_updated: "2026-07-06T03:57:29.000Z"
+last_updated: "2026-07-06T04:45:00.000Z"
 last_activity: 2026-07-06
-last_activity_desc: Completed sanitized Windows validation closure
+last_activity_desc: Completed plugin install handoff readiness
 progress:
   total_phases: 1
   completed_phases: 1
@@ -24,13 +24,13 @@ progress:
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v1.3 Windows Validation Closure collected sanitized evidence from a user-provided Windows host and closed the remote real-Windows runtime confidence gap.
+**Current focus:** v1.4 Plugin Install Handoff Readiness added local plugin package verification before handoff.
 
 ## Current Roadmap
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Windows Validation Closure | Complete |
+| 1 | Plugin Readiness Verifier | Complete |
 
 ## Decisions In Effect
 
@@ -60,6 +60,8 @@ See: `.planning/PROJECT.md`
 | v1.2 release readiness must stay dry-run only before real Workshop upload automation | `.planning/REQUIREMENTS.md` |
 | v1.3 Windows validation details must stay runtime-only and sanitized from repository artifacts | `.planning/REQUIREMENTS.md` |
 | v1.3 real Windows closure uses sanitized remote SSH evidence and does not prove a separate Windows-local MCP server process | `.planning/phases/01-windows-validation-closure/01-VERIFICATION.md` |
+| v1.4 handoff readiness is local-only and must not install globally or publish packages | `.planning/REQUIREMENTS.md` |
+| v1.4 plugin readiness verification compares manifests, entrypoints, skill references, and documented tool lists against code | `.planning/phases/01-plugin-install-handoff-readiness/01-VERIFICATION.md` |
 
 ## Research Inputs
 
@@ -129,19 +131,19 @@ See: `.planning/PROJECT.md`
 
 ## Next Action
 
-Commit and push v1.3 Windows Validation Closure, then select the next version slice.
+Commit and push v1.4 Plugin Install Handoff Readiness, then select the next version slice.
 
 ---
-*Last updated: 2026-07-06 after v1.3 validation closure*
+*Last updated: 2026-07-06 after v1.4 plugin handoff readiness*
 
 ## Current Position
 
-Phase: 1 - Windows Validation Closure
+Phase: 1 - Plugin Readiness Verifier
 Plan: 01-01
 Status: Complete
-Last activity: 2026-07-06 — Completed sanitized Windows validation closure
+Last activity: 2026-07-06 — Completed plugin install handoff readiness
 
 ## Operator Next Steps
 
 - Run final full verification and strict secret scan.
-- Commit and push v1.3 changes while leaving graphify freshness files uncommitted.
+- Commit and push v1.4 changes while leaving graphify freshness files uncommitted.

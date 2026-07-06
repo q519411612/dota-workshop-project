@@ -29,6 +29,17 @@ node ./dist/index.js
 
 Run `npm run build` after changing TypeScript so `dist/` stays in sync.
 
+## Plugin Handoff Readiness
+
+Before installing or handing off the plugin, run:
+
+```bash
+npm run build
+npm run verify:plugin
+```
+
+The verifier checks the plugin manifest, MCP config, package entrypoint, built server entrypoint, skill references, and documented MCP tool lists. It is local-only: do not store Steam credentials, GitHub tokens, Windows passwords, private keys, remote host details, or private target data in this repository.
+
 ## Skill
 
 Use the `dota2-workshop-tools` skill for:

@@ -85,13 +85,13 @@ Expected v1 operations:
 - `inspect_addon`
 - `inspect_workshop_preflight`
 - `dry_run_release_report`
-- `link_addon`
 - `launch_tools`
 - `launch_custom_game`
 - `run_playable_smoke`
 - `cleanup_playable_smoke`
 - `read_console_or_logs`
 - `validate_addon`
+- `remote_command`
 
 Every result must make failures visible. Missing Dota paths, unsupported OS, invalid addon names, remote execution failures, missing maps, metadata errors, and Lua startup errors should return explicit errors with evidence.
 

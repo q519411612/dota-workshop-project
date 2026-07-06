@@ -10,6 +10,7 @@
 - [x] **v1.1 Workshop MVP** - 13 delivery slices shipped on 2026-07-06.
 - [x] **v1.2 Publishing Readiness** - dry-run release/package readiness before real Workshop upload automation.
 - [x] **v1.3 Windows Validation Closure** - sanitized real Windows evidence for the remaining local/same-machine smoke gap.
+- [x] **v1.4 Plugin Install Handoff Readiness** - local plugin readiness verification before operator handoff.
 
 ## Completed Work
 
@@ -125,3 +126,46 @@ Scope:
 - Dry-run release report returned expected publishing blockers without upload, encryption, or credential handling.
 - Addon-scoped cleanup stopped only the matching validation smoke process after dry-run evidence.
 - Separate same-machine Windows-local MCP server execution remains unproven and non-blocking.
+
+## Completed Work
+
+### v1.4 Plugin Install Handoff Readiness
+
+Goal: make plugin installation and operator handoff readiness verifiable before anyone installs or uses the plugin outside the repository.
+
+Scope:
+
+- Add a repository-local plugin readiness verifier.
+- Check manifest, MCP config, package entrypoint, built server entrypoint, skill references, and documented tool lists.
+- Document the handoff command.
+- Keep the slice local-only, with no real plugin installation, registry publish, Steam login, encryption, Workshop upload, or credential storage.
+
+### Phase 1: Plugin Readiness Verifier
+
+**Status:** Complete
+**Goal:** Add `npm run verify:plugin` to detect plugin/package/skill/documentation drift before handoff.
+**Requirements:** HAND-01, HAND-02, HAND-03, HAND-04, HAND-05, HAND-06
+**Canonical refs:**
+
+- `.planning/REQUIREMENTS.md`
+- `.planning/phases/01-plugin-install-handoff-readiness/01-SPEC.md`
+- `.planning/phases/01-plugin-install-handoff-readiness/01-01-PLAN.md`
+
+**In scope:**
+
+- Local repository verifier and tests.
+- Manifest and entrypoint checks.
+- Skill reference checks.
+- README and skill tool-list drift checks.
+- Handoff documentation.
+
+**Out of scope:**
+
+- Global installation, package publishing, archive signing, Steam login, encryption, Workshop upload, or credential storage.
+
+**Outcome:**
+
+- Added `npm run verify:plugin`.
+- Added local verifier checks for plugin manifest, MCP config, package bin, built server entrypoint, skill references, README tool list, and skill tool list.
+- Fixed skill tool-list drift by removing `link_addon` and adding `remote_command`.
+- README now documents plugin handoff readiness commands and the no-credentials boundary.
