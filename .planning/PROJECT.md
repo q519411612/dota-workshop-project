@@ -4,7 +4,7 @@
 
 Dota Workshop Project is a Codex plugin project for building Dota 2 custom games with AI assistance. It will package a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, and inspect a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The current roadmap is complete through v2.7 Panorama Toolchain Boundary and Publishing Preflight MVP: agents can inspect addon readiness for Panorama, toolchain, and publishing boundaries without expanding into full UI generation or Workshop upload automation.
+The v1.1 Workshop MVP milestone is complete and archived. The project now has a validated end-to-end plugin slice: agents can generate playable addons, run evidence-driven smoke workflows on Windows targets, inspect custom map/objective/unit scaffold readiness, and report Panorama/toolchain/publishing boundaries without expanding into full UI generation or Workshop upload automation.
 
 ## Core Value
 
@@ -37,9 +37,14 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 
 ### Recently Validated
 
-- [x] Add an inspection-only Panorama/toolchain boundary and publishing preflight capability with fixture, local, and remote evidence.
-- [x] Add minimal custom unit and linked ability KV scaffolding with local, remote, inspect, and smoke compatibility evidence.
-- [x] Add a configurable score objective to the playable template and validate objective markers through the same local or remote MCP contract.
+- [x] Milestone v1.1 passed audit with all mapped requirements, delivery slices, integration checks, and end-to-end flows satisfied.
+- [x] Real Windows validation used the remote target path for cleanup, placement, custom map, objective, scaffold, and preflight evidence.
+- [x] Graphify was refreshed locally after the audit commit and remains intentionally uncommitted for HEAD freshness.
+
+### Active
+
+- [ ] Decide whether to run and record same-machine local Windows smoke on the Windows host.
+- [ ] Plan the publishing readiness milestone as a stricter pre-upload workflow before any real Workshop upload automation.
 
 ### Out of Scope
 
@@ -55,6 +60,8 @@ The project exists to make AI-assisted Dota 2 arcade custom game creation practi
 The first target environment is Windows with Dota 2 Workshop Tools installed. Remote Windows is also in scope because the AI session may run on a Mac while the tools run on a Windows machine. The remote path should use SSH or PowerShell Remoting instead of relying on remote desktop interactions.
 
 The skill and MCP server should have separate responsibilities. The skill teaches the agent how to reason about Dota 2 Workshop Tools tasks and when to use references or scripts. The MCP server exposes deterministic operations such as creating an addon, opening tools, running validation commands, reading console output, and inspecting generated files.
+
+Milestone v1.1 is archived under `.planning/milestones/`. Current planning should start from a fresh requirement slice rather than editing the archived roadmap directly.
 
 ## Constraints
 
@@ -85,6 +92,7 @@ The skill and MCP server should have separate responsibilities. The skill teache
 | Start gameplay objectives with score configuration | The existing score/win loop is already Windows-validated, so parameterizing it is the smallest objective slice before custom quests or unit systems | Implemented |
 | Scaffold custom units and abilities as KV evidence before runtime behavior | File generation and inspect evidence are a smaller validated slice than proving custom ability execution | Implemented |
 | Add preflight before Panorama, toolchain, and publishing automation | Inspection-only evidence gives agents a safe boundary report before larger UI/toolchain/publishing workflows | Implemented |
+| Archive v1.1 before opening publishing automation | The completed milestone is large enough that future publishing work needs fresh requirements and a tighter release-readiness boundary | Implemented |
 
 ## Evolution
 
@@ -104,4 +112,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 for v2.7 panorama toolchain boundary and publishing preflight MVP completion*
+*Last updated: 2026-07-06 after v1.1 milestone archival*

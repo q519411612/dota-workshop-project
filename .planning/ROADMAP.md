@@ -1,355 +1,68 @@
 # Roadmap: Dota Workshop Project
 
 **Created:** 2026-07-03
+**Updated:** 2026-07-06
 **Mode:** Vertical MVP
-**Granularity:** Coarse
 **Core Value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
 
-## Overview
+## Milestones
 
-| # | Phase | Goal | Requirements | Status |
-|---|-------|------|--------------|--------|
-| 1 | Plugin and Skill Foundation | Load a plugin project with a focused Dota 2 Workshop Tools skill and progressively loaded references. | PLUG-01, PLUG-02, PLUG-03, SKIL-01, SKIL-02, SKIL-03, SKIL-04 | Complete |
-| 2 | MCP Contract and Addon Template | Expose typed MCP tools and generate/inspect a minimal addon template in fixtures before touching a real Dota install. | MCP-01, MCP-02, MCP-03, MCP-04, ADDN-01, ADDN-02, ADDN-03, ADDN-04, ADDN-05, ADDN-06 | Complete |
-| 3 | Local Windows Workshop Validation | Discover a local Windows Dota install, launch Workshop Tools/custom game candidates, and validate with logs or console evidence. | ENV-01, ENV-02, ENV-03, ENV-04, LNCH-01, LNCH-03, LNCH-04, VALD-01, VALD-02, VALD-03, VALD-04 | Complete |
-| 4 | Remote Windows Target Support | Run the same MCP workflows against a remote Windows target through SSH or PowerShell Remoting. | REMT-01, REMT-02, REMT-03, REMT-04, LNCH-02 | Complete |
-| 5 | Runtime Marker Validation | Launch a generated addon in Dota game runtime mode and validate the Lua marker from readable console logs. | RTVL-01, RTVL-02, RTVL-03, RTVL-04, RTVL-05 | Complete |
-| 6 | Playable Gameplay Loop MVP | Generate a minimal playable Lua gameplay loop and validate gameplay markers through the existing runtime console log path. | API2-01, API2-02, API2-03, GAME2-01, GAME2-02, GAME2-03, GAME2-04, GAME2-05, MCP2-01, MCP2-02, MCP2-03, MCP2-04, DOC2-01, DOC2-02 | Complete |
-| 7 | Repeatable Playable Smoke Workflow | Package the verified playable runtime smoke path into one repeatable MCP workflow with safe transcript output. | SMOK2-01, SMOK2-02, SMOK2-03, SMOK2-04, SMOK2-05, SMOK2-06, SMOK2-07, SMOK2-08 | Complete |
-| 8 | Safe Smoke Cleanup Controls | Add explicit dry-run and execute cleanup for known smoke Dota processes before or after repeat playable smoke runs. | CLEN2-01, CLEN2-02, CLEN2-03, CLEN2-04, CLEN2-05, CLEN2-06, CLEN2-07, CLEN2-08, CLEN2-09, CLEN2-10 | Complete |
-| 9 | Runtime Placement MVP | Add deterministic spawn placement configuration and validation markers to the playable template without introducing map editing. | PLAC2-01, PLAC2-02, PLAC2-03, PLAC2-04, PLAC2-05, PLAC2-06, PLAC2-07, PLAC2-08 | Complete |
-| 10 | Custom Map Spawn Point MVP | Prepare, compile, launch, and validate a custom map copied from the installed Workshop template with spawn entity evidence. | MAP2-01, MAP2-02, MAP2-03, MAP2-04, MAP2-05, MAP2-06, MAP2-07, MAP2-08 | Complete |
-| 11 | Gameplay Objective MVP | Add a configurable score objective to the playable template with runtime objective markers and smoke validation. | OBJ2-01, OBJ2-02, OBJ2-03, OBJ2-04, OBJ2-05, OBJ2-06, OBJ2-07, OBJ2-08 | Complete |
-| 12 | Unit Ability Scaffolding MVP | Generate minimal custom unit and linked ability KV scaffolds with local, remote, inspect, and smoke compatibility evidence. | UABL2-01, UABL2-02, UABL2-03, UABL2-04, UABL2-05, UABL2-06, UABL2-07, UABL2-08 | Complete |
-| 13 | Panorama Toolchain Boundary and Publishing Preflight MVP | Inspect addon readiness across Panorama boundaries, toolchain markers, and publishing blockers without generating UI or uploading Workshop content. | PRE2-01, PRE2-02, PRE2-03, PRE2-04, PRE2-05, PRE2-06, PRE2-07, PRE2-08 | Complete |
+- [x] **v1.1 Workshop MVP** - 13 delivery slices shipped on 2026-07-06.
 
-## Phase Details
+## Completed Work
 
-### Phase 1: Plugin and Skill Foundation
+<details>
+<summary>v1.1 Workshop MVP - shipped 2026-07-06</summary>
 
-**Goal:** Load a plugin project with a focused Dota 2 Workshop Tools skill and progressively loaded references.
-**Mode:** mvp
+Historical details:
 
-**Requirements:** PLUG-01, PLUG-02, PLUG-03, SKIL-01, SKIL-02, SKIL-03, SKIL-04
+- Roadmap archive: `.planning/milestones/v1.1-ROADMAP.md`
+- Requirements archive: `.planning/milestones/v1.1-REQUIREMENTS.md`
+- Audit archive: `.planning/milestones/v1.1-MILESTONE-AUDIT.md`
+- Execution history: `.planning/milestones/v1.1-phases/`
 
-**Success Criteria**:
+Delivered capabilities:
 
-1. The plugin manifest validates and references only files that exist in the project.
-2. The skill triggers for Dota 2 Workshop Tools, addon, Lua gamemode, Panorama, and validation requests.
-3. The skill tells the agent when to use MCP tools instead of guessing paths or commands.
-4. Skill references cover addon layout, launch flow, remote control, minimal templates, and troubleshooting.
-5. Deferred workflows are explicitly marked so v1 does not drift into TypeScript-to-Lua, React Panorama, ability generation, or Workshop publishing.
+- Plugin packaging and Dota 2 Workshop Tools skill guidance.
+- Unified MCP contract for fixture, local Windows, and remote Windows targets.
+- Minimal addon generation, inspection, launch construction, and evidence-driven validation.
+- Remote Windows discovery, file/process execution, runtime launch, and log validation.
+- Runtime marker validation through Dota `game/dota/console.log`.
+- Playable Lua gameplay loop with score and win-condition markers.
+- Repeatable playable smoke workflow and explicit addon-scoped cleanup controls.
+- Runtime placement markers and custom map spawn point preparation from the installed template map.
+- Configurable score objective markers.
+- Minimal custom unit and linked ability KV scaffolding.
+- Panorama, toolchain, and publishing preflight inspection without UI generation or Workshop upload automation.
 
-**Notes:**
+Known residual items:
 
-- This phase should use plugin and skill scaffolding helpers where practical.
-- The plugin does not need to be globally installed to pass this phase; project-local validation is enough.
+- Same-machine local Windows smoke was not separately recorded; real Windows validation used the remote Windows target path.
+- Publishing preflight is inspection-only and does not run build pipelines, encrypt content, store credentials, or upload to Workshop.
+- Runtime ability behavior, complex gameplay systems, generated Panorama UI, TypeScript-to-Lua, Excel-to-KV, and real publishing remain deferred.
 
-### Phase 2: MCP Contract and Addon Template
+</details>
 
-**Goal:** Expose typed MCP tools and generate/inspect a minimal addon template in fixtures before touching a real Dota install.
-**Mode:** mvp
+## Next Milestone Candidates
 
-**Requirements:** MCP-01, MCP-02, MCP-03, MCP-04, ADDN-01, ADDN-02, ADDN-03, ADDN-04, ADDN-05, ADDN-06
+### v1.2 Publishing Readiness
 
-**Success Criteria**:
+Goal: turn the inspection-only publishing preflight into a stricter release-readiness workflow before any real Workshop upload automation.
 
-1. MCP tool schemas require explicit target selection and return structured results with success state, operation, evidence, warnings, paths, commands, and logs.
-2. Error results include stable error codes and actionable messages.
-3. The addon generator validates names and refuses accidental overwrite.
-4. The generated fixture contains the minimal `game/dota_addons/<addon>` and `content/dota_addons/<addon>` structure.
-5. The generated Lua entry point includes a startup validation marker that later validation can search for.
+Candidate scope:
 
-**Notes:**
+- Package/build readiness checks that can run without Steam credentials.
+- Addon metadata completeness and publish-blocker reporting.
+- Secret and private target data scans before packaging.
+- Dry-run release report suitable for manual review.
+- Clear boundary around Steam login, encryption, and actual Workshop upload.
 
-- This phase should be verifiable on macOS without a real Dota install through fixture tests and schema tests.
-- Addon metadata format should remain configurable until current Workshop Tools behavior is validated on Windows.
+### Optional Validation Closure
 
-### Phase 3: Local Windows Workshop Validation
+Goal: decide whether to close the remaining same-machine local Windows smoke gap.
 
-**Goal:** Discover a local Windows Dota install, launch Workshop Tools/custom game candidates, and validate with logs or console evidence.
-**Mode:** mvp
+Candidate scope:
 
-**Requirements:** ENV-01, ENV-02, ENV-03, ENV-04, LNCH-01, LNCH-03, LNCH-04, VALD-01, VALD-02, VALD-03, VALD-04
-
-**Success Criteria**:
-
-1. The local adapter discovers or accepts a Dota install root and verifies expected binaries and addon directories.
-2. Missing Steam, missing Dota 2, missing Workshop Tools paths, unsupported OS, or invalid override paths produce explicit failures.
-3. The local adapter can launch Workshop Tools for a selected addon.
-4. The local adapter can attempt a target-validated custom game launch for a selected addon and map.
-5. Validation reports success only when expected log or console evidence is present, and returns a concise transcript for review.
-
-**Notes:**
-
-- The candidate launch command from research is `dota2.exe -novid -tools -addon <addon>` with `+dota_launch_custom_game <addon> <map>` when launching a map.
-- This phase must verify the candidate command on the actual target Windows environment before treating it as stable.
-
-### Phase 4: Remote Windows Target Support
-
-**Goal:** Run the same MCP workflows against a remote Windows target through SSH or PowerShell Remoting.
-**Mode:** mvp
-
-**Requirements:** REMT-01, REMT-02, REMT-03, REMT-04, LNCH-02
-
-**Success Criteria**:
-
-1. The user can configure a remote Windows target for SSH or PowerShell Remoting.
-2. Remote environment discovery uses the same logical MCP tool interface as local Windows discovery.
-3. Remote file and process operations return stdout, stderr, exit code, attempted command, and target metadata.
-4. Remote failures do not silently fall back to local behavior.
-5. The remote adapter can launch Workshop Tools for a selected addon through the same user-facing tool contract.
-
-**Notes:**
-
-- Remote validation should reuse the launch and log-reading concepts proven in the local Windows phase.
-- If no remote machine is available during implementation, this phase should still ship command adapter tests and a documented manual smoke checklist.
-
-### Phase 5: Runtime Marker Validation
-
-**Goal:** Launch a generated addon in Dota game runtime mode and validate the Lua marker from readable console logs.
-**Mode:** mvp
-
-**Requirements:** RTVL-01, RTVL-02, RTVL-03, RTVL-04, RTVL-05
-
-**Success Criteria**:
-
-1. `launch_custom_game` can request a game runtime launch without `-tools` while preserving Workshop Tools launch behavior.
-2. `launch_custom_game` can enable console logging with Dota's `-condebug` output.
-3. Local and remote validation can read Dota `game/dota/console.log` when present.
-4. Marker validation succeeds when the expected marker appears inside a console log line with Dota prefixes such as `[VScript]`.
-5. Real remote smoke evidence proves the generated addon reaches Lua `Activate()` and the marker appears in a readable log.
-
-**Notes:**
-
-- Real remote investigation showed `-tools` opens the addon/tooling context but does not provide sufficient evidence that Lua runtime executed.
-- Real remote investigation showed non-tools custom game launch with `-condebug` writes `game/dota/console.log`, including `[VScript] [DOTA_WORKSHOP_MCP] addon loaded: <addon>`.
-- Runtime validation must remain evidence-driven; process start or Workshop Tools asset cache writes are not enough.
-
-### Phase 6: Playable Gameplay Loop MVP
-
-**Goal:** Generate a minimal playable Lua gameplay loop and validate gameplay markers through the existing runtime console log path.
-**Mode:** mvp
-
-**Requirements:** API2-01, API2-02, API2-03, GAME2-01, GAME2-02, GAME2-03, GAME2-04, GAME2-05, MCP2-01, MCP2-02, MCP2-03, MCP2-04, DOC2-01, DOC2-02
-
-**Success Criteria**:
-
-1. v2 API research documents exist and distinguish verified, community-documented, inaccessible, and candidate evidence.
-2. The generated playable template includes Lua initialization, round start, score update, win-condition logic, and gameplay markers.
-3. The generated addon preserves the v1.1 addon runtime marker and includes needed metadata/KV support files.
-4. `inspect_addon` reports gameplay marker and support-file evidence.
-5. `validate_addon` can require multiple gameplay markers in local and remote log validation.
-6. README and skill references guide the user through playable generation, runtime launch, log reading, and marker validation.
-
-**Notes:**
-
-- Use `game/dota/console.log` and substring marker matching from v1.1.
-- Use `SetContextThink` for the minimal validation tick instead of importing a Timers framework.
-- Keep stock `dota` map validation for runtime markers; custom map spawn points are deferred.
-- Real Windows runtime smoke on 2026-07-04 validated the required gameplay markers and optional built-in creep spawn marker on the stock `dota` map.
-- `GameRules:SetCustomGameForceHero` was rejected by current runtime smoke and is not part of the stable v2 template.
-
-### Phase 7: Repeatable Playable Smoke Workflow
-
-**Goal:** Package the verified playable runtime smoke path into one repeatable MCP workflow with safe transcript output.
-**Mode:** mvp
-
-**Requirements:** SMOK2-01, SMOK2-02, SMOK2-03, SMOK2-04, SMOK2-05, SMOK2-06, SMOK2-07, SMOK2-08
-
-**Success Criteria**:
-
-1. A single MCP operation can generate a unique playable smoke addon, inspect it, launch game runtime mode, and validate the required marker set.
-2. The workflow works through the same target schema for fixture, local, and remote targets, with remote launch options such as `interactiveTask` available when needed.
-3. The smoke transcript exposes operation outcomes, command evidence, paths, marker evidence, logs, warnings, and the generated addon name.
-4. Failure at any workflow operation stops the workflow with explicit evidence and does not report partial success as validation success.
-5. Documentation explains repeatable local and remote playable smoke usage without persisting private target or credential details.
-
-**Notes:**
-
-- Default addon names should be generated from a safe prefix plus timestamp-like uniqueness.
-- Default launch settings should be `runtimeMode: "game"`, `consoleLog: true`, `mapName: "dota"`, and required gameplay markers.
-- Cleanup of target files or processes is not automatic in this phase; destructive target cleanup requires an explicit future design.
-- Real Windows runtime smoke on 2026-07-04 validated `run_playable_smoke` with remote `interactiveTask`, marker polling, and a compact transcript after stopping a previous smoke Dota process by matching its smoke addon command line.
-
-### Phase 8: Safe Smoke Cleanup Controls
-
-**Goal:** Add explicit dry-run and execute cleanup for known smoke Dota processes before or after repeat playable smoke runs.
-**Mode:** mvp
-
-**Requirements:** CLEN2-01, CLEN2-02, CLEN2-03, CLEN2-04, CLEN2-05, CLEN2-06, CLEN2-07, CLEN2-08, CLEN2-09, CLEN2-10
-
-**Success Criteria**:
-
-1. `cleanup_playable_smoke` is exposed through MCP schemas, dispatcher, and server registration without changing the `run_playable_smoke` execution path.
-2. Local and remote targets share the same cleanup input contract and return the same result shape.
-3. Dry-run cleanup reports matching Dota process candidates for the requested addon without stopping anything.
-4. Execute cleanup stops only Dota-related processes whose command line explicitly contains the requested addon name.
-5. Fixture tests cover command construction, no-match, invalid addon name, remote command failure, dry-run, execute mode, and MCP exposure.
-6. README and skill references describe the explicit cleanup workflow for repeat playable smoke runs.
-
-**Notes:**
-
-- The cleanup operation must never delete generated addon files.
-- The cleanup operation must never stop Steam and must not perform a broad Dota process kill.
-- A no-match result should be explicit and auditable; it is a successful inspection of the target state, not a hidden fallback.
-- Real Windows cleanup and repeat smoke validation can run only when runtime target access is provided.
-- Implementation added `cleanup_playable_smoke`, dry-run default behavior, execute mode, local/remote command construction tests, explicit no-match evidence, remote failure evidence, and documentation.
-
-### Phase 9: Runtime Placement MVP
-
-**Goal:** Add deterministic spawn placement configuration and validation markers to the playable template without introducing map editing.
-**Mode:** mvp
-
-**Requirements:** PLAC2-01, PLAC2-02, PLAC2-03, PLAC2-04, PLAC2-05, PLAC2-06, PLAC2-07, PLAC2-08
-
-**Success Criteria**:
-
-1. `create_addon` accepts optional placement configuration for the playable template and rejects invalid unit names, teams, or vector values before writing files.
-2. The playable Lua template emits placement markers that validation can search for through existing `validate_addon` and `run_playable_smoke` paths.
-3. `inspect_addon` reports placement configuration and marker evidence when placement is present.
-4. Remote addon generation reuses the same renderer and command contract as local generation.
-5. Fixture tests cover local generation, remote command construction, smoke marker validation, invalid placement, and default-path compatibility.
-6. README and skill references explain runtime placement while keeping custom map editing, Hammer UI automation, complex objectives, and unit/ability generators deferred.
-
-**Notes:**
-
-- This phase controls runtime placement on stock launchable maps; it does not generate or edit Hammer maps.
-- The default playable template must remain compatible with v2/v2.1/v2.2 smoke tests.
-- Placement validation remains evidence-driven and uses log markers, not process launch success.
-- Implementation added optional placement input, placement validation, generated Lua placement markers, inspect evidence, smoke marker expansion, remote renderer parity, fixture tests, and documentation.
-
-### Phase 10: Custom Map Spawn Point MVP
-
-**Goal:** Prepare, compile, launch, and validate a custom map copied from the installed Workshop template with spawn entity evidence.
-**Mode:** mvp
-
-**Requirements:** MAP2-01, MAP2-02, MAP2-03, MAP2-04, MAP2-05, MAP2-06, MAP2-07, MAP2-08
-
-**Success Criteria**:
-
-1. `prepare_custom_map` is exposed through MCP schemas, dispatcher, and server registration.
-2. The tool copies the installed `addon_template/maps/template_map.vmap` into the selected addon's content map directory and rejects existing output unless replacement is requested.
-3. The copied source is inspected for `info_player_start_goodguys` and `info_player_start_badguys` before success is reported.
-4. Local and remote Windows compile paths use `resourcecompiler.exe` and return command evidence, output, exit code, paths, warnings, and logs.
-5. `run_playable_smoke` can optionally prepare the custom map before launch while preserving default stock-map behavior.
-6. Real Windows validation compiles the custom map, launches it, validates runtime gameplay markers from `game/dota/console.log`, and uses addon-scoped cleanup afterward.
-
-**Notes:**
-
-- This phase uses the installed Workshop template map as the deterministic source of spawn entities.
-- This phase does not edit binary `.vmap` spawn coordinates and does not automate Hammer UI.
-- Custom map validation remains evidence-driven: compile success plus runtime log markers are required.
-- Implementation added `prepare_custom_map`, custom-map smoke orchestration, local/remote command evidence, `.vpk` output verification, fixture and remote tests, and documentation.
-- Real Windows custom-map smoke passed on 2026-07-06 using the remote SSH target adapter without storing private target credentials in the repository. The run copied `addon_template/maps/template_map.vmap`, verified `info_player_start_goodguys` and `info_player_start_badguys`, compiled `template_spawn_smoke.vpk` with `resourcecompiler.exe`, launched the custom map with remote `interactiveTask`, validated all gameplay markers from `game/dota/console.log`, and cleaned up only the matching Dota process.
-- Real compiler validation showed `resourcecompiler.exe -game` must receive the `game/dota` directory, not `game/dota/gameinfo.gi`, and the map output for this template is `<map>.vpk`.
-
-### Phase 11: Gameplay Objective MVP
-
-**Goal:** Add a configurable score objective to the playable template with runtime objective markers and smoke validation.
-**Mode:** mvp
-
-**Requirements:** OBJ2-01, OBJ2-02, OBJ2-03, OBJ2-04, OBJ2-05, OBJ2-06, OBJ2-07, OBJ2-08
-
-**Success Criteria**:
-
-1. `create_addon` accepts an optional score objective configuration for the playable template and rejects unsafe values before writing files.
-2. The generated Lua preserves the default playable loop when no objective is provided.
-3. When an objective is provided, the Lua emits objective configured, progress, and complete markers.
-4. `inspect_addon` reports objective configuration and marker evidence.
-5. Remote addon creation uses the same renderer and command contract as local generation.
-6. `run_playable_smoke` can include objective markers in expected validation when an objective is requested.
-7. Fixture tests cover schema parsing, invalid objective rejection, generated Lua objective content, inspect evidence, remote command construction, and smoke marker validation.
-8. Real Windows validation proves objective markers on a launchable map, preferably through the custom-map smoke path validated in Phase 10.
-
-**Notes:**
-
-- This phase should not introduce complex quest graphs, AI, custom units, abilities, items, or Panorama UI.
-- Use the existing score/win loop as the smallest rigorous objective surface.
-- Keep default smoke markers unchanged when no objective is requested.
-- Implementation added optional score objective input, objective validation, Lua objective markers, inspect evidence, smoke marker expansion, remote renderer parity, fixture and remote tests, and documentation.
-- Real Windows objective smoke passed on 2026-07-06 using the remote SSH target adapter without storing private target credentials in the repository. The run prepared and compiled `template_objective_smoke.vpk`, launched addon `objective_20260705224126`, validated default gameplay markers plus objective configured/progress/complete markers from `game/dota/console.log`, and cleaned up only the matching Dota process.
-
-### Phase 12: Unit Ability Scaffolding MVP
-
-**Goal:** Generate minimal custom unit and linked ability KV scaffolds with local, remote, inspect, and smoke compatibility evidence.
-**Mode:** mvp
-
-**Requirements:** UABL2-01, UABL2-02, UABL2-03, UABL2-04, UABL2-05, UABL2-06, UABL2-07, UABL2-08
-
-**Success Criteria**:
-
-1. `create_addon` and `run_playable_smoke` accept optional `unitAbilityScaffold` input for one custom unit and one linked ability.
-2. Scaffold names are validated before local writes or remote command construction.
-3. Generated unit KV contains the requested unit and `Ability1` link.
-4. Generated ability KV exists and contains the requested ability scaffold.
-5. `inspect_addon` reports scaffold file and entry evidence.
-6. Remote addon creation uses the shared renderer for scaffold content.
-7. Scaffolded playable smoke preserves existing marker expectations.
-8. Real Windows validation proves scaffolded addons do not break the existing runtime marker loop.
-
-**Notes:**
-
-- This phase scaffolds KV files only; it does not prove custom ability runtime execution.
-- Lua ability behavior, modifiers, custom items, heroes, AI, UI, and publishing remain deferred.
-- Keep scaffold validation explicit; do not fall back to empty files after invalid input.
-- Implementation added optional `unitAbilityScaffold` input, scaffold validation, deterministic unit and ability KV generation, linked inspect evidence, remote renderer parity, smoke passthrough, fixture/remote/smoke tests, and documentation.
-- Real Windows scaffolded smoke passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `scaffold_20260705231402` launched on map `dota`, found the default gameplay markers in `game/dota/console.log`, and explicit cleanup stopped only the matching Dota process.
-
-### Phase 13: Panorama Toolchain Boundary and Publishing Preflight MVP
-
-**Goal:** Inspect addon readiness across Panorama boundaries, toolchain markers, and publishing blockers without generating UI or uploading Workshop content.
-**Mode:** mvp
-
-**Requirements:** PRE2-01, PRE2-02, PRE2-03, PRE2-04, PRE2-05, PRE2-06, PRE2-07, PRE2-08
-**Depends on:** Phase 12
-
-**Success Criteria**:
-
-1. `inspect_workshop_preflight` is exposed through schemas, dispatcher, and MCP server registration.
-2. Preflight validates addon names and target roots before filesystem reads or remote commands.
-3. Preflight reports runtime/content layout evidence for generated addon files.
-4. Preflight reports Panorama source/runtime directory evidence without generating UI.
-5. Preflight reports TypeScript-to-Lua and React Panorama marker evidence without running toolchains.
-6. Preflight reports publishing blockers without credentials, encryption, or Workshop upload.
-7. Local and remote preflight return the same logical evidence contract.
-8. Docs explain the preflight boundary and deferred generation/upload behavior.
-
-**Notes:**
-
-- This phase is inspection and readiness reporting only.
-- React Panorama generation, TypeScript-to-Lua templates, encryption, Steam credentials, and Workshop upload remain deferred.
-- Remote Windows validation should inspect a real addon tree and return path/command evidence, but does not need to launch Dota.
-- Implementation added `inspect_workshop_preflight`, local and remote evidence parity, Panorama directory/file checks, toolchain marker checks, publishing blocker warnings, fixture and remote command tests, and documentation.
-- Real Windows remote preflight passed on 2026-07-06 through the remote SSH target adapter without storing private target credentials in the repository. Addon `preflight_20260705233718` returned game/content layout evidence, missing Panorama directory evidence, missing toolchain marker evidence, publishing blocker warnings, path evidence, and one remote command record.
-
-## Coverage
-
-| Metric | Count |
-|--------|-------|
-| v1 requirements | 33 |
-| v1.1 requirements | 5 |
-| v2 MVP requirements | 14 |
-| v2.1 requirements | 8 |
-| v2.2 requirements | 10 |
-| v2.3 requirements | 8 |
-| v2.4 requirements | 8 |
-| v2.5 requirements | 8 |
-| v2.6 requirements | 8 |
-| v2.7 requirements | 8 |
-| Mapped requirements | 110 |
-| Unmapped requirements | 0 |
-| Phases | 13 |
-
-## Deferred Scope
-
-- Binary Hammer map entity editing.
-- Runtime ability behavior, item generators, full unit generators, and hero generators.
-- React Panorama generation.
-- TypeScript-to-Lua project templates.
-- Excel-to-KV workflows.
-- Workshop publishing and encryption.
-- UI automation as a primary control strategy.
-
----
-*Roadmap updated: 2026-07-06 for v2.7 panorama toolchain boundary and publishing preflight MVP completion*
+- Run the local Windows target path directly on the Windows machine that has Dota 2 and Workshop Tools installed.
+- Record discovery, launch, log, and validation evidence without storing credentials or private host details.
+- Add a small verification artifact if the local smoke materially increases confidence beyond the existing remote Windows evidence.

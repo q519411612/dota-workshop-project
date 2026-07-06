@@ -1,3 +1,20 @@
+---
+gsd_state_version: 1.0
+milestone: v1.1
+milestone_name: Workshop MVP
+current_phase: null
+status: Awaiting next milestone
+last_updated: "2026-07-06T02:56:54.738Z"
+last_activity: 2026-07-06
+last_activity_desc: Milestone v1.1 completed and archived
+progress:
+  total_phases: 13
+  completed_phases: 13
+  total_plans: 13
+  completed_plans: 13
+  percent: 100
+---
+
 # Project State: Dota Workshop Project
 
 **Updated:** 2026-07-06
@@ -7,7 +24,7 @@
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** Current roadmap complete through v2.7 Panorama Toolchain Boundary and Publishing Preflight MVP; next project work should start from milestone audit or a new roadmap slice.
+**Current focus:** v1.1 Workshop MVP is archived; next project work should decide the local Windows smoke closure and then open a publishing readiness milestone.
 
 ## Current Roadmap
 
@@ -40,17 +57,17 @@ See: `.planning/PROJECT.md`
 | Use Vertical MVP roadmap structure | Roadmap setup |
 | Runtime validation launches without `-tools` and enables `-condebug` | Remote v1.1 investigation |
 | v2 uses a small Lua `SetContextThink` gameplay loop instead of importing a framework | `.planning/research/GAMEPLAY_LOOP_API_NOTES.md` |
-| v2 stable template avoids `GameRules:SetCustomGameForceHero` because current runtime smoke rejected it | `.planning/phases/06-playable-gameplay-loop-mvp/06-REMOTE-SMOKE.md` |
+| v2 stable template avoids `GameRules:SetCustomGameForceHero` because current runtime smoke rejected it | `.planning/milestones/v1.1-phases/06-playable-gameplay-loop-mvp/06-REMOTE-SMOKE.md` |
 | v2.1 should compose existing MCP operations instead of creating a separate local or remote smoke contract | `.planning/ROADMAP.md` |
-| v2.1 does not automatically delete target files or stop broad process sets; smoke cleanup remains explicit and user-controlled | `.planning/phases/07-repeatable-playable-smoke-workflow/07-REVIEW.md` |
-| v2.2 cleanup must be an explicit MCP operation and must not run silently inside `run_playable_smoke` | `.planning/phases/08-safe-smoke-cleanup-controls/08-SPEC.md` |
+| v2.1 does not automatically delete target files or stop broad process sets; smoke cleanup remains explicit and user-controlled | `.planning/milestones/v1.1-phases/07-repeatable-playable-smoke-workflow/07-REVIEW.md` |
+| v2.2 cleanup must be an explicit MCP operation and must not run silently inside `run_playable_smoke` | `.planning/milestones/v1.1-phases/08-safe-smoke-cleanup-controls/08-SPEC.md` |
 | v2.3 placement should extend the playable template and marker validation before custom map editing or unit/ability generation | `.planning/ROADMAP.md` |
-| v2.4 should copy and compile the installed template map before attempting binary Hammer map entity editing | `.planning/phases/10-custom-map-spawn-point-mvp/10-SPEC.md` |
+| v2.4 should copy and compile the installed template map before attempting binary Hammer map entity editing | `.planning/milestones/v1.1-phases/10-custom-map-spawn-point-mvp/10-SPEC.md` |
 | `resourcecompiler.exe -game` must receive the `game/dota` directory, and the compiled template map output is `<map>.vpk` | Real Windows v2.4 smoke |
 | v2.5 should parameterize the validated score/win loop before introducing complex quests, AI, custom units, abilities, items, or UI | `.planning/ROADMAP.md` |
-| Objective validation success requires objective markers from logs, not launch success alone | `.planning/phases/11-gameplay-objective-mvp/11-VERIFICATION.md` |
-| v2.6 scaffolds custom unit and ability KV only; it must not claim custom ability runtime execution | `.planning/phases/12-unit-ability-scaffolding-mvp/12-SPEC.md` |
-| v2.6 scaffold validation success requires linked KV inspect evidence and runtime compatibility markers, not custom ability execution | `.planning/phases/12-unit-ability-scaffolding-mvp/12-VERIFICATION.md` |
+| Objective validation success requires objective markers from logs, not launch success alone | `.planning/milestones/v1.1-phases/11-gameplay-objective-mvp/11-VERIFICATION.md` |
+| v2.6 scaffolds custom unit and ability KV only; it must not claim custom ability runtime execution | `.planning/milestones/v1.1-phases/12-unit-ability-scaffolding-mvp/12-SPEC.md` |
+| v2.6 scaffold validation success requires linked KV inspect evidence and runtime compatibility markers, not custom ability execution | `.planning/milestones/v1.1-phases/12-unit-ability-scaffolding-mvp/12-VERIFICATION.md` |
 | v2.7 preflight is inspection-only; it must not generate Panorama UI, run TypeScript-to-Lua or React toolchains, store publishing credentials, encrypt content, or upload to Workshop | `.planning/ROADMAP.md` |
 
 ## Research Inputs
@@ -121,7 +138,19 @@ See: `.planning/PROJECT.md`
 
 ## Next Action
 
-Run final verification, refresh graphify, commit and push v2.7, then run milestone audit or start the next roadmap.
+Decide whether to run same-machine local Windows smoke, then start the publishing readiness milestone from fresh requirements.
 
 ---
-*Last updated: 2026-07-06 for v2.7 panorama toolchain boundary and publishing preflight MVP completion*
+*Last updated: 2026-07-06 after v1.1 milestone archival*
+
+## Current Position
+
+Phase: Milestone v1.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-06 — Milestone v1.1 completed and archived
+
+## Operator Next Steps
+
+- Decide whether to close the local Windows smoke gap.
+- Start the next milestone with `/gsd-new-milestone`.
