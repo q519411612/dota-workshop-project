@@ -12,6 +12,51 @@
 - [x] **v1.3 Windows Validation Closure** - sanitized real Windows evidence for the remaining local/same-machine smoke gap.
 - [x] **v1.4 Plugin Install Handoff Readiness** - local plugin readiness verification before operator handoff.
 - [x] **v1.5 Operator Runbook and Example Workflows** - checked operator runbook and reusable safe workflow examples.
+- [x] **v1.6 Release Candidate Audit Gate** - local RC gate before any broader handoff or publishing work.
+
+## Latest Completed Work
+
+### v1.6 Release Candidate Audit Gate
+
+Goal: establish a local `verify:rc` gate that aggregates plugin/package readiness, examples/schema validation, build/test checks, strict sensitive information scanning, and explicit no-upload/no-login/no-encryption boundary checks.
+
+Scope:
+
+- Add `npm run verify:rc` as a local-only gate.
+- Run existing readiness commands through a structured verifier.
+- Scan repository-owned text files for credential/private-target material and unsafe publishing automation.
+- Document the gate in README and the operator runbook.
+- Avoid Windows runtime work, real Workshop upload, Steam login, Steam Guard, content encryption, package signing, and credential storage.
+
+### Phase 1: Release Candidate Audit Gate
+
+**Status:** Complete
+**Goal:** Add `npm run verify:rc`, structured RC gate evidence, tests, and docs.
+**Requirements:** RC-01, RC-02, RC-03, RC-04, RC-05, RC-06, RC-07
+**Canonical refs:**
+
+- `.planning/REQUIREMENTS.md`
+- `.planning/phases/01-release-candidate-audit-gate/01-SPEC.md`
+- `.planning/phases/01-release-candidate-audit-gate/01-01-PLAN.md`
+
+**In scope:**
+
+- Local command aggregation.
+- Repository-owned text scanning.
+- Publishing boundary failure checks.
+- Documentation and test coverage.
+
+**Out of scope:**
+
+- Real Workshop upload, Steam login, Steam Guard, content encryption, package signing, archive creation, Windows smoke, remote smoke, UI automation, or new gameplay/toolchain features.
+
+**Outcome:**
+
+- Added `npm run verify:rc`.
+- Added a structured RC verifier and CLI.
+- The gate runs plugin readiness, example/schema tests, typecheck, full tests, build, and repository hygiene scanning.
+- The scanner excludes generated dependency/output trees and `.planning/graphs` freshness output.
+- Documentation now places the RC gate before handoff or optional remote smoke.
 
 ## Completed Work
 

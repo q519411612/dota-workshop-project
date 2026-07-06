@@ -1,106 +1,121 @@
-# Requirements: v1.5 Operator Runbook and Example Workflows
+# Requirements: v1.6 Release Candidate Audit Gate
 
 **Created:** 2026-07-06
-**Milestone:** v1.5 Operator Runbook and Example Workflows
+**Milestone:** v1.6 Release Candidate Audit Gate
 **Status:** Complete
 
 ## Goal
 
-Give operators and future agents a checked runbook and reusable example workflow inputs for the already-validated create/smoke/preflight/release dry-run paths, without storing credentials or performing real Workshop upload behavior.
+Create a local release-candidate verification gate that aggregates package readiness, example/schema validation, build/test checks, strict sensitive information scanning, and explicit publishing boundary checks before any future distribution or upload work.
 
 ## Scope
 
 ### In Scope
 
-- A local operator runbook that explains the safe order of build, plugin readiness verification, fixture workflow, optional remote smoke, cleanup, preflight, and dry-run release review.
-- Machine-checkable example workflow JSON files for fixture create/inspect/preflight/release dry-run and optional remote playable smoke.
-- Tests that parse every example and validate it against existing MCP input schemas.
-- Tests that scan examples and the runbook for forbidden private credential/host/token material.
-- README links to the runbook and examples.
+- A repository-local `npm run verify:rc` command.
+- A structured RC verifier module that reports checks, evidence, warnings, blockers, paths, and commands.
+- Gate command coverage for plugin readiness, examples/schema validation, typecheck, tests, and build.
+- A strict repository scan that excludes generated dependencies and graph output while scanning tracked project sources, docs, examples, planning artifacts, plugin metadata, and skills.
+- Boundary checks that fail if repository content appears to introduce real Workshop upload automation, Steam login automation, Steam Guard handling, content encryption, package signing, private target storage, credentials, tokens, private keys, or private host data.
+- Tests for success and failure behavior without requiring Dota 2, Steam, Workshop Tools, or Windows.
+- README and operator runbook updates that place `verify:rc` before handoff.
 - GSD verification and independent review artifacts.
 
 ### Out of Scope
 
-- Running real Windows smoke as part of this slice.
-- Real Workshop upload, Steam login, Steam Guard, content encryption, publish-state mutation, package signing, or archive creation.
+- Real Workshop upload, publish-state mutation, Steam login, Steam Guard, content encryption, package signing, or archive creation.
+- Running Dota 2, Workshop Tools, remote Windows smoke, same-machine Windows smoke, or UI automation as part of the RC gate.
 - Storing Steam, GitHub, Windows, remote, token, password, private key, private host, or private target material.
-- Generating a new gameplay feature, Panorama UI, TypeScript-to-Lua project, React project, Excel-to-KV pipeline, or custom ability runtime behavior.
-- Global plugin installation or package registry publishing.
+- Adding new gameplay, Panorama, TypeScript-to-Lua, React, Excel-to-KV, unit/ability runtime, or publishing automation capabilities.
 
 ## Requirements
 
-### RUN-01 Operator Runbook
+### RC-01 Local RC Command
 
-Document the safe operator workflow.
-
-Acceptance:
-
-- `docs/operator-runbook.md` exists.
-- The runbook includes `npm run build`, `npm run verify:plugin`, fixture validation, optional remote smoke, cleanup, preflight, and dry-run release review.
-- The runbook states process launch is not validation success.
-- The runbook states credentials and private target details must remain runtime-only.
-
-### RUN-02 Machine-Checkable Examples
-
-Provide reusable workflow input examples.
+Provide a local release-candidate gate command.
 
 Acceptance:
 
-- `examples/workflows/fixture-create-addon.json` exists.
-- `examples/workflows/fixture-preflight.json` exists.
-- `examples/workflows/fixture-release-dry-run.json` exists.
-- `examples/workflows/remote-playable-smoke.template.json` exists.
-- Examples use operation names that exist in `toolNames`.
-- Examples include only schema-valid input payloads.
+- `package.json` defines `verify:rc`.
+- `verify:rc` runs from built output.
+- The command exits non-zero when any blocker is found.
+- The command prints a structured JSON report.
 
-### RUN-03 Example Safety Scan
+### RC-02 Gate Command Aggregation
 
-Block private or credential-like material in examples and runbook.
+Aggregate existing local readiness checks.
 
 Acceptance:
 
-- Tests scan example files and `docs/operator-runbook.md`.
+- The RC verifier runs `npm run verify:plugin`.
+- The RC verifier runs the example/schema test target.
+- The RC verifier runs `npm run typecheck`.
+- The RC verifier runs `npm test`.
+- The RC verifier runs `npm run build`.
+- Every command result records command text, exit code, stdout, stderr, and duration.
+
+### RC-03 Strict Repository Scan
+
+Scan repository-owned text files for private or credential-like material.
+
+Acceptance:
+
+- The scan excludes `node_modules`, `dist`, `.git`, `graphify-out`, `.planning/graphs`, package lockfiles, and binary-like files.
 - The scan blocks private host/address material, passwords, tokens, private keys, Steam credentials, and known private target fragments.
-- The remote example uses placeholder values only.
+- Findings include only relative paths and rule labels, not secret values.
+- Oversized or unreadable files are reported explicitly instead of silently accepted.
 
-### RUN-04 Schema Validation
+### RC-04 Publishing Boundary Checks
 
-Validate examples against existing MCP input schemas.
-
-Acceptance:
-
-- Tests parse every example JSON file.
-- Each example's `input` validates against the matching schema in `src/schemas.ts`.
-- Unknown operations are blockers.
-
-### RUN-05 Discoverability
-
-Expose the runbook and examples from README.
+Fail if unsafe publishing automation appears in repository-owned files.
 
 Acceptance:
 
-- README links to `docs/operator-runbook.md`.
-- README links to `examples/workflows/`.
-- README repeats that examples are dry-run/safe templates and not real upload automation.
+- The scan blocks real Workshop upload automation.
+- The scan blocks Steam login or Steam Guard automation.
+- The scan blocks content encryption automation.
+- The scan blocks package signing or publish-state mutation automation.
+- Existing documentation may discuss these behaviors only as explicit out-of-scope or manual boundaries.
 
-### RUN-06 Verification and Review
+### RC-05 Safe Local-Only Execution
+
+Keep the RC gate deterministic and local-only.
+
+Acceptance:
+
+- The RC gate does not call Dota 2, Workshop Tools, Steam, SSH, PowerShell Remoting, or MCP runtime target operations.
+- The RC gate does not require Windows.
+- The RC gate does not require network access.
+- The RC gate does not read credentials from environment variables.
+
+### RC-06 Discoverability
+
+Document the RC gate for operators.
+
+Acceptance:
+
+- README mentions `npm run verify:rc`.
+- `docs/operator-runbook.md` places `npm run verify:rc` before handoff.
+- Documentation states the gate is local-only and not upload automation.
+
+### RC-07 Verification and Review
 
 Close the slice with automated verification and independent review.
 
 Acceptance:
 
-- Targeted example tests pass.
-- `npm run verify:plugin` still passes.
-- `git diff --check`, `npm run typecheck`, `npm test`, and `npm run build` pass.
-- Strict high-signal secret scan reports no stored credentials.
+- Targeted RC tests pass.
+- `npm run build` succeeds.
+- `npm run verify:rc` succeeds.
+- `git diff --check`, `npm run typecheck`, `npm test`, and strict secret scan succeed.
 - `01-VERIFICATION.md`, `01-REVIEW.md`, and `01-01-SUMMARY.md` record the outcome.
 
 ## Definition of Done
 
-- [x] v1.5 requirements, roadmap, spec, and plan exist.
-- [x] Operator runbook exists and is linked.
-- [x] Example workflow JSON files exist and are schema-validated.
-- [x] Example/runbook safety scan passes.
+- [x] v1.6 requirements, roadmap, spec, and plan exist.
+- [x] `verify:rc` exists and emits structured gate results.
+- [x] RC tests cover command aggregation, secret scan failures, and publishing boundary failures.
+- [x] README and operator runbook include the RC gate.
 - [x] Local verification passes.
 - [x] Independent review is recorded.
 - [ ] Changes are committed and pushed.

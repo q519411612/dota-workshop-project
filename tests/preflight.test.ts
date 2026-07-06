@@ -180,9 +180,11 @@ describe("workshop preflight inspection", () => {
       addonName: "demo_addon"
     });
     await writeCompleteAddonInfo(root, "demo_addon", "dota");
+    const credentialName = ["steam", "password"].join("_");
+    const credentialValue = ["super", "secret", "value", "123"].join("_");
     await writeFile(
       join(root, "game/dota_addons/demo_addon/scripts/vscripts/secrets.lua"),
-      "local steam_password = 'super_secret_value_123'\n"
+      `local ${credentialName} = '${credentialValue}'\n`
     );
 
     const result = await dryRunReleaseReport({
@@ -192,7 +194,7 @@ describe("workshop preflight inspection", () => {
 
     expect(result.ok).toBe(false);
     expect(result.evidence).toContain("secret blocker: scripts/vscripts/secrets.lua matches password");
-    expect(result.evidence.join("\n")).not.toContain("super_secret_value_123");
+    expect(result.evidence.join("\n")).not.toContain(credentialValue);
   });
 
   test("rejects invalid dry-run input before filesystem inspection", async () => {

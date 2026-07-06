@@ -26,16 +26,15 @@ const schemasByOperation: Record<string, z.ZodTypeAny> = {
 };
 
 const forbiddenPatterns = [
-  new RegExp(["192", "168", "50", "42"].join("\\.")),
-  new RegExp(["120", "120a"].join("")),
-  new RegExp(`\\b${["che", "na"].join("")}\\b`),
-  new RegExp(["dfs", "team", "v2"].join(""), "i"),
+  /\b(?:10\.(?:\d{1,3}\.){2}\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b/,
   /BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY/,
   /ghp_[A-Za-z0-9_]+/,
   /github_pat_[A-Za-z0-9_]+/,
   /password"\s*:/i,
+  /\bpassword\b\s*[:=]/i,
   /token"\s*:/i,
-  /steam(password|guard|login|credential)/i
+  /\btoken\b\s*[:=]/i,
+  /steam[_-]?(password|guard|login|credential)\b/i
 ];
 
 type WorkflowExample = {

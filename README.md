@@ -36,9 +36,12 @@ Before installing or handing off the plugin, run:
 ```bash
 npm run build
 npm run verify:plugin
+npm run verify:rc
 ```
 
 The verifier checks the plugin manifest, MCP config, package entrypoint, built server entrypoint, skill references, and documented MCP tool lists. It is local-only: do not store Steam credentials, GitHub tokens, Windows passwords, private keys, remote host details, or private target data in this repository.
+
+`npm run verify:rc` is the local release-candidate gate. It aggregates plugin readiness, schema-valid workflow examples, typecheck, tests, build, repository hygiene scanning, and publishing boundary checks. It is not upload automation and does not log into Steam, run Workshop upload, encrypt content, sign packages, run Windows smoke, or contact remote targets.
 
 ## Operator Runbook and Examples
 
