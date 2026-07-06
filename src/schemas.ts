@@ -43,7 +43,8 @@ export const GameplayObjectiveSchema = z.object({
 
 export const UnitAbilityScaffoldSchema = z.object({
   unitName: z.string().min(1),
-  abilityName: z.string().min(1)
+  abilityName: z.string().min(1),
+  abilityProof: z.boolean().optional()
 });
 
 export const CreateAddonInputSchema = z.object({

@@ -41,7 +41,8 @@ const objectiveInput = z.object({
 
 const unitAbilityScaffoldInput = z.object({
   unitName: z.string().min(1),
-  abilityName: z.string().min(1)
+  abilityName: z.string().min(1),
+  abilityProof: z.boolean().optional()
 });
 
 export function createServer(): McpServer {

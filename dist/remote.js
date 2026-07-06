@@ -684,6 +684,7 @@ function remoteCreateAddonScript(dotaRoot, addonName, mapName, template, placeme
         : `if ((Test-Path -LiteralPath ${quoteForPowerShellSingleQuotedString(gameAddon)}) -or (Test-Path -LiteralPath ${quoteForPowerShellSingleQuotedString(contentAddon)})) { throw 'ADDON_ALREADY_EXISTS' };`;
     const directories = [
         `${gameAddon}/scripts/vscripts`,
+        `${gameAddon}/scripts/vscripts/abilities`,
         `${gameAddon}/scripts/npc`,
         `${gameAddon}/resource`,
         `${contentAddon}/maps`
@@ -695,6 +696,7 @@ function remoteCreateAddonScript(dotaRoot, addonName, mapName, template, placeme
         [`${gameAddon}/scripts/npc/npc_heroes_custom.txt`, files.heroData],
         [`${gameAddon}/scripts/npc/npc_units_custom.txt`, files.unitData],
         [`${gameAddon}/scripts/npc/npc_abilities_custom.txt`, files.abilityData],
+        ...(files.abilityProofLua ? [[`${gameAddon}/scripts/vscripts/${files.abilityProofLua.scriptFile}`, files.abilityProofLua.contents]] : []),
         [`${gameAddon}/resource/addon_${addonName}_english.txt`, files.localization]
     ].map(([path, value]) => `Set-Content -LiteralPath ${quoteForPowerShellSingleQuotedString(path)} -Value ${quoteForPowerShellSingleQuotedString(value)}`).join("; ");
     return `${replaceScript} New-Item -ItemType Directory -Force -Path ${directories} | Out-Null; ${writes}`;

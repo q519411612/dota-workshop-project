@@ -18,8 +18,55 @@
 - [x] **v1.9 Same-Machine Windows Local Smoke Evidence** - local harness and sanitized evidence verifier for MCP running directly on Windows.
 - [x] **v1.10 Release Bundle Manifest / Source Snapshot Dry Run** - deterministic source snapshot manifest without archive, signing, encryption, or upload.
 - [x] **v1.11 Addon Metadata Polish** - richer addon metadata generation and dry-run metadata blockers.
+- [x] **v1.12 Minimal Runtime Ability Proof** - explicit Lua ability marker proof harness without claiming real runtime evidence unless logs prove it.
 
 ## Active Work
+
+### v1.12 Minimal Runtime Ability Proof
+
+Goal: add a minimal Lua ability marker proof on top of the existing unit and ability KV scaffold while keeping real runtime ability evidence pending unless actual Windows Dota logs contain the expected marker.
+
+Scope:
+
+- Add an explicit ability proof option to the existing unit ability scaffold.
+- Generate a minimal Lua ability marker file and link it from ability KV.
+- Expose marker expectations and validation contract evidence for local tests and smoke validation.
+- Keep harness readiness separate from real Windows runtime evidence.
+- Keep the slice free of Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, archive creation, registry publish, global installation, remote Windows connections, UI automation, broad gameplay expansion, Panorama, TypeScript-to-Lua, React, or Excel-to-KV.
+
+### Phase 1: Minimal Runtime Ability Proof
+
+**Status:** Complete
+**Goal:** Add explicit Lua ability marker proof generation and local validation contract tests.
+**Requirements:** ABILITY-01, ABILITY-02, ABILITY-03, ABILITY-04, ABILITY-05
+**Canonical refs:**
+
+- `.planning/REQUIREMENTS.md`
+- `.planning/phases/01-minimal-runtime-ability-proof/01-SPEC.md`
+- `.planning/phases/01-minimal-runtime-ability-proof/01-01-PLAN.md`
+
+**In scope:**
+
+- Schema parsing for the explicit proof option.
+- Generated ability Lua marker proof file.
+- Unit KV and ability KV link checks.
+- Marker expectation helpers and smoke validation contract.
+- Local-only tests and review artifacts that do not require Dota, Steam, Workshop Tools, Windows, or network access.
+
+**Out of scope:**
+
+- Real Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, archive creation, registry publish, global installation, remote Windows connections, UI automation, complex gameplay systems, Panorama, TypeScript-to-Lua, React, Excel-to-KV, or claimed runtime ability success without real marker logs.
+
+**Outcome:**
+
+- Added an explicit `unitAbilityScaffold.abilityProof` option.
+- Generated ability proof Lua files under `scripts/vscripts/abilities` and linked them from ability KV with `ScriptFile`.
+- Added deterministic ability proof loaded and spawned marker expectations.
+- Smoke validation now expects ability proof markers only when the proof option is requested.
+- Local tests prove schema parsing, generated files, KV links, inspect evidence, fixture validation pass, and missing marker failure.
+- Real Windows runtime ability evidence remains pending until sanitized runtime logs contain the expected markers.
+
+## Latest Completed Work
 
 ### v1.11 Addon Metadata Polish
 
@@ -62,8 +109,6 @@ Scope:
 - Missing and placeholder metadata fields produce release blockers and are included in the blocker count.
 - Local and remote dry-run release metadata key lists remain aligned.
 - No Steam, Workshop upload, encryption, signing, archive, or publishing behavior was added.
-
-## Latest Completed Work
 
 ### v1.10 Release Bundle Manifest / Source Snapshot Dry Run
 

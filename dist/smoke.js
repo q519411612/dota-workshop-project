@@ -1,4 +1,4 @@
-import { createAddon, inspectAddon, objectiveMarkers, placementMarkers, validateAddonName, validateGameplayObjective, validateMapName, validateRuntimePlacement, validateUnitAbilityScaffold } from "./addon.js";
+import { createAddon, abilityProofMarkers, inspectAddon, objectiveMarkers, placementMarkers, validateAddonName, validateGameplayObjective, validateMapName, validateRuntimePlacement, validateUnitAbilityScaffold } from "./addon.js";
 import { launchCustomGame, validateAddon } from "./launch.js";
 import { prepareCustomMap } from "./map.js";
 import { createRemoteAddon, inspectRemoteAddon, launchRemoteCustomGame, validateRemoteAddon } from "./remote.js";
@@ -34,7 +34,7 @@ export async function runPlayableSmoke(input) {
     const operation = "run_playable_smoke";
     const mapName = input.customMap?.mapName ?? input.mapName ?? "dota";
     const addonName = input.addonName ?? generatePlayableSmokeAddonName(input.addonPrefix);
-    const expectedMarkers = input.expectedMarkers ?? playableSmokeMarkers(addonName).concat(input.placement ? placementMarkers(addonName, input.placement) : [], input.objective ? objectiveMarkers(addonName, input.objective) : []);
+    const expectedMarkers = input.expectedMarkers ?? playableSmokeMarkers(addonName).concat(input.placement ? placementMarkers(addonName, input.placement) : [], input.objective ? objectiveMarkers(addonName, input.objective) : [], input.unitAbilityScaffold?.abilityProof ? abilityProofMarkers(addonName, input.unitAbilityScaffold.abilityName) : []);
     const validation = validateSmokeInput(addonName, mapName, input);
     if (validation) {
         return validation;

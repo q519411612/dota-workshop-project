@@ -219,7 +219,8 @@ export async function createAddon(input) {
                 : `created minimal runtime marker template for ${input.addonName}`,
             ...(input.placement ? [`created runtime placement config for ${input.addonName}`] : []),
             ...(input.objective ? [`created score objective config for ${input.addonName}`] : []),
-            ...(input.unitAbilityScaffold ? [`created unit ability scaffold for ${input.addonName}`] : [])
+            ...(input.unitAbilityScaffold ? [`created unit ability scaffold for ${input.addonName}`] : []),
+            ...(input.unitAbilityScaffold?.abilityProof ? [`created ability proof harness for ${input.addonName}`] : [])
         ],
         paths
     });
@@ -285,6 +286,9 @@ export async function inspectAddon(input) {
         evidence.push(hasLinkedAbilityScaffold(unitData, abilityData)
             ? "unit ability scaffold exists"
             : "unit ability scaffold missing");
+        evidence.push(await hasAbilityProofHarness(paths, abilityData)
+            ? "ability proof harness exists"
+            : "ability proof harness missing");
     }
     return createSuccessResult({
         target: input.target,
@@ -332,6 +336,7 @@ async function existingAddonEvidence(paths) {
 async function writeAddon(paths, addonName, mapName, template, placement, objective, scaffold) {
     const files = renderAddonFiles(addonName, mapName, template, placement, objective, scaffold);
     await mkdir(join(paths.gameAddon, "scripts/vscripts"), { recursive: true });
+    await mkdir(join(paths.gameAddon, "scripts/vscripts/abilities"), { recursive: true });
     await mkdir(join(paths.gameAddon, "scripts/npc"), { recursive: true });
     await mkdir(join(paths.gameAddon, "resource"), { recursive: true });
     await mkdir(paths.mapDirectory, { recursive: true });
@@ -341,6 +346,9 @@ async function writeAddon(paths, addonName, mapName, template, placement, object
     await writeFile(paths.heroData, files.heroData);
     await writeFile(paths.unitData, files.unitData);
     await writeFile(paths.abilityData, files.abilityData);
+    if (files.abilityProofLua) {
+        await writeFile(join(paths.gameAddon, "scripts/vscripts", files.abilityProofLua.scriptFile), files.abilityProofLua.contents);
+    }
     await writeFile(paths.localization, files.localization);
 }
 export function renderAddonFiles(addonName, mapName, template = "playable", placement, objective, scaffold) {
@@ -351,6 +359,7 @@ export function renderAddonFiles(addonName, mapName, template = "playable", plac
         heroData: heroData(),
         unitData: unitData(scaffold),
         abilityData: abilityData(scaffold),
+        abilityProofLua: scaffold?.abilityProof ? abilityProofLua(addonName, scaffold) : undefined,
         localization: localization(addonName)
     };
 }
@@ -377,6 +386,12 @@ export function placementMarkers(addonName, placement) {
         `[DOTA_WORKSHOP_MCP] placement origin: ${addonName} x=${formatLuaNumber(placement.origin.x)} y=${formatLuaNumber(placement.origin.y)} z=${formatLuaNumber(placement.origin.z)}`,
         `[DOTA_WORKSHOP_MCP] placement unit: ${addonName} ${placement.unitName} team=${placement.team}`,
         `[DOTA_WORKSHOP_MCP] placement spawned: ${addonName} ${placement.unitName}`
+    ];
+}
+export function abilityProofMarkers(addonName, abilityName) {
+    return [
+        `[DOTA_WORKSHOP_MCP] ability proof loaded: ${addonName} ${abilityName}`,
+        `[DOTA_WORKSHOP_MCP] ability proof spawned: ${addonName} ${abilityName}`
     ];
 }
 function addonInfo(addonName, mapName) {
@@ -578,11 +593,14 @@ function abilityData(scaffold) {
     if (!scaffold) {
         return `"DOTAAbilities"\n{\n}\n`;
     }
+    if (scaffold.abilityProof) {
+        return `"DOTAAbilities"\n{\n  "${scaffold.abilityName}"\n  {\n    "BaseClass" "ability_lua"\n    "AbilityBehavior" "DOTA_ABILITY_BEHAVIOR_PASSIVE"\n    "ScriptFile" "${abilityScriptFile(scaffold)}"\n  }\n}\n`;
+    }
     return `"DOTAAbilities"\n{\n  "${scaffold.abilityName}"\n  {\n    "BaseClass" "ability_datadriven"\n    "AbilityBehavior" "DOTA_ABILITY_BEHAVIOR_PASSIVE"\n  }\n}\n`;
 }
 function hasLinkedAbilityScaffold(unitData, abilityData) {
     const abilityNames = Array.from(unitData.matchAll(/"Ability\d+"\s+"([^"]+)"/g), (match) => match[1]);
-    return abilityNames.some((abilityName) => hasPassiveAbilityDefinition(abilityData, abilityName));
+    return abilityNames.some((abilityName) => hasPassiveAbilityDefinition(abilityData, abilityName) || hasLuaAbilityDefinition(abilityData, abilityName));
 }
 function hasPassiveAbilityDefinition(abilityData, abilityName) {
     const label = `"${abilityName}"`;
@@ -599,6 +617,58 @@ function hasPassiveAbilityDefinition(abilityData, abilityName) {
         return false;
     }
     return abilityData.slice(blockStart, blockEnd + 1).includes("\"AbilityBehavior\" \"DOTA_ABILITY_BEHAVIOR_PASSIVE\"");
+}
+function hasLuaAbilityDefinition(abilityData, abilityName) {
+    const block = abilityBlock(abilityData, abilityName);
+    if (!block) {
+        return false;
+    }
+    return block.includes("\"BaseClass\" \"ability_lua\"") && block.includes(`"ScriptFile" "abilities/${abilityName}.lua"`);
+}
+async function hasAbilityProofHarness(paths, abilityData) {
+    const scriptFiles = Array.from(abilityData.matchAll(/"ScriptFile"\s+"(abilities\/([a-z0-9_]+)\.lua)"/g));
+    for (const match of scriptFiles) {
+        const scriptFile = match[1];
+        const abilityName = match[2];
+        const abilityLuaPath = join(paths.gameAddon, "scripts/vscripts", scriptFile);
+        if (!(await pathExists(abilityLuaPath))) {
+            continue;
+        }
+        const contents = await readFile(abilityLuaPath, "utf8");
+        if (abilityProofMarkers(pathAddonName(paths.gameAddon), abilityName).every((marker) => contents.includes(marker))) {
+            return true;
+        }
+    }
+    return false;
+}
+function abilityBlock(abilityData, abilityName) {
+    const label = `"${abilityName}"`;
+    const labelIndex = abilityData.indexOf(label);
+    if (labelIndex === -1) {
+        return undefined;
+    }
+    const blockStart = abilityData.indexOf("{", labelIndex + label.length);
+    if (blockStart === -1) {
+        return undefined;
+    }
+    const blockEnd = matchingBraceIndex(abilityData, blockStart);
+    if (blockEnd === -1) {
+        return undefined;
+    }
+    return abilityData.slice(blockStart, blockEnd + 1);
+}
+function abilityScriptFile(scaffold) {
+    return `abilities/${scaffold.abilityName}.lua`;
+}
+function abilityProofLua(addonName, scaffold) {
+    const markers = abilityProofMarkers(addonName, scaffold.abilityName);
+    return {
+        scriptFile: abilityScriptFile(scaffold),
+        contents: `print("${markers[0]}")\n\n${scaffold.abilityName} = class({})\n\nfunction ${scaffold.abilityName}:Spawn()\n  print("${markers[1]}")\nend\n`
+    };
+}
+function pathAddonName(gameAddonPath) {
+    return gameAddonPath.split(/[\\/]/).at(-1) ?? "";
 }
 function matchingBraceIndex(value, openIndex) {
     let depth = 0;

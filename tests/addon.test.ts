@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { createAddon, inspectAddon, validateAddonName, validateMapName } from "../src/addon.js";
+import { abilityProofMarkers, createAddon, inspectAddon, validateAddonName, validateMapName } from "../src/addon.js";
 import { CreateAddonInputSchema, RunPlayableSmokeInputSchema } from "../src/schemas.js";
 
 describe("addon template", () => {
@@ -85,7 +85,8 @@ describe("addon template", () => {
   test("parses unit ability scaffold through MCP input schemas", () => {
     const unitAbilityScaffold = {
       unitName: "npc_dota_workshop_mcp_dummy",
-      abilityName: "ability_dota_workshop_mcp_dummy"
+      abilityName: "ability_dota_workshop_mcp_dummy",
+      abilityProof: true
     };
 
     const createInput = CreateAddonInputSchema.parse({
@@ -101,6 +102,8 @@ describe("addon template", () => {
 
     expect(createInput.unitAbilityScaffold?.unitName).toBe("npc_dota_workshop_mcp_dummy");
     expect(smokeInput.unitAbilityScaffold?.abilityName).toBe("ability_dota_workshop_mcp_dummy");
+    expect(createInput.unitAbilityScaffold?.abilityProof).toBe(true);
+    expect(smokeInput.unitAbilityScaffold?.abilityProof).toBe(true);
   });
 
   test("creates the minimal game and content addon trees", async () => {
@@ -244,6 +247,39 @@ describe("addon template", () => {
     expect(abilityData).toContain("\"DOTAAbilities\"");
     expect(abilityData).toContain("\"ability_dota_workshop_mcp_dummy\"");
     expect(abilityData).toContain("\"AbilityBehavior\" \"DOTA_ABILITY_BEHAVIOR_PASSIVE\"");
+  });
+
+  test("renders explicit ability proof Lua and KV links", async () => {
+    const result = await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      unitAbilityScaffold: {
+        unitName: "npc_dota_workshop_mcp_dummy",
+        abilityName: "ability_dota_workshop_mcp_dummy",
+        abilityProof: true
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("created ability proof harness for demo_addon");
+
+    const unitData = await readFile(join(root, "game/dota_addons/demo_addon/scripts/npc/npc_units_custom.txt"), "utf8");
+    const abilityData = await readFile(join(root, "game/dota_addons/demo_addon/scripts/npc/npc_abilities_custom.txt"), "utf8");
+    const abilityLua = await readFile(
+      join(root, "game/dota_addons/demo_addon/scripts/vscripts/abilities/ability_dota_workshop_mcp_dummy.lua"),
+      "utf8"
+    );
+
+    expect(unitData).toContain("\"Ability1\" \"ability_dota_workshop_mcp_dummy\"");
+    expect(abilityData).toContain("\"BaseClass\" \"ability_lua\"");
+    expect(abilityData).toContain("\"ScriptFile\" \"abilities/ability_dota_workshop_mcp_dummy.lua\"");
+    expect(abilityLua).toContain("ability_dota_workshop_mcp_dummy = class({})");
+    expect(abilityLua).toContain("[DOTA_WORKSHOP_MCP] ability proof loaded: demo_addon ability_dota_workshop_mcp_dummy");
+    expect(abilityLua).toContain("[DOTA_WORKSHOP_MCP] ability proof spawned: demo_addon ability_dota_workshop_mcp_dummy");
+    expect(abilityProofMarkers("demo_addon", "ability_dota_workshop_mcp_dummy")).toEqual([
+      "[DOTA_WORKSHOP_MCP] ability proof loaded: demo_addon ability_dota_workshop_mcp_dummy",
+      "[DOTA_WORKSHOP_MCP] ability proof spawned: demo_addon ability_dota_workshop_mcp_dummy"
+    ]);
   });
 
   test("rejects invalid runtime placement before writing addon files", async () => {
@@ -445,6 +481,26 @@ describe("addon template", () => {
     expect(result.ok).toBe(true);
     expect(result.evidence).toContain("ability support file exists");
     expect(result.evidence).toContain("unit ability scaffold exists");
+  });
+
+  test("inspects ability proof harness evidence when present", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon",
+      unitAbilityScaffold: {
+        unitName: "npc_dota_workshop_mcp_dummy",
+        abilityName: "ability_dota_workshop_mcp_dummy",
+        abilityProof: true
+      }
+    } as Parameters<typeof createAddon>[0]);
+
+    const result = await inspectAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.evidence).toContain("ability proof harness exists");
   });
 
   test("does not report scaffold evidence when unit ability link is missing", async () => {

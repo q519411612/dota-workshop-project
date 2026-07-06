@@ -1,5 +1,6 @@
 import {
   createAddon,
+  abilityProofMarkers,
   inspectAddon,
   objectiveMarkers,
   placementMarkers,
@@ -89,7 +90,8 @@ export async function runPlayableSmoke(input: RunPlayableSmokeInput): Promise<To
   const addonName = input.addonName ?? generatePlayableSmokeAddonName(input.addonPrefix);
   const expectedMarkers = input.expectedMarkers ?? playableSmokeMarkers(addonName).concat(
     input.placement ? placementMarkers(addonName, input.placement) : [],
-    input.objective ? objectiveMarkers(addonName, input.objective) : []
+    input.objective ? objectiveMarkers(addonName, input.objective) : [],
+    input.unitAbilityScaffold?.abilityProof ? abilityProofMarkers(addonName, input.unitAbilityScaffold.abilityName) : []
   );
   const validation = validateSmokeInput(addonName, mapName, input);
 
