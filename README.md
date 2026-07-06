@@ -36,6 +36,7 @@ Before installing or handing off the plugin, run:
 ```bash
 npm run build
 npm run verify:plugin
+npm run verify:install-simulation
 npm run verify:rc
 npm run verify:handoff
 npm run verify:milestone
@@ -44,6 +45,8 @@ npm run verify:milestone
 The verifier checks the plugin manifest, MCP config, package entrypoint, built server entrypoint, skill references, and documented MCP tool lists. It is local-only: do not store Steam credentials, GitHub tokens, Windows passwords, private keys, remote host details, or private target data in this repository.
 
 `npm run verify:rc` is the local release-candidate gate. It aggregates plugin readiness, schema-valid workflow examples, typecheck, tests, build, repository hygiene scanning, and publishing boundary checks. It is not upload automation and does not log into Steam, run Workshop upload, encrypt content, sign packages, run Windows smoke, or contact remote targets.
+
+`npm run verify:install-simulation` creates an isolated temporary plugin layout, checks the install-facing manifest, skill, MCP config, package entrypoint, and built dist entrypoint, then removes the temporary layout. It does not perform a global install, write user config, mutate environment variables, upload, sign, encrypt, publish, or contact Windows targets.
 
 `npm run verify:handoff` is the local release handoff gate. It reuses `verify:rc`, records the current commit, checks the plugin manifest, MCP config, package entrypoints, skill references, workflow examples, README, and operator runbook, and reports explicit release boundaries. It does not upload to Workshop, log into Steam, handle Steam Guard, encrypt content, sign packages, store credentials, or connect to remote Windows.
 

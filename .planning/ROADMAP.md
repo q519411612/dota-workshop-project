@@ -19,8 +19,54 @@
 - [x] **v1.10 Release Bundle Manifest / Source Snapshot Dry Run** - deterministic source snapshot manifest without archive, signing, encryption, or upload.
 - [x] **v1.11 Addon Metadata Polish** - richer addon metadata generation and dry-run metadata blockers.
 - [x] **v1.12 Minimal Runtime Ability Proof** - explicit Lua ability marker proof harness without claiming real runtime evidence unless logs prove it.
+- [x] **v1.13 Local Install Simulation** - isolated temporary plugin install simulation without global install or environment mutation.
 
 ## Active Work
+
+### v1.13 Local Install Simulation
+
+Goal: add a local-only install simulation that proves the plugin structure can be consumed from an isolated temporary directory without writing global install paths, mutating the user environment, storing credentials, or connecting to Windows.
+
+Scope:
+
+- Add `npm run verify:install-simulation`.
+- Copy or reference plugin manifest, skill files, MCP config, package metadata, package entrypoint, and dist entrypoint in a temporary simulation root.
+- Validate consumer-facing structure, path isolation, cleanup, sensitive-material exclusion, and environment non-mutation.
+- Keep the slice free of global installation, user config writes, Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, archive creation, registry publish, remote Windows connections, Dota runtime work, network access, and UI automation.
+
+### Phase 1: Local Install Simulation
+
+**Status:** Complete
+**Goal:** Add isolated local install simulation verifier, tests, and review artifacts.
+**Requirements:** INSTALL-01, INSTALL-02, INSTALL-03, INSTALL-04, INSTALL-05, INSTALL-06
+**Canonical refs:**
+
+- `.planning/REQUIREMENTS.md`
+- `.planning/phases/01-local-install-simulation/01-SPEC.md`
+- `.planning/phases/01-local-install-simulation/01-01-PLAN.md`
+
+**In scope:**
+
+- Local-only install simulation command.
+- Temporary simulation root with plugin manifest, skill files, MCP config, package metadata, package entrypoint, and dist entrypoint.
+- Consumer contract checks for manifest, MCP config, package bin, and skill presence.
+- Cleanup and environment safety evidence.
+- Sensitive-material scanning without value leakage.
+
+**Out of scope:**
+
+- Global plugin installation, user config writes, package publishing, registry publishing, archive creation, package signing, content encryption, Workshop upload, Steam login, Steam Guard handling, remote Windows connections, Dota runtime work, network access, or UI automation.
+
+**Outcome:**
+
+- Added `npm run verify:install-simulation`.
+- Added an isolated temporary plugin layout verifier for manifest, MCP config, package metadata, dist entrypoint, and skill file readiness.
+- Added cleanup evidence proving the temporary simulation root is removed by default.
+- Added selected environment variable non-mutation evidence and global install boundary evidence.
+- Added sensitive-material blockers that report category and relative path without leaking matched values.
+- Added README and operator runbook coverage for the simulation gate.
+
+## Latest Completed Work
 
 ### v1.12 Minimal Runtime Ability Proof
 
@@ -65,8 +111,6 @@ Scope:
 - Smoke validation now expects ability proof markers only when the proof option is requested.
 - Local tests prove schema parsing, generated files, KV links, inspect evidence, fixture validation pass, and missing marker failure.
 - Real Windows runtime ability evidence remains pending until sanitized runtime logs contain the expected markers.
-
-## Latest Completed Work
 
 ### v1.11 Addon Metadata Polish
 

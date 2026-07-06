@@ -14,6 +14,7 @@
     "verify:plugin": "node ./dist/verify-plugin.js",
     "verify:same-machine-smoke": "node ./dist/verify-same-machine-smoke.js",
     "verify:source-snapshot": "node ./dist/verify-source-snapshot.js",
+    "verify:install-simulation": "node ./dist/verify-install-simulation.js",
     "verify:rc": "node ./dist/verify-rc.js",
     "verify:handoff": "node ./dist/verify-handoff.js",
     "verify:milestone": "node ./dist/verify-milestone.js",
