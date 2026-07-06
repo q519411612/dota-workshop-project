@@ -1,107 +1,106 @@
-# Requirements: v1.4 Plugin Install Handoff Readiness
+# Requirements: v1.5 Operator Runbook and Example Workflows
 
 **Created:** 2026-07-06
-**Milestone:** v1.4 Plugin Install Handoff Readiness
+**Milestone:** v1.5 Operator Runbook and Example Workflows
 **Status:** Complete
 
 ## Goal
 
-Make plugin installation and operator handoff readiness verifiable from the repository without needing Dota 2, Steam credentials, Windows credentials, or a real Workshop upload.
+Give operators and future agents a checked runbook and reusable example workflow inputs for the already-validated create/smoke/preflight/release dry-run paths, without storing credentials or performing real Workshop upload behavior.
 
 ## Scope
 
 ### In Scope
 
-- A local verification command that checks plugin package readiness before handoff.
-- Manifest, MCP config, package entrypoint, built server entrypoint, skill references, and documented tool contract consistency checks.
-- Tests that prove the verifier fails on drift and passes on the current repository.
-- Documentation that tells operators how to run the verifier before installing or handing off the plugin.
-- GSD verification and independent review artifacts for the v1.4 slice.
+- A local operator runbook that explains the safe order of build, plugin readiness verification, fixture workflow, optional remote smoke, cleanup, preflight, and dry-run release review.
+- Machine-checkable example workflow JSON files for fixture create/inspect/preflight/release dry-run and optional remote playable smoke.
+- Tests that parse every example and validate it against existing MCP input schemas.
+- Tests that scan examples and the runbook for forbidden private credential/host/token material.
+- README links to the runbook and examples.
+- GSD verification and independent review artifacts.
 
 ### Out of Scope
 
-- Installing the plugin into a global Codex profile.
-- Publishing a package to npm or any plugin registry.
-- Creating archives, signed packages, encrypted packages, or upload-ready bundles.
-- Real Workshop upload, Steam login, Steam Guard, content encryption, or publish-state mutation.
-- Storing Steam, GitHub, Windows, remote, token, password, private key, or private host material.
-- Real Windows smoke as a blocker for this slice.
+- Running real Windows smoke as part of this slice.
+- Real Workshop upload, Steam login, Steam Guard, content encryption, publish-state mutation, package signing, or archive creation.
+- Storing Steam, GitHub, Windows, remote, token, password, private key, private host, or private target material.
+- Generating a new gameplay feature, Panorama UI, TypeScript-to-Lua project, React project, Excel-to-KV pipeline, or custom ability runtime behavior.
+- Global plugin installation or package registry publishing.
 
 ## Requirements
 
-### HAND-01 Local Plugin Readiness Verifier
+### RUN-01 Operator Runbook
 
-Provide a repository-local command for plugin handoff readiness.
-
-Acceptance:
-
-- `npm run verify:plugin` exists and runs against the current repository.
-- The command exits non-zero when readiness blockers exist.
-- The command exits zero and prints evidence when no blockers exist.
-- The command does not require Dota 2, Steam, Windows, network access, or private credentials.
-
-### HAND-02 Manifest and Entrypoint Checks
-
-Verify plugin/package entrypoints point to files that exist after build.
+Document the safe operator workflow.
 
 Acceptance:
 
-- The verifier checks `.codex-plugin/plugin.json`.
-- The verifier checks `.mcp.json`.
-- The verifier checks `package.json`.
-- The verifier confirms the plugin skill directory exists.
-- The verifier confirms MCP config points to `node ./dist/index.js`.
-- The verifier confirms package bin points to the built server entrypoint.
+- `docs/operator-runbook.md` exists.
+- The runbook includes `npm run build`, `npm run verify:plugin`, fixture validation, optional remote smoke, cleanup, preflight, and dry-run release review.
+- The runbook states process launch is not validation success.
+- The runbook states credentials and private target details must remain runtime-only.
 
-### HAND-03 Skill Reference Checks
+### RUN-02 Machine-Checkable Examples
 
-Verify skill guidance does not reference missing local reference files.
+Provide reusable workflow input examples.
 
 Acceptance:
 
-- The verifier reads `skills/dota2-workshop-tools/SKILL.md`.
-- Every `references/*.md` path mentioned in the skill exists under the skill directory.
-- Missing reference files are blockers.
+- `examples/workflows/fixture-create-addon.json` exists.
+- `examples/workflows/fixture-preflight.json` exists.
+- `examples/workflows/fixture-release-dry-run.json` exists.
+- `examples/workflows/remote-playable-smoke.template.json` exists.
+- Examples use operation names that exist in `toolNames`.
+- Examples include only schema-valid input payloads.
 
-### HAND-04 Tool Contract Drift Checks
+### RUN-03 Example Safety Scan
 
-Verify documented MCP tool lists match the code tool registry.
-
-Acceptance:
-
-- The verifier compares `toolNames` from code against the README tool list.
-- The verifier compares `toolNames` from code against the skill MCP tool contract list.
-- Extra documented tools are blockers.
-- Missing documented tools are blockers.
-- The stale `link_addon` mention is removed or otherwise no longer causes drift.
-
-### HAND-05 Handoff Documentation
-
-Document the operator handoff command.
+Block private or credential-like material in examples and runbook.
 
 Acceptance:
 
-- README includes a plugin handoff or installation readiness section.
-- The section includes `npm run build` and `npm run verify:plugin`.
-- The section repeats that credentials and private target details must not be stored in the repository.
+- Tests scan example files and `docs/operator-runbook.md`.
+- The scan blocks private host/address material, passwords, tokens, private keys, Steam credentials, and known private target fragments.
+- The remote example uses placeholder values only.
 
-### HAND-06 Verification and Review
+### RUN-04 Schema Validation
+
+Validate examples against existing MCP input schemas.
+
+Acceptance:
+
+- Tests parse every example JSON file.
+- Each example's `input` validates against the matching schema in `src/schemas.ts`.
+- Unknown operations are blockers.
+
+### RUN-05 Discoverability
+
+Expose the runbook and examples from README.
+
+Acceptance:
+
+- README links to `docs/operator-runbook.md`.
+- README links to `examples/workflows/`.
+- README repeats that examples are dry-run/safe templates and not real upload automation.
+
+### RUN-06 Verification and Review
 
 Close the slice with automated verification and independent review.
 
 Acceptance:
 
-- Targeted plugin verifier tests pass.
-- `npm run verify:plugin` passes after build.
+- Targeted example tests pass.
+- `npm run verify:plugin` still passes.
 - `git diff --check`, `npm run typecheck`, `npm test`, and `npm run build` pass.
-- A strict high-signal secret scan reports no stored credentials.
+- Strict high-signal secret scan reports no stored credentials.
 - `01-VERIFICATION.md`, `01-REVIEW.md`, and `01-01-SUMMARY.md` record the outcome.
 
 ## Definition of Done
 
-- [x] v1.4 requirements, roadmap, spec, and plan exist.
-- [x] The plugin readiness verifier is implemented and documented.
-- [x] Tests prove drift detection.
+- [x] v1.5 requirements, roadmap, spec, and plan exist.
+- [x] Operator runbook exists and is linked.
+- [x] Example workflow JSON files exist and are schema-validated.
+- [x] Example/runbook safety scan passes.
 - [x] Local verification passes.
 - [x] Independent review is recorded.
 - [ ] Changes are committed and pushed.

@@ -1,0 +1,14 @@
+{
+  "operation": "dry_run_release_report",
+  "input": {
+    "target": {
+      "kind": "fixture",
+      "root": "/tmp/dota-workshop-fixture"
+    },
+    "addonName": "example_playable_addon"
+  },
+  "notes": [
+    "Dry-run package and metadata review.",
+    "Does not authenticate accounts, encrypt content, create upload artifacts, or upload."
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "operation": "inspect_workshop_preflight",
+  "input": {
+    "target": {
+      "kind": "fixture",
+      "root": "/tmp/dota-workshop-fixture"
+    },
+    "addonName": "example_playable_addon"
+  },
+  "notes": [
+    "Inspection-only addon layout and publishing boundary review.",
+    "Does not generate UI, run build tools, encrypt content, or upload."
+  ]
+}

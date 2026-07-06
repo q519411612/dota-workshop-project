@@ -1,0 +1,22 @@
+{
+  "operation": "create_addon",
+  "input": {
+    "target": {
+      "kind": "fixture",
+      "root": "/tmp/dota-workshop-fixture"
+    },
+    "addonName": "example_playable_addon",
+    "mapName": "dota",
+    "template": "playable",
+    "replace": true,
+    "objective": {
+      "type": "score",
+      "targetScore": 2,
+      "tickIntervalSeconds": 1
+    }
+  },
+  "notes": [
+    "Fixture example for local dry generation.",
+    "Does not require Dota 2, Windows, or private target details."
+  ]
+}

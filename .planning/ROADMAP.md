@@ -11,6 +11,7 @@
 - [x] **v1.2 Publishing Readiness** - dry-run release/package readiness before real Workshop upload automation.
 - [x] **v1.3 Windows Validation Closure** - sanitized real Windows evidence for the remaining local/same-machine smoke gap.
 - [x] **v1.4 Plugin Install Handoff Readiness** - local plugin readiness verification before operator handoff.
+- [x] **v1.5 Operator Runbook and Example Workflows** - checked operator runbook and reusable safe workflow examples.
 
 ## Completed Work
 
@@ -169,3 +170,44 @@ Scope:
 - Added local verifier checks for plugin manifest, MCP config, package bin, built server entrypoint, skill references, README tool list, and skill tool list.
 - Fixed skill tool-list drift by removing `link_addon` and adding `remote_command`.
 - README now documents plugin handoff readiness commands and the no-credentials boundary.
+
+## Completed Work
+
+### v1.5 Operator Runbook and Example Workflows
+
+Goal: make the validated workflow understandable and reusable through checked docs and schema-valid example inputs.
+
+Scope:
+
+- Add a local operator runbook for build, plugin verification, fixture flow, optional remote smoke, cleanup, preflight, and dry-run release review.
+- Add machine-checkable workflow JSON examples.
+- Validate examples against existing schemas and scan them for private or credential-like material.
+- Keep examples as safe templates only, with no real upload, credentials, or private target data.
+
+### Phase 1: Operator Runbook and Examples
+
+**Status:** Complete
+**Goal:** Add `docs/operator-runbook.md`, schema-valid example workflow inputs, tests, and README links.
+**Requirements:** RUN-01, RUN-02, RUN-03, RUN-04, RUN-05, RUN-06
+**Canonical refs:**
+
+- `.planning/REQUIREMENTS.md`
+- `.planning/phases/01-operator-runbook-example-workflows/01-SPEC.md`
+- `.planning/phases/01-operator-runbook-example-workflows/01-01-PLAN.md`
+
+**In scope:**
+
+- Docs and examples.
+- Tests for schema validity and secret hygiene.
+- README discoverability.
+
+**Out of scope:**
+
+- Real Windows smoke, real Workshop upload, Steam login, encryption, global plugin install, or package publishing.
+
+**Outcome:**
+
+- Added `docs/operator-runbook.md`.
+- Added schema-valid examples under `examples/workflows/`.
+- Added tests that validate example operations, schemas, README links, and forbidden private/credential-like material.
+- README links the runbook and examples.

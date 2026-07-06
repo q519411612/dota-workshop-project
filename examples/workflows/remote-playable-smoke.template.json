@@ -1,0 +1,22 @@
+{
+  "operation": "run_playable_smoke",
+  "input": {
+    "target": {
+      "kind": "remote",
+      "name": "windows-validation-template",
+      "transport": "ssh",
+      "host": "windows-host.example.test",
+      "username": "operator",
+      "dotaRoot": "C:/SteamLibrary/steamapps/common/dota 2 beta"
+    },
+    "addonPrefix": "operator_smoke",
+    "mapName": "dota",
+    "launchMode": "interactiveTask",
+    "validationTimeoutMs": 180000,
+    "validationPollIntervalMs": 5000
+  },
+  "notes": [
+    "Template only. Replace target values at runtime and do not commit private machine details.",
+    "Runtime success requires marker evidence from Dota console or logs."
+  ]
+}

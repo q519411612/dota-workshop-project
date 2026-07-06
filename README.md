@@ -40,6 +40,12 @@ npm run verify:plugin
 
 The verifier checks the plugin manifest, MCP config, package entrypoint, built server entrypoint, skill references, and documented MCP tool lists. It is local-only: do not store Steam credentials, GitHub tokens, Windows passwords, private keys, remote host details, or private target data in this repository.
 
+## Operator Runbook and Examples
+
+Use [docs/operator-runbook.md](docs/operator-runbook.md) for the checked operator workflow.
+
+Reusable workflow inputs live in [examples/workflows/](examples/workflows/). They are safe templates for fixture checks and optional runtime-provided remote smoke targets, not upload automation.
+
 ## Skill
 
 Use the `dota2-workshop-tools` skill for:

@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Plugin Install Handoff Readiness
+milestone: v1.5
+milestone_name: Operator Runbook and Example Workflows
 current_phase: 1
 status: Complete
-last_updated: "2026-07-06T04:45:00.000Z"
+last_updated: "2026-07-06T05:20:00.000Z"
 last_activity: 2026-07-06
-last_activity_desc: Completed plugin install handoff readiness
+last_activity_desc: Completed operator runbook and example workflows
 progress:
   total_phases: 1
   completed_phases: 1
@@ -24,13 +24,13 @@ progress:
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v1.4 Plugin Install Handoff Readiness added local plugin package verification before handoff.
+**Current focus:** v1.5 Operator Runbook and Example Workflows added checked operator docs and reusable safe workflow examples.
 
 ## Current Roadmap
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Plugin Readiness Verifier | Complete |
+| 1 | Operator Runbook and Examples | Complete |
 
 ## Decisions In Effect
 
@@ -62,6 +62,7 @@ See: `.planning/PROJECT.md`
 | v1.3 real Windows closure uses sanitized remote SSH evidence and does not prove a separate Windows-local MCP server process | `.planning/phases/01-windows-validation-closure/01-VERIFICATION.md` |
 | v1.4 handoff readiness is local-only and must not install globally or publish packages | `.planning/REQUIREMENTS.md` |
 | v1.4 plugin readiness verification compares manifests, entrypoints, skill references, and documented tool lists against code | `.planning/phases/01-plugin-install-handoff-readiness/01-VERIFICATION.md` |
+| v1.5 examples must be schema-valid safe templates and must not store private target or credential material | `.planning/REQUIREMENTS.md` |
 
 ## Research Inputs
 
@@ -131,19 +132,19 @@ See: `.planning/PROJECT.md`
 
 ## Next Action
 
-Commit and push v1.4 Plugin Install Handoff Readiness, then select the next version slice.
+Commit and push v1.5 Operator Runbook and Example Workflows, then select the next version slice.
 
 ---
-*Last updated: 2026-07-06 after v1.4 plugin handoff readiness*
+*Last updated: 2026-07-06 after v1.5 operator runbook and examples*
 
 ## Current Position
 
-Phase: 1 - Plugin Readiness Verifier
+Phase: 1 - Operator Runbook and Examples
 Plan: 01-01
 Status: Complete
-Last activity: 2026-07-06 — Completed plugin install handoff readiness
+Last activity: 2026-07-06 — Completed operator runbook and example workflows
 
 ## Operator Next Steps
 
 - Run final full verification and strict secret scan.
-- Commit and push v1.4 changes while leaving graphify freshness files uncommitted.
+- Commit and push v1.5 changes while leaving graphify freshness files uncommitted.

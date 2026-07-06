@@ -146,3 +146,35 @@
 - `npm run build` passed.
 - `npm run verify:plugin` passed.
 - `git diff --check`, typecheck, full test suite with 106 tests, build, `verify:plugin`, and strict high-signal secret scan passed.
+
+---
+
+## v1.5 Operator Runbook and Example Workflows (Implemented: 2026-07-06)
+
+**Goal:** Add checked operator documentation and reusable safe workflow examples.
+
+**Work completed:** One delivery slice, one plan.
+
+**Key accomplishments:**
+
+- Added `docs/operator-runbook.md`.
+- Added schema-valid examples under `examples/workflows/`.
+- Added tests for example presence, operation names, schema validity, forbidden private/credential-like material, and README links.
+- Added README links to the runbook and examples.
+
+**Key boundaries:**
+
+- No real Windows smoke as a blocker.
+- No real Workshop upload, Steam login, encryption, package signing, or publish-state mutation.
+- No stored Steam, GitHub, Windows, remote, token, password, private key, private host, or private target material.
+
+**Artifacts:**
+
+- Requirements: `.planning/REQUIREMENTS.md`
+- Roadmap: `.planning/ROADMAP.md`
+- Phase: `.planning/phases/01-operator-runbook-example-workflows/`
+
+**Verification:**
+
+- Targeted examples tests passed with 4 tests.
+- `git diff --check`, typecheck, full test suite with 110 tests, build, `verify:plugin`, and strict high-signal secret scan passed.
