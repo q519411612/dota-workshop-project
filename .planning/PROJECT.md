@@ -4,7 +4,7 @@
 
 Dota Workshop Project is a Codex plugin project for building Dota 2 custom games with AI assistance. It will package a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, and inspect a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The v1.1 Workshop MVP milestone is complete and archived. The project now has a validated end-to-end plugin slice: agents can generate playable addons, run evidence-driven smoke workflows on Windows targets, inspect custom map/objective/unit scaffold readiness, and report Panorama/toolchain/publishing boundaries without expanding into full UI generation or Workshop upload automation. v1.2 added dry-run release/package readiness before any real Workshop upload automation. v1.3 added sanitized real Windows validation closure through the remote SSH path. v1.4 added local plugin installation and operator handoff readiness verification. v1.5 added checked operator docs and reusable safe workflow examples. v1.6 added a local release-candidate audit gate.
+The v1.1 Workshop MVP milestone is complete and archived. The project now has a validated end-to-end plugin slice: agents can generate playable addons, run evidence-driven smoke workflows on Windows targets, inspect custom map/objective/unit scaffold readiness, and report Panorama/toolchain/publishing boundaries without expanding into full UI generation or Workshop upload automation. v1.2 added dry-run release/package readiness before any real Workshop upload automation. v1.3 added sanitized real Windows validation closure through the remote SSH path. v1.4 added local plugin installation and operator handoff readiness verification. v1.5 added checked operator docs and reusable safe workflow examples. v1.6 added a local release-candidate audit gate. v1.7 added a local release handoff readiness report.
 
 ## Core Value
 
@@ -48,6 +48,7 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 - [x] Added local plugin handoff readiness verification for manifest, MCP config, entrypoints, skill references, and documented tool-list drift.
 - [x] Added checked operator runbook and schema-valid safe workflow examples.
 - [x] Added a local `verify:rc` gate for plugin/package readiness, example/schema checks, build/test checks, repository hygiene scanning, and publishing boundary checks.
+- [x] Added a local `verify:handoff` gate for commit identity, RC preflight evidence, delivery checklist reporting, documentation coverage, and explicit release boundaries.
 
 ### Active
 
@@ -106,6 +107,7 @@ Milestone v1.1 is archived under `.planning/milestones/`. Current planning shoul
 | Treat remote real-Windows validation as closure for v1.3 | The user-provided Windows host produced environment category evidence, runtime marker validation, release dry-run blockers, and addon-scoped cleanup evidence | Implemented |
 | Add handoff readiness before broader distribution | The project has real runtime evidence, but installation/package drift needs a local verifier before external handoff | Implemented |
 | Make operator examples machine-checkable | Reusable examples are useful only if schemas and safety boundaries keep them from drifting or storing private material | Implemented |
+| Add release handoff reporting before external delivery | Operators need one local, credential-free report that aggregates RC evidence, delivery artifacts, docs coverage, and release boundaries | Implemented |
 
 ## Evolution
 
@@ -125,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 after v1.6 Release Candidate Audit Gate*
+*Last updated: 2026-07-06 after v1.7 Release Handoff Bundle Readiness*

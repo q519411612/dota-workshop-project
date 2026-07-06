@@ -13,6 +13,7 @@
     "test": "vitest run",
     "verify:plugin": "node ./dist/verify-plugin.js",
     "verify:rc": "node ./dist/verify-rc.js",
+    "verify:handoff": "node ./dist/verify-handoff.js",
     "test:watch": "vitest"
   },
   "engines": {

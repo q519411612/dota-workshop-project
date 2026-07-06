@@ -13,6 +13,51 @@
 - [x] **v1.4 Plugin Install Handoff Readiness** - local plugin readiness verification before operator handoff.
 - [x] **v1.5 Operator Runbook and Example Workflows** - checked operator runbook and reusable safe workflow examples.
 - [x] **v1.6 Release Candidate Audit Gate** - local RC gate before any broader handoff or publishing work.
+- [x] **v1.7 Release Handoff Bundle Readiness** - local handoff report before external operator delivery or release review.
+
+## Active Work
+
+### v1.7 Release Handoff Bundle Readiness
+
+Goal: establish a local, credential-free handoff readiness report that aggregates commit identity, `verify:rc` evidence, plugin/package entrypoints, MCP config, skill references, workflow examples, operator runbook coverage, README coverage, and explicit publishing boundaries.
+
+Scope:
+
+- Add `npm run verify:handoff` as a local-only gate.
+- Reuse the existing RC gate as the handoff preflight.
+- Report the handoff delivery checklist for plugin manifest, MCP config, package metadata, built entrypoint, skill references, README, runbook, and examples.
+- Check README and operator runbook coverage for installation, verification, safe runtime operation, and credential boundaries.
+- Keep the command free of Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, credential storage, remote Windows connections, network access, Dota runtime work, or UI automation.
+
+### Phase 1: Release Handoff Bundle Readiness
+
+**Status:** Complete
+**Goal:** Add `npm run verify:handoff`, structured handoff report evidence, tests, and docs.
+**Requirements:** HANDOFF-01, HANDOFF-02, HANDOFF-03, HANDOFF-04, HANDOFF-05, HANDOFF-06, HANDOFF-07
+**Canonical refs:**
+
+- `.planning/REQUIREMENTS.md`
+- `.planning/phases/01-release-handoff-bundle-readiness/01-SPEC.md`
+- `.planning/phases/01-release-handoff-bundle-readiness/01-01-PLAN.md`
+
+**In scope:**
+
+- Local handoff report command.
+- RC gate preflight reuse.
+- Delivery checklist and documentation coverage checks.
+- Explicit no-upload/no-login/no-credential/no-remote boundary reporting.
+
+**Out of scope:**
+
+- Real Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, archive creation, registry publish, global installation, Windows smoke, remote smoke, SSH, PowerShell Remoting, MCP runtime target operations, UI automation, or new gameplay/toolchain features.
+
+**Outcome:**
+
+- Added `npm run verify:handoff`.
+- Added a structured local handoff verifier and CLI.
+- The handoff report records commit SHA, RC preflight status, delivery checklist items, documentation coverage, and explicit release boundaries.
+- The report sanitizes RC command output so repository absolute paths are not leaked.
+- README and the operator runbook now include the handoff gate after `verify:rc`.
 
 ## Latest Completed Work
 

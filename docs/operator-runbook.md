@@ -11,12 +11,15 @@ npm install
 npm run build
 npm run verify:plugin
 npm run verify:rc
+npm run verify:handoff
 npm test
 ```
 
 `npm run verify:plugin` checks the plugin manifest, MCP config, package entrypoint, built server entrypoint, skill references, and documented MCP tool lists.
 
 `npm run verify:rc` is the local release-candidate gate. It runs plugin readiness, schema/example validation, typecheck, tests, build, repository hygiene scanning, and publishing boundary checks. It is not upload automation and does not log into Steam, upload to Workshop, encrypt content, sign packages, run Windows smoke, or contact remote targets.
+
+`npm run verify:handoff` is the local release handoff gate. It reuses `verify:rc`, records the current commit, checks the plugin manifest, MCP config, package entrypoints, skill references, workflow examples, README, and this runbook, and reports explicit release boundaries. It does not upload to Workshop, log into Steam, handle Steam Guard, encrypt content, sign packages, store credentials, or connect to remote Windows.
 
 Keep machine-specific target details runtime-only. Do not store Steam account secrets, GitHub tokens, Windows passwords, private keys, remote host details, or private target data in repository files.
 
@@ -38,7 +41,7 @@ Use `examples/workflows/remote-playable-smoke.template.json` only as a template.
 Recommended order:
 
 1. Build locally with `npm run build`.
-2. Verify the plugin with `npm run verify:plugin` and `npm run verify:rc`.
+2. Verify the plugin with `npm run verify:plugin`, `npm run verify:rc`, and `npm run verify:handoff`.
 3. Discover or validate the Windows target outside repository files.
 4. Run `run_playable_smoke` with `launchMode: "interactiveTask"` when the remote command session is not the logged-in desktop session.
 5. Review the transcript for create, inspect, launch, and marker validation results.
