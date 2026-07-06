@@ -606,6 +606,8 @@ describe("remote Windows operations", () => {
     });
 
     expect(result.ok).toBe(true);
+    expect(attemptedCommand).toContain("$ProgressPreference");
+    expect(attemptedCommand).toContain("SilentlyContinue");
     expect(attemptedCommand).toContain("ForEach-Object { [string]$_ }");
     expect(attemptedCommand).toContain("-Tail 2000");
     expect(result.logs[0].lines).toContain("[DOTA_WORKSHOP_MCP] addon loaded: demo_addon");
@@ -634,6 +636,8 @@ describe("remote Windows operations", () => {
     } as Parameters<typeof readRemoteConsoleOrLogs>[0]);
 
     expect(result.ok).toBe(true);
+    expect(attemptedCommand).toContain("$ProgressPreference");
+    expect(attemptedCommand).toContain("SilentlyContinue");
     expect(attemptedCommand).toContain("$runtimeConsole = Join-Path $root");
     expect(attemptedCommand).toContain("game/dota/console.log");
     expect(attemptedCommand).toContain("Get-ChildItem");

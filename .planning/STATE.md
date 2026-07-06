@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Publishing Readiness
+milestone: v1.3
+milestone_name: Windows Validation Closure
 current_phase: 1
 status: Complete
-last_updated: "2026-07-06T03:45:00.000Z"
+last_updated: "2026-07-06T03:57:29.000Z"
 last_activity: 2026-07-06
-last_activity_desc: Completed release package preflight MVP
+last_activity_desc: Completed sanitized Windows validation closure
 progress:
   total_phases: 1
   completed_phases: 1
@@ -24,13 +24,13 @@ progress:
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v1.2 Publishing Readiness has a dry-run release report before any real Workshop upload automation.
+**Current focus:** v1.3 Windows Validation Closure collected sanitized evidence from a user-provided Windows host and closed the remote real-Windows runtime confidence gap.
 
 ## Current Roadmap
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Release Package Preflight MVP | Complete |
+| 1 | Windows Validation Closure | Complete |
 
 ## Decisions In Effect
 
@@ -58,6 +58,8 @@ See: `.planning/PROJECT.md`
 | v2.6 scaffold validation success requires linked KV inspect evidence and runtime compatibility markers, not custom ability execution | `.planning/milestones/v1.1-phases/12-unit-ability-scaffolding-mvp/12-VERIFICATION.md` |
 | v2.7 preflight is inspection-only; it must not generate Panorama UI, run TypeScript-to-Lua or React toolchains, store publishing credentials, encrypt content, or upload to Workshop | `.planning/ROADMAP.md` |
 | v1.2 release readiness must stay dry-run only before real Workshop upload automation | `.planning/REQUIREMENTS.md` |
+| v1.3 Windows validation details must stay runtime-only and sanitized from repository artifacts | `.planning/REQUIREMENTS.md` |
+| v1.3 real Windows closure uses sanitized remote SSH evidence and does not prove a separate Windows-local MCP server process | `.planning/phases/01-windows-validation-closure/01-VERIFICATION.md` |
 
 ## Research Inputs
 
@@ -127,19 +129,19 @@ See: `.planning/PROJECT.md`
 
 ## Next Action
 
-Review whether to run same-machine local Windows smoke or plan the next publishing readiness increment.
+Commit and push v1.3 Windows Validation Closure, then select the next version slice.
 
 ---
-*Last updated: 2026-07-06 after v1.2 release dry-run implementation*
+*Last updated: 2026-07-06 after v1.3 validation closure*
 
 ## Current Position
 
-Phase: 1 - Release Package Preflight MVP
+Phase: 1 - Windows Validation Closure
 Plan: 01-01
 Status: Complete
-Last activity: 2026-07-06 — Completed release package preflight MVP
+Last activity: 2026-07-06 — Completed sanitized Windows validation closure
 
 ## Operator Next Steps
 
-- Optionally run same-machine local Windows smoke after v1.2 core verification.
-- Plan the next publishing readiness increment only after confirming the dry-run boundary is sufficient.
+- Run final full verification and strict secret scan.
+- Commit and push v1.3 changes while leaving graphify freshness files uncommitted.

@@ -71,3 +71,42 @@
 - Targeted tests passed with 33 tests.
 - Full suite passed with 100 tests.
 - `npm run typecheck`, `npm run build`, `git diff --check`, and strict high-signal secret scan passed.
+
+---
+
+## v1.3 Windows Validation Closure (Implemented: 2026-07-06)
+
+**Goal:** Collect sanitized evidence from a user-provided Windows host to close or characterize the remaining local/same-machine Windows smoke gap.
+
+**Work completed:** One delivery slice, one plan.
+
+**Key accomplishments:**
+
+- Verified real Windows environment categories without storing private target details.
+- Fixed remote log reading to suppress PowerShell progress output before JSON parsing.
+- Ran a real playable smoke through the existing remote SSH target path and validated runtime markers.
+- Ran dry-run release reporting without Steam login, encryption, upload, or publish-state mutation.
+- Performed addon-scoped cleanup after dry-run evidence and confirmed no matching process remained.
+
+**Key boundaries:**
+
+- No stored Windows password, private host, private username, token, key, or Steam credential material.
+- No real Workshop upload, Steam login, content encryption, or publish-state mutation.
+- No broad process cleanup outside a known smoke addon.
+- Runtime validation success requires expected log or console marker evidence.
+
+**Artifacts:**
+
+- Requirements: `.planning/REQUIREMENTS.md`
+- Roadmap: `.planning/ROADMAP.md`
+- Phase: `.planning/phases/01-windows-validation-closure/`
+
+**Verification:**
+
+- Targeted remote operation tests passed with 25 tests.
+- `git diff --check`, typecheck, full test suite with 100 tests, build, and strict high-signal secret scan passed.
+- Real Windows smoke addon `validation_closure_20260706_103317` passed runtime marker validation.
+
+**Known residual item:**
+
+- A separate same-machine Windows-local MCP server run remains optional and unproven; v1.3 closure relies on the remote SSH path to a real Windows host.

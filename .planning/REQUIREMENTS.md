@@ -1,120 +1,88 @@
-# Requirements: v1.2 Publishing Readiness
+# Requirements: v1.3 Windows Validation Closure
 
 **Created:** 2026-07-06
-**Milestone:** v1.2 Publishing Readiness
-**Status:** Implemented
+**Milestone:** v1.3 Windows Validation Closure
+**Status:** Complete
 
 ## Goal
 
-Agents can produce a deterministic dry-run release readiness report for a generated Dota 2 Workshop addon before any real Workshop upload automation exists.
+Close the remaining real-Windows validation gap by recording sanitized evidence from a Windows host with Dota 2 and Workshop Tools installed, without storing credentials or private host data in the repository.
 
 ## Scope
 
 ### In Scope
 
-- Release/package preflight checks that run on fixture, local Windows, and remote Windows targets through the existing MCP target contract.
-- Addon metadata completeness checks for publish-facing fields that can be inspected without Steam credentials.
-- Sensitive information scanning across addon source files and release-facing metadata.
-- Dry-run release report evidence that lists package candidates, blockers, warnings, and explicit manual upload boundaries.
-- Documentation that explains Steam login, encryption, Workshop upload, and credential storage are outside v1.2.
+- Runtime-only SSH access to a Windows host provided by the user.
+- Dota install and Workshop Tools path discovery evidence.
+- Addon generation, launch, log reading, validation, cleanup, or release dry-run evidence through the existing tool concepts where practical.
+- Sanitized verification artifacts that prove what was checked without recording password, private host, private username, tokens, or Steam credential material.
+- Explicit failure evidence if Windows discovery, launch, log reading, or validation fails.
 
 ### Out of Scope
 
-- Real Workshop upload, Steam login, Steam Guard, item creation, item update, or publish-state mutation.
-- Content encryption, key generation, encrypted package output, or upload-ready archive signing.
-- Storing Steam, GitHub, Windows, remote host, password, private key, or token material in the repository.
-- Running TypeScript-to-Lua, React Panorama, npm, bundlers, resource compilation, or Hammer automation as part of release preflight.
-- Requiring same-machine local Windows smoke before v1.2 can close.
+- Storing SSH passwords, hostnames, usernames, Steam credentials, private keys, tokens, or private target data in repository files.
+- Real Workshop upload, Steam login, Steam Guard, encryption, publish-state mutation, or signed upload package output.
+- Desktop UI automation as a primary path.
+- Broad process cleanup outside known addon-scoped smoke processes.
+- Treating process launch as validation success without expected log or console evidence.
 
 ## Requirements
 
-### PUB-01 Unified Dry-Run Release Tool
+### VAL-01 Runtime-Only Target Handling
 
-Expose one MCP operation for release readiness dry runs across fixture, local, and remote targets.
-
-Acceptance:
-
-- The operation is present in schemas, tool discovery, dispatcher routing, and MCP server registration.
-- Fixture/local and remote targets return the same `ToolResult` shape with target, operation, evidence, warnings, paths, commands, logs, and errors where applicable.
-- Invalid addon names and missing roots fail before filesystem reads or remote command construction.
-
-### PUB-02 Addon Metadata Completeness
-
-Inspect publish-facing addon metadata without mutating files.
+Use the provided Windows target only as runtime input.
 
 Acceptance:
 
-- The report checks `addoninfo.txt` for required keys: `addonSteamAppID`, `addontitle`, `addonAuthor`, and `addonDescription`.
-- Missing, empty, or placeholder metadata values are reported as blockers.
-- Present metadata values are reported as evidence without rewriting the file.
+- No repository file contains the Windows password, private host, private username, Steam credentials, GitHub tokens, private keys, or private target details.
+- Verification artifacts identify the target generically, such as `user-provided Windows host`.
+- Any command transcript included in artifacts is sanitized.
 
-### PUB-03 Package Candidate Preflight
+### VAL-02 Environment Discovery Evidence
 
-Identify package candidate roots and release-facing assets without creating archives or encrypted output.
-
-Acceptance:
-
-- The report includes game and content addon roots, map directory, Lua entry, localization file, and known NPC KV files.
-- Missing roots or critical files are blockers.
-- Optional release-facing files such as Panorama and toolchain markers are warnings or evidence, not implicit readiness.
-- No archive, zip, VPK, encryption, upload, or build command is executed.
-
-### PUB-04 Sensitive Information Scan
-
-Scan addon files for obvious sensitive material before a release candidate is reviewed.
+Verify the Windows host has a usable Dota 2 install and Workshop Tools paths.
 
 Acceptance:
 
-- The scanner inspects text-like files under the target addon roots with bounded file size and deterministic extension filters.
-- Matches for token, password, secret, private key, Steam credential, GitHub token, host credential, or private key material are blockers with file evidence.
-- Binary or oversized files are skipped with explicit warning evidence, not silently accepted.
-- The scanner does not print full secret values.
+- Evidence includes Dota root discovery or explicit user-provided Dota root verification.
+- Evidence includes `dota2.exe` path verification.
+- Evidence includes at least one Workshop Tools-adjacent path, such as `vconsole2.exe`, `dota2cfg.exe`, `resourcecompiler.exe`, or installed template map evidence.
+- Missing path failures are recorded with command/path category evidence.
 
-### PUB-05 Dry-Run Release Report
+### VAL-03 Existing Workflow Smoke Evidence
 
-Return a concise report suitable for manual review.
-
-Acceptance:
-
-- The result includes evidence lines for `release blockers`, `release warnings`, and `dry-run release report generated`.
-- `ok` is false when blockers exist and true only when no blockers are found.
-- Warnings remain visible even when the dry run passes.
-- The report states that preflight is not runtime validation and does not prove Workshop publication.
-
-### PUB-06 Publishing Boundary
-
-Keep Steam, encryption, and upload behavior as explicit manual boundaries.
+Exercise the smallest existing workflow that materially increases confidence.
 
 Acceptance:
 
-- The tool accepts no credential, token, key, password, Steam account, GitHub token, or private host fields.
-- The result always warns that Steam login, encryption, and Workshop upload are manual/out of scope.
-- Documentation and skill guidance state that dry-run release report output must not be treated as upload success.
+- Preferred path: run existing playable smoke or an equivalent generated-addon launch and marker validation through the Windows host.
+- If launch is blocked by environment constraints, record the exact blocker and still run non-launch checks such as addon generation, inspection, and dry-run release report.
+- Validation success requires expected log or console marker evidence, not launch success alone.
 
-### PUB-07 Remote Parity
+### VAL-04 Safe Cleanup Evidence
 
-Remote release dry run must use the same logical checks through command evidence.
-
-Acceptance:
-
-- Remote command-construction tests prove invalid input suppresses command execution.
-- Remote script output parses into the same blocker, warning, evidence, and path categories as local fixture checks.
-- Remote failures return explicit command evidence rather than local fallback behavior.
-
-### PUB-08 Verification and Review
-
-Close the slice with automated verification and independent review.
+Clean up only known addon-scoped smoke processes when cleanup is needed.
 
 Acceptance:
 
-- Targeted tests, full tests, typecheck, build, and whitespace checks pass.
-- A strict secret scan over tracked and untracked project files reports no stored credentials.
-- GSD verification, summary, and independent review artifacts record what was checked and any residual risk.
+- Cleanup starts with dry-run matching evidence when a running process may block smoke.
+- Execute cleanup only targets command lines matching the requested smoke addon name.
+- Do not stop broad Dota, Steam, or unrelated processes.
+
+### VAL-05 Verification Artifact
+
+Record the validation result in GSD artifacts.
+
+Acceptance:
+
+- `01-VERIFICATION.md` records environment, smoke or fallback checks, cleanup, local automated verification, and residual risk.
+- `01-REVIEW.md` records independent review of credential hygiene and evidence claims.
+- `01-01-SUMMARY.md` records whether the same-machine/local-Windows gap is closed or remains partially open.
 
 ## Definition of Done
 
-- [x] v1.2 requirements and roadmap exist outside the v1.1 archive.
-- [x] The dry-run release report tool is implemented and documented.
-- [x] The implementation has fixture and remote-command tests.
-- [x] Verification artifacts prove automated checks ran.
-- [x] Independent review records findings before commit.
+- [x] Windows host evidence is collected or explicit blocker evidence is recorded.
+- [x] No credential or private target data is written to repository files.
+- [x] Existing local automated verification still passes.
+- [x] Independent review is recorded.
+- [ ] Changes are committed and pushed.
