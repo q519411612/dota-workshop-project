@@ -1,7 +1,7 @@
 # Roadmap: Dota Workshop Project
 
 **Created:** 2026-07-03
-**Updated:** 2026-07-06
+**Updated:** 2026-07-07
 **Mode:** Vertical MVP
 **Core Value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
 
@@ -15,8 +15,54 @@
 - [x] **v1.6 Release Candidate Audit Gate** - local RC gate before any broader handoff or publishing work.
 - [x] **v1.7 Release Handoff Bundle Readiness** - local handoff report before external operator delivery or release review.
 - [x] **v1.8 Milestone Archive and Release Notes Readiness** - local closeout report for v1.2-v1.7 release readiness history.
+- [x] **v1.9 Same-Machine Windows Local Smoke Evidence** - local harness and sanitized evidence verifier for MCP running directly on Windows.
 
 ## Active Work
+
+### v1.9 Same-Machine Windows Local Smoke Evidence
+
+Goal: establish a local, credential-free same-machine Windows smoke evidence harness that can be verified on macOS and can only mark real runtime evidence passed when sanitized Windows log or console markers are present.
+
+Scope:
+
+- Add a same-machine smoke evidence schema and verifier.
+- Add `npm run verify:same-machine-smoke` as a local-only harness gate.
+- Add a runbook for collecting sanitized same-machine Windows evidence when the MCP server runs directly on Windows.
+- Distinguish `harness_ready`, `runtime_pending`, and `runtime_passed` without treating harness evidence as real runtime success.
+- Keep the command free of Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, credential storage, remote Windows connections, network access, Dota runtime work, or UI automation.
+
+### Phase 1: Same-Machine Windows Local Smoke Evidence
+
+**Status:** Complete
+**Goal:** Add sanitized same-machine smoke evidence schema, verifier, runbook, tests, and local harness command.
+**Requirements:** LOCAL-SMOKE-01, LOCAL-SMOKE-02, LOCAL-SMOKE-03, LOCAL-SMOKE-04, LOCAL-SMOKE-05, LOCAL-SMOKE-06
+**Canonical refs:**
+
+- `.planning/REQUIREMENTS.md`
+- `.planning/phases/01-same-machine-windows-local-smoke-evidence/01-SPEC.md`
+- `.planning/phases/01-same-machine-windows-local-smoke-evidence/01-01-PLAN.md`
+
+**In scope:**
+
+- Local evidence artifact schema and verifier.
+- Status separation for harness readiness and real runtime proof.
+- Sanitization scanning for private paths, host/user/account fields, credentials, tokens, and keys.
+- Runbook for safe same-machine Windows collection.
+- Local-only command and tests.
+
+**Out of scope:**
+
+- Real Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, archive creation, registry publish, global installation, remote Windows connections, SSH, PowerShell Remoting, UI automation, or new gameplay/toolchain features.
+
+**Outcome:**
+
+- Added `npm run verify:same-machine-smoke`.
+- Added a same-machine smoke evidence verifier with `harness_ready`, `runtime_pending`, and `runtime_passed` status separation.
+- Added sanitization checks for credential-like values, private paths, host/user/account fields, tokens, and keys without echoing sensitive values.
+- Added a runbook for collecting same-machine Windows evidence with sanitized marker logs.
+- Local harness verification passes and reports real same-machine Windows runtime evidence as pending rather than passed.
+
+## Latest Completed Work
 
 ### v1.8 Milestone Archive and Release Notes Readiness
 
@@ -60,8 +106,6 @@ Scope:
 - The milestone report records the v1.2-v1.7 commit range, version inventory, goals, delivery summaries, verification status, documentation status, release boundaries, and remaining non-blocking items.
 - The verifier reuses `verify:handoff` as the preflight and checks README, operator runbook, and handoff output coverage.
 - README and the operator runbook now include the milestone closeout gate after `verify:handoff`.
-
-## Latest Completed Work
 
 ### v1.7 Release Handoff Bundle Readiness
 

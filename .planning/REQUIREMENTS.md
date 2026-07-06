@@ -1,121 +1,104 @@
-# Requirements: v1.8 Milestone Archive and Release Notes Readiness
+# Requirements: v1.9 Same-Machine Windows Local Smoke Evidence
 
-**Created:** 2026-07-06
-**Milestone:** v1.8 Milestone Archive and Release Notes Readiness
+**Created:** 2026-07-07
+**Milestone:** v1.9 Same-Machine Windows Local Smoke Evidence
 **Status:** Complete
 
 ## Goal
 
-Create a local, credential-free milestone closeout and release notes readiness report that aggregates the completed v1.2-v1.7 release preparation work into an operator-readable and future-reviewer-readable summary before any real Workshop publishing action.
+Create a credential-free same-machine Windows smoke evidence harness for cases where the MCP server runs directly on the Windows machine that has Dota 2 Workshop Tools installed. The slice must make local harness readiness verifiable on macOS while refusing to present real Windows runtime validation as passed unless sanitized log or console marker evidence is provided.
 
 ## Scope
 
 ### In Scope
 
-- A repository-local `npm run verify:milestone` command.
-- A structured verifier module that emits a JSON report with success state, handoff preflight status, v1.2-v1.7 version list, commit SHAs, commit range, delivery summaries, verification status, documentation status, release boundaries, remaining non-blocking items, evidence, warnings, blockers, paths, commands, and logs where applicable.
-- Reuse of the existing handoff verifier as the milestone closeout preflight.
-- Checks that README, operator runbook, and handoff readiness output support release review and operator handoff.
-- Explicit release boundary entries for no real Workshop upload, no Steam login, no Steam Guard handling, no content encryption, no package signing, no credential storage, and no remote Windows connection.
-- Tests that run on macOS without Dota 2, Steam, Workshop Tools, Windows, network access, or remote target credentials.
+- A sanitized same-machine smoke evidence schema and verifier.
+- A local `npm run verify:same-machine-smoke` command that exercises the verifier without Dota 2, Steam, Workshop Tools, Windows, network access, or credentials.
+- A runbook for collecting real same-machine Windows evidence without storing private paths, usernames, hostnames, account data, tokens, passwords, private keys, or Steam credentials.
+- Clear status separation between `harness_ready`, `runtime_pending`, and `runtime_passed`.
+- Tests for artifact structure, required boundaries, marker evidence, and sensitive information rejection.
 - GSD verification and independent review artifacts.
 
 ### Out of Scope
 
-- Real Workshop upload, publish-state mutation, Steam login, Steam Guard handling, content encryption, package signing, archive creation, registry publish, global installation, or package distribution.
-- Running Dota 2, Workshop Tools, remote Windows smoke, same-machine Windows smoke, SSH, PowerShell Remoting, MCP runtime target operations, or UI automation as part of the milestone gate.
-- Reading or storing Steam, GitHub, Windows, remote, token, password, private key, private host, or private target material.
-- Adding gameplay, Panorama, TypeScript-to-Lua, React, Excel-to-KV, unit/ability runtime, or publishing automation capabilities.
+- Real Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, archive creation, registry publish, global installation, remote Windows connections, SSH, PowerShell Remoting, UI automation, or credential handling.
+- Claiming same-machine Windows runtime evidence passed without real sanitized Windows runtime marker evidence.
+- Adding gameplay, Panorama, TypeScript-to-Lua, React, Excel-to-KV, unit/ability runtime behavior, or publishing automation capabilities.
 
 ## Requirements
 
-### MILESTONE-01 Local Milestone Command
+### LOCAL-SMOKE-01 Evidence Schema
 
-Provide a local milestone closeout readiness command.
-
-Acceptance:
-
-- `package.json` defines `verify:milestone`.
-- `verify:milestone` runs from built output.
-- The command exits non-zero when any blocker is found.
-- The command prints a structured JSON report.
-
-### MILESTONE-02 Handoff Preflight
-
-Reuse the release handoff gate as a milestone closeout preflight.
+Define a same-machine Windows smoke evidence artifact shape.
 
 Acceptance:
 
-- The milestone verifier runs the handoff verifier before marking the milestone ready.
-- The report includes handoff readiness status.
-- The report includes handoff command results or injected handoff evidence without leaking repository absolute paths.
-- Handoff blockers are included in milestone blockers without leaking sensitive values.
+- The artifact records schema version, addon name, map name, generated time, target category, status, operations, evidence, warnings, blockers, boundaries, commands, paths, and logs where applicable.
+- The target category is same-machine Windows without host, username, account, or private machine identity fields.
+- Status must be one of `harness_ready`, `runtime_pending`, or `runtime_passed`.
+- Invalid status values produce blockers.
 
-### MILESTONE-03 Version Inventory
+### LOCAL-SMOKE-02 Runtime Evidence Gate
 
-Report the completed v1.2-v1.7 release preparation history.
-
-Acceptance:
-
-- The report lists v1.2, v1.3, v1.4, v1.5, v1.6, and v1.7.
-- Each version records title, commit SHA, goal, key delivery summary, verification status, and known boundary.
-- The report records the commit range from v1.2 through v1.7.
-- Missing or malformed version inventory entries produce blockers.
-
-### MILESTONE-04 Review Readiness Coverage
-
-Check that operator-facing review materials support handoff and release notes review.
+Prevent harness evidence from being mistaken for real Windows runtime success.
 
 Acceptance:
 
-- README includes build, plugin verification, RC verification, handoff verification, milestone verification, local-only boundary text, and operator runbook link.
-- Operator runbook includes install/readiness commands, `verify:plugin`, `verify:rc`, `verify:handoff`, `verify:milestone`, fixture workflow, optional remote smoke, cleanup, and credential boundary text.
-- Handoff readiness output includes delivery checklist, documentation coverage, and release boundaries.
-- Missing coverage produces blockers with relative file paths.
+- `harness_ready` may pass with local harness evidence and an explicit runtime pending warning.
+- `runtime_pending` may pass only as a non-runtime-success artifact with blockers explaining the external Windows evidence gap.
+- `runtime_passed` requires real runtime marker evidence from sanitized log or console lines.
+- `runtime_passed` without marker evidence produces blockers.
 
-### MILESTONE-05 Release Boundaries
+### LOCAL-SMOKE-03 Sanitization
 
-Make release prohibitions explicit in the milestone report.
-
-Acceptance:
-
-- The report lists no real Workshop upload.
-- The report lists no Steam login and no Steam Guard handling.
-- The report lists no content encryption.
-- The report lists no package signing.
-- The report lists no credential or private target storage.
-- The report lists no remote Windows connection by the milestone command.
-- The command does not perform any of those actions.
-
-### MILESTONE-06 Local-Only Execution
-
-Keep the milestone check deterministic and local-only.
+Reject sensitive or private target material in artifacts.
 
 Acceptance:
 
-- The milestone gate does not call Dota 2, Workshop Tools, Steam, SSH, PowerShell Remoting, or MCP runtime target operations.
-- The milestone gate does not require Windows.
-- The milestone gate does not require network access.
-- The milestone gate does not read credentials from environment variables.
+- Artifact text is scanned for credential, token, password, private key, private host, username, and private absolute path indicators.
+- Blockers report only the field path and finding category, not the sensitive value.
+- Sanitized paths use placeholders or categories instead of private machine paths.
 
-### MILESTONE-07 Verification and Review
+### LOCAL-SMOKE-04 Runbook
+
+Document the same-machine Windows collection workflow.
+
+Acceptance:
+
+- The runbook explains how to run the MCP server directly on Windows and collect sanitized marker evidence.
+- The runbook distinguishes harness readiness from real runtime pass.
+- The runbook prohibits Steam login capture, Workshop upload, encryption, signing, credential storage, and private path storage.
+- The runbook describes where to paste sanitized evidence into the verifier input.
+
+### LOCAL-SMOKE-05 Local Verification
+
+Keep the verifier deterministic and local-only.
+
+Acceptance:
+
+- `package.json` defines `verify:same-machine-smoke`.
+- The command runs from built output.
+- The command emits structured JSON.
+- The command does not launch Dota 2, Workshop Tools, Steam, SSH, PowerShell Remoting, network calls, or UI automation.
+
+### LOCAL-SMOKE-06 Verification and Review
 
 Close the slice with automated verification and independent review.
 
 Acceptance:
 
-- Targeted milestone tests pass.
+- Targeted same-machine smoke tests pass.
 - `npm run build` succeeds.
-- `npm run verify:milestone` succeeds.
-- `git diff --check`, `npm run typecheck`, `npm test`, `npm run verify:rc`, and `npm run verify:handoff` succeed.
+- `npm run verify:same-machine-smoke` succeeds.
+- `git diff --check`, `npm run typecheck`, `npm test`, `npm run verify:rc`, `npm run verify:handoff`, and `npm run verify:milestone` succeed or record explicit blockers unrelated to this slice.
 - `01-VERIFICATION.md`, `01-REVIEW.md`, and `01-01-SUMMARY.md` record the outcome.
 
 ## Definition of Done
 
-- [x] v1.8 requirements, roadmap, spec, and plan exist.
-- [x] `verify:milestone` exists and emits structured milestone closeout readiness results.
-- [x] Milestone tests cover handoff preflight reuse, v1.2-v1.7 inventory, documentation coverage, release boundaries, and local-only execution.
-- [x] README and operator runbook include the milestone gate.
+- [x] v1.9 requirements, roadmap, spec, and plan exist.
+- [x] Same-machine smoke evidence verifier exists.
+- [x] Local tests cover status separation, marker requirements, and sanitization.
+- [x] Runbook documents safe same-machine evidence collection.
 - [x] Local verification passes.
 - [x] Independent review is recorded.
-- [x] Changes are committed and pushed.
+- [ ] Changes are committed and pushed.

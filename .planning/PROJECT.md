@@ -4,7 +4,7 @@
 
 Dota Workshop Project is a Codex plugin project for building Dota 2 custom games with AI assistance. It will package a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, and inspect a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The v1.1 Workshop MVP milestone is complete and archived. The project now has a validated end-to-end plugin slice: agents can generate playable addons, run evidence-driven smoke workflows on Windows targets, inspect custom map/objective/unit scaffold readiness, and report Panorama/toolchain/publishing boundaries without expanding into full UI generation or Workshop upload automation. v1.2 added dry-run release/package readiness before any real Workshop upload automation. v1.3 added sanitized real Windows validation closure through the remote SSH path. v1.4 added local plugin installation and operator handoff readiness verification. v1.5 added checked operator docs and reusable safe workflow examples. v1.6 added a local release-candidate audit gate. v1.7 added a local release handoff readiness report. v1.8 added a local milestone closeout and release notes readiness report for v1.2-v1.7.
+The v1.1 Workshop MVP milestone is complete and archived. The project now has a validated end-to-end plugin slice: agents can generate playable addons, run evidence-driven smoke workflows on Windows targets, inspect custom map/objective/unit scaffold readiness, and report Panorama/toolchain/publishing boundaries without expanding into full UI generation or Workshop upload automation. v1.2 added dry-run release/package readiness before any real Workshop upload automation. v1.3 added sanitized real Windows validation closure through the remote SSH path. v1.4 added local plugin installation and operator handoff readiness verification. v1.5 added checked operator docs and reusable safe workflow examples. v1.6 added a local release-candidate audit gate. v1.7 added a local release handoff readiness report. v1.8 added a local milestone closeout and release notes readiness report for v1.2-v1.7. v1.9 added a same-machine Windows smoke evidence harness and sanitizer while keeping real same-machine runtime evidence pending until actual sanitized Windows marker logs are collected.
 
 ## Core Value
 
@@ -50,11 +50,12 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 - [x] Added a local `verify:rc` gate for plugin/package readiness, example/schema checks, build/test checks, repository hygiene scanning, and publishing boundary checks.
 - [x] Added a local `verify:handoff` gate for commit identity, RC preflight evidence, delivery checklist reporting, documentation coverage, and explicit release boundaries.
 - [x] Added a local `verify:milestone` gate for v1.2-v1.7 closeout inventory, commit range reporting, handoff preflight evidence, release notes readiness, and remaining non-blocking items.
+- [x] Added a local `verify:same-machine-smoke` gate for same-machine Windows smoke evidence schema readiness, runtime evidence status separation, and sanitized artifact checking.
 
 ### Active
 
+- [ ] Collect real same-machine Windows runtime marker evidence if a Windows machine is available.
 - [ ] Decide the next publishing readiness increment after dry-run release reporting.
-- [ ] Decide whether a separate Windows-local MCP server run is worth scheduling as optional evidence.
 
 ### Out of Scope
 
@@ -110,6 +111,7 @@ Milestone v1.1 is archived under `.planning/milestones/`. Current planning shoul
 | Make operator examples machine-checkable | Reusable examples are useful only if schemas and safety boundaries keep them from drifting or storing private material | Implemented |
 | Add release handoff reporting before external delivery | Operators need one local, credential-free report that aggregates RC evidence, delivery artifacts, docs coverage, and release boundaries | Implemented |
 | Add milestone closeout reporting before release notes review | Future release reviewers need one local, credential-free report that summarizes v1.2-v1.7 goals, commits, delivery status, verification status, boundaries, and residual non-blocking items | Implemented |
+| Keep same-machine runtime pass separate from harness readiness | Mac-local verification can prove schema and sanitization, but only real Windows marker logs can prove same-machine runtime execution | Implemented |
 
 ## Evolution
 
@@ -129,4 +131,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-06 after v1.8 Milestone Archive and Release Notes Readiness*
+*Last updated: 2026-07-07 after v1.9 Same-Machine Windows Local Smoke Evidence*
