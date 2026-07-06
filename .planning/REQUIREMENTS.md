@@ -1,104 +1,102 @@
-# Requirements: v1.9 Same-Machine Windows Local Smoke Evidence
+# Requirements: v1.10 Release Bundle Manifest / Source Snapshot Dry Run
 
 **Created:** 2026-07-07
-**Milestone:** v1.9 Same-Machine Windows Local Smoke Evidence
+**Milestone:** v1.10 Release Bundle Manifest / Source Snapshot Dry Run
 **Status:** Complete
 
 ## Goal
 
-Create a credential-free same-machine Windows smoke evidence harness for cases where the MCP server runs directly on the Windows machine that has Dota 2 Workshop Tools installed. The slice must make local harness readiness verifiable on macOS while refusing to present real Windows runtime validation as passed unless sanitized log or console marker evidence is provided.
+Create a local, credential-free source snapshot manifest dry run for release handoff review. The manifest must enumerate source files with SHA-256 hashes, version data, verification results, boundary statements, generation time, and commit identity without creating an archive, signing content, encrypting content, uploading anything, or storing sensitive material.
 
 ## Scope
 
 ### In Scope
 
-- A sanitized same-machine smoke evidence schema and verifier.
-- A local `npm run verify:same-machine-smoke` command that exercises the verifier without Dota 2, Steam, Workshop Tools, Windows, network access, or credentials.
-- A runbook for collecting real same-machine Windows evidence without storing private paths, usernames, hostnames, account data, tokens, passwords, private keys, or Steam credentials.
-- Clear status separation between `harness_ready`, `runtime_pending`, and `runtime_passed`.
-- Tests for artifact structure, required boundaries, marker evidence, and sensitive information rejection.
+- A deterministic source snapshot manifest generator.
+- A local `npm run verify:source-snapshot` command that emits structured JSON from built output.
+- File inventory with repository-relative paths, byte sizes, and SHA-256 hashes.
+- Version, generated time, commit SHA, commit branch, verification result summaries, and release boundary statements.
+- Sensitive material scanning that blocks manifest readiness without echoing sensitive values.
+- Tests for determinism, hash coverage, boundary coverage, and sensitive information exclusion.
 - GSD verification and independent review artifacts.
 
 ### Out of Scope
 
-- Real Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, archive creation, registry publish, global installation, remote Windows connections, SSH, PowerShell Remoting, UI automation, or credential handling.
-- Claiming same-machine Windows runtime evidence passed without real sanitized Windows runtime marker evidence.
+- Archive creation, package signing, content encryption, package publishing, registry publishing, real Workshop upload, Steam login, Steam Guard handling, network access, remote Windows connections, SSH, PowerShell Remoting, UI automation, or credential handling.
+- Reading ignored dependency/output trees as source snapshot content.
 - Adding gameplay, Panorama, TypeScript-to-Lua, React, Excel-to-KV, unit/ability runtime behavior, or publishing automation capabilities.
 
 ## Requirements
 
-### LOCAL-SMOKE-01 Evidence Schema
+### SNAPSHOT-01 Manifest Shape
 
-Define a same-machine Windows smoke evidence artifact shape.
-
-Acceptance:
-
-- The artifact records schema version, addon name, map name, generated time, target category, status, operations, evidence, warnings, blockers, boundaries, commands, paths, and logs where applicable.
-- The target category is same-machine Windows without host, username, account, or private machine identity fields.
-- Status must be one of `harness_ready`, `runtime_pending`, or `runtime_passed`.
-- Invalid status values produce blockers.
-
-### LOCAL-SMOKE-02 Runtime Evidence Gate
-
-Prevent harness evidence from being mistaken for real Windows runtime success.
+Define a source snapshot manifest for dry-run release handoff.
 
 Acceptance:
 
-- `harness_ready` may pass with local harness evidence and an explicit runtime pending warning.
-- `runtime_pending` may pass only as a non-runtime-success artifact with blockers explaining the external Windows evidence gap.
-- `runtime_passed` requires real runtime marker evidence from sanitized log or console lines.
-- `runtime_passed` without marker evidence produces blockers.
+- The manifest records schema version, project name, version, generated time, commit SHA, branch, file entries, verification summaries, boundaries, warnings, and blockers.
+- File entries include repository-relative path, byte size, and SHA-256 hash.
+- Paths are sorted deterministically.
+- Absolute repository paths are not emitted in manifest file entries.
 
-### LOCAL-SMOKE-03 Sanitization
+### SNAPSHOT-02 Determinism
 
-Reject sensitive or private target material in artifacts.
-
-Acceptance:
-
-- Artifact text is scanned for credential, token, password, private key, private host, username, and private absolute path indicators.
-- Blockers report only the field path and finding category, not the sensitive value.
-- Sanitized paths use placeholders or categories instead of private machine paths.
-
-### LOCAL-SMOKE-04 Runbook
-
-Document the same-machine Windows collection workflow.
+Make manifest generation deterministic for identical inputs.
 
 Acceptance:
 
-- The runbook explains how to run the MCP server directly on Windows and collect sanitized marker evidence.
-- The runbook distinguishes harness readiness from real runtime pass.
-- The runbook prohibits Steam login capture, Workshop upload, encryption, signing, credential storage, and private path storage.
-- The runbook describes where to paste sanitized evidence into the verifier input.
+- Given the same root, generated time, commit data, and verification results, repeated generation returns identical JSON-serializable output.
+- File ordering is stable across filesystems.
+- Hashes are calculated from file bytes, not timestamps.
 
-### LOCAL-SMOKE-05 Local Verification
+### SNAPSHOT-03 Hash Coverage
 
-Keep the verifier deterministic and local-only.
+Ensure every included source file has hash evidence.
 
 Acceptance:
 
-- `package.json` defines `verify:same-machine-smoke`.
-- The command runs from built output.
-- The command emits structured JSON.
-- The command does not launch Dota 2, Workshop Tools, Steam, SSH, PowerShell Remoting, network calls, or UI automation.
+- Every included file has a 64-character lowercase SHA-256 digest.
+- Missing or unreadable required source areas produce blockers.
+- The manifest includes source, tests, docs, skill, examples, plugin metadata, package metadata, and planning artifacts needed for handoff review.
 
-### LOCAL-SMOKE-06 Verification and Review
+### SNAPSHOT-04 Boundaries
+
+Record release dry-run boundaries explicitly.
+
+Acceptance:
+
+- Boundaries include no archive created, no signing, no encryption, no upload, no Steam login, no Steam Guard handling, no credential storage, no remote Windows connection, and no global install.
+- The command performs none of those actions.
+- Missing boundaries produce blockers.
+
+### SNAPSHOT-05 Sensitive Information Exclusion
+
+Block sensitive material without leaking it.
+
+Acceptance:
+
+- Manifest generation scans included text files for credential, token, password, private key, private host, username, and private path indicators.
+- Blockers report only relative path, field, and category.
+- Manifest output does not include file content or sensitive values.
+
+### SNAPSHOT-06 Local Verification and Review
 
 Close the slice with automated verification and independent review.
 
 Acceptance:
 
-- Targeted same-machine smoke tests pass.
+- Targeted source snapshot tests pass.
 - `npm run build` succeeds.
-- `npm run verify:same-machine-smoke` succeeds.
+- `npm run verify:source-snapshot` succeeds.
 - `git diff --check`, `npm run typecheck`, `npm test`, `npm run verify:rc`, `npm run verify:handoff`, and `npm run verify:milestone` succeed or record explicit blockers unrelated to this slice.
 - `01-VERIFICATION.md`, `01-REVIEW.md`, and `01-01-SUMMARY.md` record the outcome.
 
 ## Definition of Done
 
-- [x] v1.9 requirements, roadmap, spec, and plan exist.
-- [x] Same-machine smoke evidence verifier exists.
-- [x] Local tests cover status separation, marker requirements, and sanitization.
-- [x] Runbook documents safe same-machine evidence collection.
+- [x] v1.10 requirements, roadmap, spec, and plan exist.
+- [x] Source snapshot manifest generator exists.
+- [x] Local tests cover determinism, hash coverage, boundaries, and sensitive material exclusion.
+- [x] Local verifier command emits structured JSON.
 - [x] Local verification passes.
 - [x] Independent review is recorded.
 - [ ] Changes are committed and pushed.

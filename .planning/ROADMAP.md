@@ -16,8 +16,54 @@
 - [x] **v1.7 Release Handoff Bundle Readiness** - local handoff report before external operator delivery or release review.
 - [x] **v1.8 Milestone Archive and Release Notes Readiness** - local closeout report for v1.2-v1.7 release readiness history.
 - [x] **v1.9 Same-Machine Windows Local Smoke Evidence** - local harness and sanitized evidence verifier for MCP running directly on Windows.
+- [x] **v1.10 Release Bundle Manifest / Source Snapshot Dry Run** - deterministic source snapshot manifest without archive, signing, encryption, or upload.
 
 ## Active Work
+
+### v1.10 Release Bundle Manifest / Source Snapshot Dry Run
+
+Goal: establish a deterministic, credential-free source snapshot manifest dry run for release handoff review without creating an archive, signing, encrypting, publishing, uploading, or mutating external state.
+
+Scope:
+
+- Add a source snapshot manifest generator.
+- Add `npm run verify:source-snapshot` as a local-only dry-run manifest gate.
+- Include repository-relative file entries with byte sizes and SHA-256 hashes.
+- Include version, generation time, commit identity, verification summaries, and release boundary statements.
+- Keep the command free of archive creation, package signing, content encryption, upload, Steam login, Steam Guard handling, credential storage, remote Windows connections, network access, global install, Dota runtime work, or UI automation.
+
+### Phase 1: Release Bundle Manifest / Source Snapshot Dry Run
+
+**Status:** Complete
+**Goal:** Add deterministic source snapshot manifest generation, verifier command, tests, and review artifacts.
+**Requirements:** SNAPSHOT-01, SNAPSHOT-02, SNAPSHOT-03, SNAPSHOT-04, SNAPSHOT-05, SNAPSHOT-06
+**Canonical refs:**
+
+- `.planning/REQUIREMENTS.md`
+- `.planning/phases/01-release-bundle-manifest-source-snapshot-dry-run/01-SPEC.md`
+- `.planning/phases/01-release-bundle-manifest-source-snapshot-dry-run/01-01-PLAN.md`
+
+**In scope:**
+
+- Manifest schema and generator.
+- Deterministic file inventory with SHA-256 coverage.
+- Verification summaries and release boundary statements.
+- Sensitive material scanning without value leakage.
+- Local-only verifier command and tests.
+
+**Out of scope:**
+
+- Archive creation, package signing, content encryption, package publishing, registry publishing, real Workshop upload, Steam login, Steam Guard handling, network access, remote Windows connections, SSH, PowerShell Remoting, global installation, UI automation, or new gameplay/toolchain features.
+
+**Outcome:**
+
+- Added `npm run verify:source-snapshot`.
+- Added a deterministic source snapshot manifest generator with repository-relative file inventory, byte sizes, SHA-256 hashes, version data, commit data, verification summaries, and release boundaries.
+- Added sensitive material scanning that reports relative path and category without file content or secret value leakage.
+- The manifest dry run excludes graph freshness output, generated dependency/output trees, and OS metadata.
+- Local verification passes without creating an archive, signing, encrypting, publishing, uploading, connecting to Windows, or mutating global install state.
+
+## Latest Completed Work
 
 ### v1.9 Same-Machine Windows Local Smoke Evidence
 
@@ -61,8 +107,6 @@ Scope:
 - Added sanitization checks for credential-like values, private paths, host/user/account fields, tokens, and keys without echoing sensitive values.
 - Added a runbook for collecting same-machine Windows evidence with sanitized marker logs.
 - Local harness verification passes and reports real same-machine Windows runtime evidence as pending rather than passed.
-
-## Latest Completed Work
 
 ### v1.8 Milestone Archive and Release Notes Readiness
 

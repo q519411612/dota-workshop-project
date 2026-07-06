@@ -1,0 +1,234 @@
+import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
+import { access, readFile, readdir, stat } from "node:fs/promises";
+import { extname, join, sep } from "node:path";
+import { promisify } from "node:util";
+const execFileAsync = promisify(execFile);
+const SOURCE_PATHS = [
+    ".codex-plugin",
+    ".mcp.json",
+    ".planning/PROJECT.md",
+    ".planning/REQUIREMENTS.md",
+    ".planning/ROADMAP.md",
+    ".planning/phases",
+    ".planning/research",
+    "AGENTS.md",
+    "README.md",
+    "docs",
+    "examples",
+    "package-lock.json",
+    "package.json",
+    "skills",
+    "src",
+    "tests",
+    "tsconfig.build.json",
+    "tsconfig.json"
+];
+const REQUIRED_PATHS = [
+    ".codex-plugin/plugin.json",
+    ".mcp.json",
+    ".planning/REQUIREMENTS.md",
+    "docs",
+    "examples",
+    "package.json",
+    "skills",
+    "src",
+    "tests"
+];
+const BOUNDARIES = [
+    "no archive created",
+    "no package signing performed",
+    "no content encryption performed",
+    "no package publish performed",
+    "no registry publish performed",
+    "no Workshop upload attempted",
+    "no Steam login captured",
+    "no Steam Guard handling captured",
+    "no credentials stored",
+    "no remote Windows connection attempted",
+    "no global install performed"
+];
+const TEXT_EXTENSIONS = new Set([
+    ".json",
+    ".md",
+    ".ts",
+    ".js",
+    ".txt",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".xml",
+    ".cfg",
+    ".lua",
+    ".kv"
+]);
+const SENSITIVE_PATTERNS = [
+    { category: "private key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/i },
+    { category: "token", pattern: /\b(?:token|api[_-]?key|secret)\b\s*[:=]\s*["']?(?:gh[pousr]_|sk-|[A-Za-z0-9_/-]{20,})/i },
+    { category: "credential", pattern: /\b(?:credential|password|passwd|pwd)\b\s*[:=]\s*["']?(?:steam_|[A-Za-z0-9_/-]{12,})/i },
+    { category: "private windows path", pattern: /\b[A-Za-z]:[\\/](?:Users|Documents and Settings)[\\/][^\\/]+/ },
+    { category: "private unix path", pattern: /\/Users\/[^/\s]+/ },
+    { category: "private host path", pattern: /\\\\[A-Za-z0-9.-]+\\[A-Za-z0-9.$_-]+/ }
+];
+export async function generateSourceSnapshotManifest(input = {}) {
+    const root = input.root ?? process.cwd();
+    const packageJson = await readPackageJson(root);
+    const blockers = [];
+    await appendMissingRequiredPathBlockers(root, blockers);
+    const files = await collectSourceFiles(root);
+    const snapshotFiles = [];
+    for (const file of files) {
+        const absolutePath = join(root, file);
+        const bytes = await readFile(absolutePath);
+        snapshotFiles.push({
+            path: file,
+            bytes: bytes.byteLength,
+            sha256: createHash("sha256").update(bytes).digest("hex")
+        });
+        const sensitive = await scanFileForSensitiveMaterial(absolutePath);
+        if (sensitive) {
+            blockers.push({
+                code: "SENSITIVE_MATERIAL_FOUND",
+                path: file,
+                field: "content",
+                category: sensitive
+            });
+        }
+    }
+    const boundaries = [...BOUNDARIES];
+    for (const boundary of BOUNDARIES) {
+        if (!boundaries.includes(boundary)) {
+            blockers.push({
+                code: "BOUNDARY_MISSING",
+                field: "boundaries",
+                category: boundary
+            });
+        }
+    }
+    const manifest = {
+        schemaVersion: "1.0",
+        project: packageJson.name,
+        version: packageJson.version,
+        generatedAt: input.generatedAt ?? new Date().toISOString(),
+        commit: input.commit ?? await readGitCommit(root),
+        verification: input.verification ?? [],
+        boundaries,
+        files: snapshotFiles.sort((left, right) => comparePath(left.path, right.path)),
+        warnings: [],
+        blockers
+    };
+    return {
+        ok: blockers.length === 0,
+        manifest
+    };
+}
+async function readPackageJson(root) {
+    try {
+        const parsed = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+        return {
+            name: typeof parsed.name === "string" ? parsed.name : "unknown",
+            version: typeof parsed.version === "string" ? parsed.version : "0.0.0"
+        };
+    }
+    catch {
+        return {
+            name: "unknown",
+            version: "0.0.0"
+        };
+    }
+}
+async function appendMissingRequiredPathBlockers(root, blockers) {
+    for (const path of REQUIRED_PATHS) {
+        try {
+            await access(join(root, path));
+        }
+        catch {
+            blockers.push({
+                code: "REQUIRED_SOURCE_PATH_MISSING",
+                path,
+                field: "files",
+                category: "source coverage"
+            });
+        }
+    }
+}
+async function collectSourceFiles(root) {
+    const files = [];
+    for (const sourcePath of SOURCE_PATHS) {
+        await collectPath(root, sourcePath, files);
+    }
+    return [...new Set(files)].sort(comparePath);
+}
+async function collectPath(root, sourcePath, files) {
+    const absolutePath = join(root, sourcePath);
+    let entryStat;
+    try {
+        entryStat = await stat(absolutePath);
+    }
+    catch {
+        return;
+    }
+    if (entryStat.isFile()) {
+        files.push(toRepositoryPath(sourcePath));
+        return;
+    }
+    if (!entryStat.isDirectory()) {
+        return;
+    }
+    const entries = await readdir(absolutePath, { withFileTypes: true });
+    for (const entry of entries.sort((left, right) => comparePath(left.name, right.name))) {
+        if (entry.name === "graphs" || entry.name === ".DS_Store") {
+            continue;
+        }
+        const childPath = `${sourcePath}/${entry.name}`;
+        if (entry.isDirectory()) {
+            await collectPath(root, childPath, files);
+        }
+        else if (entry.isFile()) {
+            files.push(toRepositoryPath(childPath));
+        }
+    }
+}
+function comparePath(left, right) {
+    if (left < right)
+        return -1;
+    if (left > right)
+        return 1;
+    return 0;
+}
+function toRepositoryPath(path) {
+    return path.split(sep).join("/");
+}
+async function scanFileForSensitiveMaterial(path) {
+    if (!TEXT_EXTENSIONS.has(extname(path))) {
+        return undefined;
+    }
+    const content = await readFile(path, "utf8");
+    for (const line of content.split(/\r?\n/)) {
+        if (line.includes("${") || line.includes("[\"")) {
+            continue;
+        }
+        const match = SENSITIVE_PATTERNS.find((entry) => entry.pattern.test(line));
+        if (match) {
+            return match.category;
+        }
+    }
+    return undefined;
+}
+async function readGitCommit(root) {
+    const sha = await gitOutput(root, ["rev-parse", "HEAD"]);
+    const branch = await gitOutput(root, ["branch", "--show-current"]);
+    return {
+        sha: sha || "unknown",
+        branch: branch || "unknown"
+    };
+}
+async function gitOutput(root, args) {
+    try {
+        const result = await execFileAsync("git", args, { cwd: root });
+        return result.stdout.trim();
+    }
+    catch {
+        return "";
+    }
+}
