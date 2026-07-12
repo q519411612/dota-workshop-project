@@ -17,7 +17,7 @@ tech-stack:
   patterns: [explicit text allowlist, code-path blocker uniqueness, exact requirement sets]
 key-files:
   created: [.planning/phases/02-audit-gap-closure/02-01-SUMMARY.md]
-  modified: [src/install-simulation.ts, tests/install-simulation.test.ts, .planning/REQUIREMENTS.md, .planning/ROADMAP.md, .planning/STATE.md, .planning/phases/01-local-install-simulation/01-VERIFICATION.md, .planning/phases/01-local-install-simulation/01-REVIEW.md, .planning/phases/01-local-install-simulation/01-01-SUMMARY.md]
+  modified: [src/install-simulation.ts, dist/install-simulation.js, tests/install-simulation.test.ts, .planning/REQUIREMENTS.md, .planning/ROADMAP.md, .planning/STATE.md, .planning/phases/01-local-install-simulation/01-VERIFICATION.md, .planning/phases/01-local-install-simulation/01-REVIEW.md, .planning/phases/01-local-install-simulation/01-01-SUMMARY.md]
 key-decisions:
   - "Normalize extensions before consulting the explicit text allowlist."
   - "Prevent duplicate missing-file evidence at the second contract check."
@@ -47,12 +47,16 @@ status: complete
 
 - Reproduced four skipped YAML/YML variants and duplicate missing-dist evidence before changing production code.
 - Added case-insensitive YAML/YML recognition and prevented duplicate code/path evidence.
+- Rejected copied symbolic links and returned structured evidence when the simulation root is not isolated.
 - Restored Phase 1 requirement metadata, verification traceability, superseding review evidence, and current v1.13 routing.
 
 ## Task Commits
 
 1. **Regression evidence** — `765be92`
 2. **Scanner behavior** — `d068be8`
+3. **Path-safety regression evidence** — `560ce22`
+4. **Path-safety behavior** — `ea3276b`
+5. **Built verifier refresh** — `d38de34`
 
 ## Decisions Made
 

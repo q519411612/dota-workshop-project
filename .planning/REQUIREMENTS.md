@@ -116,4 +116,4 @@ Acceptance:
 | INSTALL-03 | Manifest, MCP, package, dist, and skill contract checks | Consumer contract assertions and unique missing-dist blocker regression | satisfied |
 | INSTALL-04 | Environment snapshot and `finally` cleanup | Success and blocker paths prove environment stability and root removal | satisfied |
 | INSTALL-05 | YAML/YML-aware sensitive-material scan | Real `agents/openai.yaml` path, case variants, redaction, and cleanup regression | satisfied |
-| INSTALL-06 | Automated gates and independent review artifacts | Phase 1 re-review plus Phase 2 verification and milestone audit | pending final verification |
+| INSTALL-06 | Automated gates and independent review artifacts | Phase 1 re-review plus Phase 2 verification and milestone audit | satisfied |
