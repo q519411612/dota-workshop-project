@@ -41,6 +41,6 @@ No BLOCKER or WARNING findings.
 
 ---
 
-_Reviewed: 2026-07-12T19:05:35Z_  
-_Reviewer: Independent reviewer_  
+_Reviewed: 2026-07-12T19:05:35Z_
+_Reviewer: Independent reviewer_
 _Depth: standard_
