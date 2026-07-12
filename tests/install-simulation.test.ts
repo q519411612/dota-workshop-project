@@ -1,5 +1,5 @@
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtemp } from "node:fs/promises";
 import { describe, expect, test } from "vitest";
@@ -11,6 +11,7 @@ async function writeJson(path: string, value: unknown) {
 async function createInstallFixture(options: {
   omitDistIndex?: boolean;
   skillContent?: string;
+  skillFiles?: Record<string, string>;
 } = {}) {
   const root = await mkdtemp(join(tmpdir(), "dota-install-fixture-"));
   const skillRoot = join(root, "skills/dota2-workshop-tools");
@@ -54,6 +55,12 @@ async function createInstallFixture(options: {
     join(skillRoot, "SKILL.md"),
     options.skillContent ?? "# Dota Workshop Tools\n\nSafe local install simulation fixture.\n"
   );
+
+  for (const [relativePath, content] of Object.entries(options.skillFiles ?? {})) {
+    const path = join(skillRoot, relativePath);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, content);
+  }
 
   return root;
 }
@@ -106,7 +113,9 @@ describe("local install simulation", () => {
       const result = await simulateLocalInstall({ root, tempParent });
 
       expect(result.ok).toBe(false);
-      expect(result.blockers.map((blocker) => blocker.code)).toContain("SIM_DIST_INDEX_MISSING");
+      expect(result.blockers.filter((blocker) => (
+        blocker.code === "SIM_DIST_INDEX_MISSING" && blocker.path === "dist/index.js"
+      ))).toHaveLength(1);
       expect(result.cleanup.removed).toBe(true);
       await expect(access(result.paths.simulationRoot)).rejects.toThrow();
     } finally {
@@ -139,6 +148,39 @@ describe("local install simulation", () => {
       await rm(tempParent, { recursive: true, force: true });
     }
   });
+
+  test.each(["yaml", "yml", "YAML", "YML"])(
+    "blocks sensitive material in copied %s skill metadata without leaking matched values",
+    async (extension) => {
+      const secretValue = ["synthetic", "yaml", "secret", extension].join("_");
+      const relativePath = `agents/openai.${extension}`;
+      const root = await createInstallFixture({
+        skillFiles: {
+          [relativePath]: `credential_password: ${secretValue}\n`
+        }
+      });
+      const tempParent = await mkdtemp(join(tmpdir(), "dota-install-parent-"));
+      try {
+        const { simulateLocalInstall } = await import("../src/install-simulation.js");
+        const result = await simulateLocalInstall({ root, tempParent });
+        const serialized = JSON.stringify(result);
+
+        expect(result.ok).toBe(false);
+        expect(result.blockers).toContainEqual(expect.objectContaining({
+          code: "SIM_SENSITIVE_MATERIAL_FOUND",
+          path: `skills/dota2-workshop-tools/${relativePath}`,
+          category: "credential"
+        }));
+        expect(result.blockers.filter((blocker) => blocker.code === "SIM_SENSITIVE_MATERIAL_FOUND")).toHaveLength(1);
+        expect(serialized).not.toContain(secretValue);
+        expect(result.cleanup.removed).toBe(true);
+        await expect(access(result.paths.simulationRoot)).rejects.toThrow();
+      } finally {
+        await rm(root, { recursive: true, force: true });
+        await rm(tempParent, { recursive: true, force: true });
+      }
+    }
+  );
 
   test("does not mutate selected environment variables", async () => {
     const root = await createInstallFixture();
