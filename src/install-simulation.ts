@@ -1,5 +1,5 @@
 import { access, cp, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 
 export type InstallSimulationBlocker = {
@@ -37,7 +37,7 @@ const REQUIRED_ENTRIES = [
   "skills/dota2-workshop-tools"
 ];
 
-const TEXT_EXTENSIONS = new Set([".json", ".md", ".js", ".ts", ".txt"]);
+const TEXT_EXTENSIONS = new Set([".json", ".md", ".js", ".ts", ".txt", ".yaml", ".yml"]);
 
 const SENSITIVE_PATTERNS = [
   { category: "private key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/i },
@@ -246,6 +246,10 @@ async function checkRequiredFile(
     return;
   }
 
+  if (blockers.some((blocker) => blocker.code === code && blocker.path === relativePath)) {
+    return;
+  }
+
   blockers.push({
     code,
     message: "Simulation is missing a required file.",
@@ -288,7 +292,7 @@ async function listFiles(root: string): Promise<string[]> {
 }
 
 function isTextFile(path: string): boolean {
-  return TEXT_EXTENSIONS.has(path.slice(path.lastIndexOf(".")));
+  return TEXT_EXTENSIONS.has(extname(path).toLowerCase());
 }
 
 function sensitiveCategory(content: string): string | undefined {
