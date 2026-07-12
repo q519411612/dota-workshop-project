@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtemp } from "node:fs/promises";
@@ -181,6 +181,74 @@ describe("local install simulation", () => {
       }
     }
   );
+
+  test("rejects required-file symbolic links without exposing their target", async () => {
+    const root = await createInstallFixture({ omitDistIndex: true });
+    const externalRoot = await mkdtemp(join(tmpdir(), "dota-install-external-"));
+    const externalFile = join(externalRoot, "index.js");
+    const secretValue = "credential_password=synthetic_symlink_secret";
+    await writeFile(externalFile, `${secretValue}\n`);
+    await symlink(externalFile, join(root, "dist/index.js"));
+
+    try {
+      const { simulateLocalInstall } = await import("../src/install-simulation.js");
+      const result = await simulateLocalInstall({ root });
+      const serialized = JSON.stringify(result);
+
+      expect(result.ok).toBe(false);
+      expect(result.blockers).toContainEqual(expect.objectContaining({
+        code: "SIM_SYMBOLIC_LINK_UNSUPPORTED",
+        path: "dist/index.js"
+      }));
+      expect(serialized).not.toContain(secretValue);
+      expect(serialized).not.toContain(externalRoot);
+      expect(result.cleanup.removed).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(externalRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects nested YAML symbolic links in the copied skill directory", async () => {
+    const root = await createInstallFixture();
+    const externalRoot = await mkdtemp(join(tmpdir(), "dota-install-external-"));
+    const externalFile = join(externalRoot, "metadata.yaml");
+    const relativePath = "skills/dota2-workshop-tools/agents/external.yaml";
+    await writeFile(externalFile, "credential_password=synthetic_nested_secret\n");
+    await mkdir(dirname(join(root, relativePath)), { recursive: true });
+    await symlink(externalFile, join(root, relativePath));
+
+    try {
+      const { simulateLocalInstall } = await import("../src/install-simulation.js");
+      const result = await simulateLocalInstall({ root });
+
+      expect(result.ok).toBe(false);
+      expect(result.blockers).toContainEqual(expect.objectContaining({
+        code: "SIM_SYMBOLIC_LINK_UNSUPPORTED",
+        path: relativePath
+      }));
+      expect(result.cleanup.removed).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(externalRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("returns a structured isolation blocker without copying into the source tree", async () => {
+    const root = await createInstallFixture();
+    const tempParent = join(root, "skills/dota2-workshop-tools");
+    try {
+      const { simulateLocalInstall } = await import("../src/install-simulation.js");
+      const result = await simulateLocalInstall({ root, tempParent });
+
+      expect(result.ok).toBe(false);
+      expect(result.blockers.filter((blocker) => blocker.code === "SIM_ROOT_NOT_ISOLATED")).toHaveLength(1);
+      expect(result.cleanup.removed).toBe(true);
+      await expect(access(result.paths.simulationRoot)).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 
   test("does not mutate selected environment variables", async () => {
     const root = await createInstallFixture();
