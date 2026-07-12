@@ -1,7 +1,7 @@
 # Roadmap: Dota Workshop Project
 
 **Created:** 2026-07-03
-**Updated:** 2026-07-07
+**Updated:** 2026-07-13
 **Mode:** Vertical MVP
 **Core Value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
 
@@ -68,7 +68,7 @@ Scope:
 
 ### Phase 2: Audit Gap Closure
 
-**Status:** In Progress
+**Status:** Complete
 **Goal:** Close the v1.13 sensitive-material scanning and requirement-traceability gaps found by the milestone audit.
 **Requirements:** INSTALL-01, INSTALL-02, INSTALL-03, INSTALL-04, INSTALL-05, INSTALL-06
 **Depends on:** Phase 1
@@ -90,6 +90,13 @@ Scope:
 **Out of scope:**
 
 - New install simulation features, global installation, user config writes, publishing, Windows runtime work, network access, or UI automation.
+
+**Outcome:**
+
+- Added case-insensitive YAML/YML sensitive-material scanning with redacted evidence.
+- Added unique missing-file blocker evidence and fail-closed symbolic-link validation.
+- Added structured non-isolated-root handling without unsafe copy or scan work.
+- Restored exact six-requirement traceability across requirements, verification, summaries, and the passing milestone audit.
 
 ## Latest Completed Work
 

@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.13
 milestone_name: Local Install Simulation
 current_phase: 2
-status: In Progress
-last_updated: "2026-07-13T03:00:00.000+08:00"
+status: Complete
+last_updated: "2026-07-13T04:00:00.000+08:00"
 last_activity: 2026-07-13
 last_activity_desc: Added audit gap closure after v1.13 milestone audit
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
-  completed_plans: 2
-  percent: 67
+  completed_plans: 3
+  percent: 100
 ---
 
 # Project State: Dota Workshop Project
@@ -24,14 +24,14 @@ progress:
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** Close the v1.13 audit gaps in copied YAML/YML sensitive scanning and requirement traceability.
+**Current focus:** v1.13 Local Install Simulation is complete and ready for milestone archival.
 
 ## Current Roadmap
 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Local Install Simulation | Complete |
-| 2 | Audit Gap Closure | In Progress |
+| 2 | Audit Gap Closure | Complete |
 
 ## Decisions In Effect
 
@@ -69,14 +69,14 @@ See: `.planning/PROJECT.md`
 - v1.6 shipped `npm run verify:rc`, a structured RC verifier, command aggregation, repository hygiene scanning, publishing boundary checks, docs, and tests.
 - v1.7 shipped `npm run verify:handoff`, a structured handoff verifier, delivery checklist reporting, documentation coverage checks, explicit release boundaries, and report path sanitization.
 - v1.8 shipped `npm run verify:milestone`, a structured milestone closeout verifier, v1.2-v1.7 inventory, handoff preflight reuse, docs/handoff output checks, release boundary reporting, and remaining non-blocking item reporting.
-- v1.13 shipped the local install simulation verifier and is committed at the current `origin/main` baseline.
-- The v1.13 milestone audit found that copied YAML/YML files bypass sensitive-material scanning and that requirement traceability is incomplete.
+- v1.13 shipped the local install simulation verifier and its audit-gap closure through the current `origin/main` baseline.
+- The refreshed v1.13 milestone audit passes with 6/6 requirements, 2/2 phases, 6/6 integration connections, and 6/6 end-to-end flows.
 - Local graphify freshness files under `.planning/graphs/` remain intentionally uncommitted and outside this closure scope.
 - Real Windows remote smoke passed in v1.3; it remains optional supporting evidence, not part of this local milestone gate.
 
 ## Next Action
 
-Run the remaining Phase 2 verification, review, summary, and v1.13 milestone audit plan.
+Run `$gsd-complete-milestone v1.13` to archive the completed milestone and prepare the next version.
 
 ---
-*Last updated: 2026-07-13 after the v1.13 milestone audit*
+*Last updated: 2026-07-13 after the passing v1.13 milestone audit*

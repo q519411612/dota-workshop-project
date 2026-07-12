@@ -85,7 +85,8 @@ None — no external configuration is required.
 
 ## Next Phase Readiness
 
-- All implementation, verification, and review inputs are ready for the v1.13 milestone audit.
+- The refreshed v1.13 milestone audit passes with 6/6 requirements, 6/6 integration connections, and 6/6 end-to-end flows.
+- The milestone is ready for archival through `$gsd-complete-milestone v1.13`.
 
 ---
 

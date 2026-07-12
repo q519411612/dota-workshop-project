@@ -2,7 +2,7 @@
 
 **Created:** 2026-07-07
 **Milestone:** v1.13 Local Install Simulation
-**Status:** Active
+**Status:** Complete
 
 ## Goal
 
@@ -105,7 +105,7 @@ Acceptance:
 - [x] Simulation proves path isolation, cleanup, no credentials, and no environment pollution.
 - [x] Local tests and gates pass.
 - [x] Independent review is recorded.
-- [ ] Changes are committed and pushed.
+- [x] Changes are committed and pushed.
 
 ## Traceability
 
