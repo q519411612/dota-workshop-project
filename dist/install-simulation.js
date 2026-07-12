@@ -1,5 +1,5 @@
-import { access, cp, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { access, cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 const REQUIRED_ENTRIES = [
     ".codex-plugin/plugin.json",
@@ -8,7 +8,7 @@ const REQUIRED_ENTRIES = [
     "dist/index.js",
     "skills/dota2-workshop-tools"
 ];
-const TEXT_EXTENSIONS = new Set([".json", ".md", ".js", ".ts", ".txt"]);
+const TEXT_EXTENSIONS = new Set([".json", ".md", ".js", ".ts", ".txt", ".yaml", ".yml"]);
 const SENSITIVE_PATTERNS = [
     { category: "private key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/i },
     { category: "token", pattern: /\b(?:token|api[_-]?key|secret)(?:[_-]?[A-Za-z0-9]+)?\b\s*[:=]\s*["']?(?:gh[pousr]_|sk-|[A-Za-z0-9_/-]{20,})/i },
@@ -41,7 +41,9 @@ export async function simulateLocalInstall(input = {}) {
         removed: false
     };
     try {
-        if (isPathInside(simulationRoot, root)) {
+        const canonicalRoot = await canonicalPath(root);
+        const canonicalSimulationRoot = await realpath(simulationRoot);
+        if (isPathInside(canonicalSimulationRoot, canonicalRoot)) {
             blockers.push({
                 code: "SIM_ROOT_NOT_ISOLATED",
                 message: "Install simulation root must not be inside the repository source tree.",
@@ -50,10 +52,10 @@ export async function simulateLocalInstall(input = {}) {
         }
         else {
             evidence.push("install simulation root is isolated");
+            await copySimulationEntries(root, canonicalRoot, simulationRoot, blockers);
+            await checkConsumerContract(simulationRoot, blockers, evidence);
+            await scanSimulationForSensitiveMaterial(simulationRoot, blockers);
         }
-        await copySimulationEntries(root, simulationRoot, blockers);
-        await checkConsumerContract(simulationRoot, blockers, evidence);
-        await scanSimulationForSensitiveMaterial(simulationRoot, blockers);
         if (sameEnvironment(beforeEnvironment, selectedEnvironment())) {
             evidence.push("selected environment variables unchanged");
         }
@@ -94,7 +96,7 @@ async function createSimulationRoot(tempParent) {
     await mkdir(tempParent, { recursive: true });
     return await mkdtemp(join(tempParent, "dota-plugin-install-"));
 }
-async function copySimulationEntries(root, simulationRoot, blockers) {
+async function copySimulationEntries(root, canonicalRoot, simulationRoot, blockers) {
     for (const entry of REQUIRED_ENTRIES) {
         const source = join(root, entry);
         const destination = join(simulationRoot, entry);
@@ -102,9 +104,44 @@ async function copySimulationEntries(root, simulationRoot, blockers) {
             blockers.push(missingEntryBlocker(entry));
             continue;
         }
+        if (!(await isCopySourceSafe(source, root, canonicalRoot, blockers))) {
+            continue;
+        }
         await mkdir(dirname(destination), { recursive: true });
         await cp(source, destination, { recursive: true });
     }
+}
+async function isCopySourceSafe(path, root, canonicalRoot, blockers) {
+    const stats = await lstat(path);
+    const relativePath = toRelativePath(root, path);
+    if (stats.isSymbolicLink()) {
+        blockers.push({
+            code: "SIM_SYMBOLIC_LINK_UNSUPPORTED",
+            message: "Simulation source contains a symbolic link.",
+            path: relativePath
+        });
+        return false;
+    }
+    const resolvedPath = await realpath(path);
+    if (!isPathAtOrInside(resolvedPath, canonicalRoot)) {
+        blockers.push({
+            code: "SIM_SOURCE_OUTSIDE_ROOT",
+            message: "Simulation source resolves outside the repository root.",
+            path: relativePath
+        });
+        return false;
+    }
+    if (!stats.isDirectory()) {
+        return true;
+    }
+    let safe = true;
+    const entries = await readdir(path, { withFileTypes: true });
+    for (const entry of entries) {
+        if (!(await isCopySourceSafe(join(path, entry.name), root, canonicalRoot, blockers))) {
+            safe = false;
+        }
+    }
+    return safe;
 }
 function missingEntryBlocker(entry) {
     if (entry === "dist/index.js") {
@@ -196,6 +233,9 @@ async function checkRequiredFile(simulationRoot, relativePath, code, evidenceLin
         evidence.push(evidenceLine);
         return;
     }
+    if (blockers.some((blocker) => blocker.code === code && blocker.path === relativePath)) {
+        return;
+    }
     blockers.push({
         code,
         message: "Simulation is missing a required file.",
@@ -235,7 +275,7 @@ async function listFiles(root) {
     return files;
 }
 function isTextFile(path) {
-    return TEXT_EXTENSIONS.has(path.slice(path.lastIndexOf(".")));
+    return TEXT_EXTENSIONS.has(extname(path).toLowerCase());
 }
 function sensitiveCategory(content) {
     return SENSITIVE_PATTERNS.find((entry) => entry.pattern.test(content))?.category;
@@ -254,6 +294,9 @@ function isPathInside(child, parent) {
     const rel = relative(parent, child);
     return rel !== "" && !rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel);
 }
+function isPathAtOrInside(child, parent) {
+    return child === parent || isPathInside(child, parent);
+}
 function toRelativePath(root, path) {
     return relative(root, path).split(sep).join("/");
 }
@@ -265,6 +308,9 @@ async function pathExists(path) {
     catch {
         return false;
     }
+}
+async function canonicalPath(path) {
+    return await pathExists(path) ? await realpath(path) : path;
 }
 function asRecord(value) {
     return value && typeof value === "object" && !Array.isArray(value) ? value : {};
