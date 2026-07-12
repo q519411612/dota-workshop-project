@@ -68,7 +68,7 @@ Scope:
 
 ### Phase 2: Audit Gap Closure
 
-**Status:** Planned
+**Status:** In Progress
 **Goal:** Close the v1.13 sensitive-material scanning and requirement-traceability gaps found by the milestone audit.
 **Requirements:** INSTALL-01, INSTALL-02, INSTALL-03, INSTALL-04, INSTALL-05, INSTALL-06
 **Depends on:** Phase 1
@@ -76,6 +76,8 @@ Scope:
 
 - `.planning/v1.13-MILESTONE-AUDIT.md`
 - `.planning/phases/02-audit-gap-closure/02-SPEC.md`
+- `.planning/phases/02-audit-gap-closure/02-01-PLAN.md`
+- `.planning/phases/02-audit-gap-closure/02-02-PLAN.md`
 
 **In scope:**
 

@@ -29,6 +29,23 @@ date: 2026-07-07
 - Tests prove selected environment variables remain unchanged across simulation.
 - Sensitive-material blockers report category and relative path without including matched values.
 
+## Traceability
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| INSTALL-01 | passed | `verify:install-simulation` runs the built CLI and returns the structured result contract. |
+| INSTALL-02 | passed | Tests copy the required install-facing files into an isolated temporary root and remove it. |
+| INSTALL-03 | passed | Manifest, MCP, package, dist, and skill checks pass; missing dist evidence is unique by code and path. |
+| INSTALL-04 | passed | Selected environment variables remain unchanged and cleanup succeeds on success and blocker paths. |
+| INSTALL-05 | passed | The audit regression covers `.yaml`, `.yml`, `.YAML`, and `.YML` at the copied skill metadata path without value leakage. |
+| INSTALL-06 | passed | Targeted RED reproduced skipped YAML and duplicate evidence; targeted GREEN passed 9 tests, with full gates delegated to Phase 2 verification. |
+
+## Audit Regression
+
+- RED evidence: four YAML/YML variants returned `ok: true`, and the missing-dist code/path pair appeared twice.
+- GREEN evidence: `npm test -- tests/install-simulation.test.ts` passed 9/9 after extension normalization and local blocker uniqueness.
+- The current milestone authority is `.planning/v1.13-MILESTONE-AUDIT.md`; `npm run verify:milestone` remains an older closeout regression command.
+
 ## Boundary
 
 - No global install was performed.

@@ -1,7 +1,32 @@
-# Summary: Local Install Simulation
-
+---
+phase: 01-local-install-simulation
+plan: 01
+subsystem: testing
+tags: [install-simulation, plugin-layout, sensitive-scanning]
+requires: []
+provides:
+  - Isolated local plugin install simulation
+  - Consumer contract validation and cleanup evidence
+  - Redacted sensitive-material scanning across copied text metadata
+affects: [release-readiness, operator-handoff]
+tech-stack:
+  added: []
+  patterns: [temporary-layout verification, category-only sensitive blockers]
+key-files:
+  created: [src/install-simulation.ts, src/verify-install-simulation.ts, tests/install-simulation.test.ts]
+  modified: [package.json, README.md, docs/operator-runbook.md]
+key-decisions:
+  - "Simulate installation in a temporary root without global writes."
+  - "Treat copied YAML/YML metadata as sensitive-scanning inputs."
+patterns-established:
+  - "Install-facing files are verified from the copied consumer layout."
+requirements-completed: [INSTALL-01, INSTALL-02, INSTALL-03, INSTALL-04, INSTALL-05, INSTALL-06]
+duration: 1 day
+completed: 2026-07-13
 status: complete
-date: 2026-07-07
+---
+
+# Summary: Local Install Simulation
 
 ## Delivered
 

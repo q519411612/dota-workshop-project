@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.13
 milestone_name: Local Install Simulation
 current_phase: 2
-status: Planned
-last_updated: "2026-07-13T02:10:00.000+08:00"
+status: In Progress
+last_updated: "2026-07-13T03:00:00.000+08:00"
 last_activity: 2026-07-13
 last_activity_desc: Added audit gap closure after v1.13 milestone audit
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 50
+  total_plans: 3
+  completed_plans: 2
+  percent: 67
 ---
 
 # Project State: Dota Workshop Project
@@ -31,7 +31,7 @@ See: `.planning/PROJECT.md`
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Local Install Simulation | Complete |
-| 2 | Audit Gap Closure | Planned |
+| 2 | Audit Gap Closure | In Progress |
 
 ## Decisions In Effect
 
@@ -76,7 +76,7 @@ See: `.planning/PROJECT.md`
 
 ## Next Action
 
-Plan and execute Phase 2 Audit Gap Closure, then rerun the v1.13 milestone audit.
+Run the remaining Phase 2 verification, review, summary, and v1.13 milestone audit plan.
 
 ---
 *Last updated: 2026-07-13 after the v1.13 milestone audit*
