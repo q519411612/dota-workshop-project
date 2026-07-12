@@ -1,4 +1,4 @@
-import { access, cp, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { access, cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -73,7 +73,9 @@ export async function simulateLocalInstall(input: SimulateLocalInstallInput = {}
   };
 
   try {
-    if (isPathInside(simulationRoot, root)) {
+    const canonicalRoot = await canonicalPath(root);
+    const canonicalSimulationRoot = await realpath(simulationRoot);
+    if (isPathInside(canonicalSimulationRoot, canonicalRoot)) {
       blockers.push({
         code: "SIM_ROOT_NOT_ISOLATED",
         message: "Install simulation root must not be inside the repository source tree.",
@@ -81,11 +83,10 @@ export async function simulateLocalInstall(input: SimulateLocalInstallInput = {}
       });
     } else {
       evidence.push("install simulation root is isolated");
+      await copySimulationEntries(root, canonicalRoot, simulationRoot, blockers);
+      await checkConsumerContract(simulationRoot, blockers, evidence);
+      await scanSimulationForSensitiveMaterial(simulationRoot, blockers);
     }
-
-    await copySimulationEntries(root, simulationRoot, blockers);
-    await checkConsumerContract(simulationRoot, blockers, evidence);
-    await scanSimulationForSensitiveMaterial(simulationRoot, blockers);
 
     if (sameEnvironment(beforeEnvironment, selectedEnvironment())) {
       evidence.push("selected environment variables unchanged");
@@ -128,7 +129,12 @@ async function createSimulationRoot(tempParent: string): Promise<string> {
   return await mkdtemp(join(tempParent, "dota-plugin-install-"));
 }
 
-async function copySimulationEntries(root: string, simulationRoot: string, blockers: InstallSimulationBlocker[]): Promise<void> {
+async function copySimulationEntries(
+  root: string,
+  canonicalRoot: string,
+  simulationRoot: string,
+  blockers: InstallSimulationBlocker[]
+): Promise<void> {
   for (const entry of REQUIRED_ENTRIES) {
     const source = join(root, entry);
     const destination = join(simulationRoot, entry);
@@ -137,9 +143,54 @@ async function copySimulationEntries(root: string, simulationRoot: string, block
       continue;
     }
 
+    if (!(await isCopySourceSafe(source, root, canonicalRoot, blockers))) {
+      continue;
+    }
+
     await mkdir(dirname(destination), { recursive: true });
     await cp(source, destination, { recursive: true });
   }
+}
+
+async function isCopySourceSafe(
+  path: string,
+  root: string,
+  canonicalRoot: string,
+  blockers: InstallSimulationBlocker[]
+): Promise<boolean> {
+  const stats = await lstat(path);
+  const relativePath = toRelativePath(root, path);
+  if (stats.isSymbolicLink()) {
+    blockers.push({
+      code: "SIM_SYMBOLIC_LINK_UNSUPPORTED",
+      message: "Simulation source contains a symbolic link.",
+      path: relativePath
+    });
+    return false;
+  }
+
+  const resolvedPath = await realpath(path);
+  if (!isPathAtOrInside(resolvedPath, canonicalRoot)) {
+    blockers.push({
+      code: "SIM_SOURCE_OUTSIDE_ROOT",
+      message: "Simulation source resolves outside the repository root.",
+      path: relativePath
+    });
+    return false;
+  }
+
+  if (!stats.isDirectory()) {
+    return true;
+  }
+
+  let safe = true;
+  const entries = await readdir(path, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!(await isCopySourceSafe(join(path, entry.name), root, canonicalRoot, blockers))) {
+      safe = false;
+    }
+  }
+  return safe;
 }
 
 function missingEntryBlocker(entry: string): InstallSimulationBlocker {
@@ -316,6 +367,10 @@ function isPathInside(child: string, parent: string): boolean {
   return rel !== "" && !rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel);
 }
 
+function isPathAtOrInside(child: string, parent: string): boolean {
+  return child === parent || isPathInside(child, parent);
+}
+
 function toRelativePath(root: string, path: string): string {
   return relative(root, path).split(sep).join("/");
 }
@@ -327,6 +382,10 @@ async function pathExists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function canonicalPath(path: string): Promise<string> {
+  return await pathExists(path) ? await realpath(path) : path;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
