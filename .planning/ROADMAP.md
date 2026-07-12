@@ -66,6 +66,29 @@ Scope:
 - Added sensitive-material blockers that report category and relative path without leaking matched values.
 - Added README and operator runbook coverage for the simulation gate.
 
+### Phase 2: Audit Gap Closure
+
+**Status:** Planned
+**Goal:** Close the v1.13 sensitive-material scanning and requirement-traceability gaps found by the milestone audit.
+**Requirements:** INSTALL-01, INSTALL-02, INSTALL-03, INSTALL-04, INSTALL-05, INSTALL-06
+**Depends on:** Phase 1
+**Canonical refs:**
+
+- `.planning/v1.13-MILESTONE-AUDIT.md`
+- `.planning/phases/02-audit-gap-closure/02-SPEC.md`
+
+**In scope:**
+
+- Scan copied YAML and YML text inputs without leaking matched values.
+- Add regression coverage for the real copied skill metadata path.
+- Keep cleanup and structured blocker behavior intact.
+- Remove duplicate missing-dist blocker evidence if the change remains local.
+- Restore per-requirement traceability across requirements, verification, summary, and state artifacts.
+
+**Out of scope:**
+
+- New install simulation features, global installation, user config writes, publishing, Windows runtime work, network access, or UI automation.
+
 ## Latest Completed Work
 
 ### v1.12 Minimal Runtime Ability Proof

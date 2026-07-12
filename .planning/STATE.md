@@ -1,36 +1,37 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.8
-milestone_name: Milestone Archive and Release Notes Readiness
-current_phase: 1
-status: Complete
-last_updated: "2026-07-06T23:52:30.000Z"
-last_activity: 2026-07-06
-last_activity_desc: Completed milestone archive and release notes readiness
+milestone: v1.13
+milestone_name: Local Install Simulation
+current_phase: 2
+status: Planned
+last_updated: "2026-07-13T02:10:00.000+08:00"
+last_activity: 2026-07-13
+last_activity_desc: Added audit gap closure after v1.13 milestone audit
 progress:
-  total_phases: 1
+  total_phases: 2
   completed_phases: 1
   total_plans: 1
   completed_plans: 1
-  percent: 100
+  percent: 50
 ---
 
 # Project State: Dota Workshop Project
 
-**Updated:** 2026-07-06
+**Updated:** 2026-07-13
 
 ## Project Reference
 
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v1.8 Milestone Archive and Release Notes Readiness added a local closeout report for v1.2-v1.7 release readiness history.
+**Current focus:** Close the v1.13 audit gaps in copied YAML/YML sensitive scanning and requirement traceability.
 
 ## Current Roadmap
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Milestone Archive and Release Notes Readiness | Complete |
+| 1 | Local Install Simulation | Complete |
+| 2 | Audit Gap Closure | Planned |
 
 ## Decisions In Effect
 
@@ -50,6 +51,7 @@ See: `.planning/PROJECT.md`
 | v1.6 RC gate must be local-only and must not perform upload, login, encryption, signing, Windows smoke, or remote smoke | `.planning/REQUIREMENTS.md` |
 | v1.7 handoff report must be local-only and must aggregate RC evidence, delivery checklist, docs coverage, and explicit release boundaries | `.planning/phases/01-release-handoff-bundle-readiness/01-VERIFICATION.md` |
 | v1.8 milestone report must be local-only and must aggregate v1.2-v1.7 commits, delivery summaries, verification status, review docs, release boundaries, and remaining non-blocking items | `.planning/REQUIREMENTS.md` |
+| v1.13 install simulation must scan every copied text format covered by the plugin layout without leaking matched values | `.planning/v1.13-MILESTONE-AUDIT.md` |
 
 ## Research Inputs
 
@@ -67,12 +69,14 @@ See: `.planning/PROJECT.md`
 - v1.6 shipped `npm run verify:rc`, a structured RC verifier, command aggregation, repository hygiene scanning, publishing boundary checks, docs, and tests.
 - v1.7 shipped `npm run verify:handoff`, a structured handoff verifier, delivery checklist reporting, documentation coverage checks, explicit release boundaries, and report path sanitization.
 - v1.8 shipped `npm run verify:milestone`, a structured milestone closeout verifier, v1.2-v1.7 inventory, handoff preflight reuse, docs/handoff output checks, release boundary reporting, and remaining non-blocking item reporting.
-- `main` matches `origin/main` at the v1.7 baseline except for local graphify freshness files under `.planning/graphs/`; v1.8 changes are pending commit and push.
+- v1.13 shipped the local install simulation verifier and is committed at the current `origin/main` baseline.
+- The v1.13 milestone audit found that copied YAML/YML files bypass sensitive-material scanning and that requirement traceability is incomplete.
+- Local graphify freshness files under `.planning/graphs/` remain intentionally uncommitted and outside this closure scope.
 - Real Windows remote smoke passed in v1.3; it remains optional supporting evidence, not part of this local milestone gate.
 
 ## Next Action
 
-Commit and push v1.8 Milestone Archive and Release Notes Readiness while leaving graphify freshness files uncommitted. Then select the next version slice.
+Plan and execute Phase 2 Audit Gap Closure, then rerun the v1.13 milestone audit.
 
 ---
-*Last updated: 2026-07-06 after v1.8 Milestone Archive and Release Notes Readiness*
+*Last updated: 2026-07-13 after the v1.13 milestone audit*
