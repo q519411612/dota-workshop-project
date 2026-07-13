@@ -1,5 +1,39 @@
 # Milestones: Dota Workshop Project
 
+## v1.13 Local Install Simulation (Shipped: 2026-07-13)
+
+**Delivered:** An isolated local plugin install simulation with consumer-contract validation, fail-closed path safety, redacted YAML/YML scanning, deterministic cleanup, and complete milestone evidence.
+
+**Phases completed:** 2 phases, 3 plans, 4 tasks
+
+**Key accomplishments:**
+
+- Added a built local verifier that copies install-facing plugin artifacts into an isolated temporary consumer layout.
+- Validated manifest, MCP, package-bin, dist-entrypoint, skill, cleanup, and environment contracts with structured evidence.
+- Added case-insensitive YAML/YML scanning, redacted sensitive blockers, and unique missing-file evidence.
+- Rejected symbolic-link sources and unsafe non-isolated roots before copy or scan work.
+- Closed exact six-requirement traceability with clean independent review, 9/9 goal verification, and a passing 6/6 milestone audit.
+
+**Stats:**
+
+- 26 files changed across the milestone commit range.
+- 2,374 lines added and 68 lines removed.
+- 11,627 TypeScript/JavaScript lines in `src/` and `tests/` at ship time.
+- 2 phases, 3 plans, 4 tasks across 7 calendar days.
+
+**Git range:** `44ea92d` → `f809f90`
+
+**Archives:**
+
+- Roadmap: `.planning/milestones/v1.13-ROADMAP.md`
+- Requirements: `.planning/milestones/v1.13-REQUIREMENTS.md`
+- Audit: `.planning/milestones/v1.13-MILESTONE-AUDIT.md`
+- Execution history: `.planning/milestones/v1.13-phases/`
+
+**What's next:** Define the next focused milestone with fresh requirements through `$gsd-new-milestone`.
+
+---
+
 ## v1.1 Workshop MVP (Shipped: 2026-07-06)
 
 **Delivered:** A usable Dota 2 Workshop Tools plugin slice that can generate, inspect, launch, smoke-test, clean up, and preflight minimal playable addons through a unified MCP interface.

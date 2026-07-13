@@ -40,10 +40,57 @@
 - Custom ability runtime behavior should not be claimed from KV scaffold evidence alone.
 - Publishing automation needs a separate readiness milestone before any real upload behavior.
 
-### Cross-Milestone Trends
+## Milestone: v1.13 — Local Install Simulation
+
+**Shipped:** 2026-07-13
+**Phases:** 2 | **Plans:** 3
+
+### What Was Built
+
+- A built local install simulation command with a structured result contract.
+- An isolated temporary consumer layout for plugin, skill, MCP, package, and dist artifacts.
+- Cleanup, environment non-mutation, sensitive-material, symbolic-link, and isolation evidence.
+- Exact six-requirement traceability, expanded independent review, and a passing milestone audit.
+
+### What Worked
+
+- TDD exposed YAML/YML scanning and duplicate blocker gaps before implementation changes.
+- Adversarial review found symbolic-link escape and non-isolated-copy failure paths that normal happy-path tests missed.
+- Exact-set assertions kept requirements, verification, and summary metadata aligned.
+- Independent integration and goal-backward verification separated runtime correctness from planning claims.
+
+### What Was Inefficient
+
+- The initial audit and review artifacts were too narrow, requiring a second closure loop for planning-evidence coverage.
+- Reused numeric phase directories from earlier milestones confused generic milestone statistics and required scope correction.
+- The older `verify:milestone` name can imply current authority even though its implementation remains scoped to v1.8.
+
+### Patterns Established
+
+- Validate canonical source paths and reject symbolic links before recursive copy.
+- Fail closed on an unsafe simulation root while still returning structured cleanup and environment evidence.
+- Compare requirement traceability as exact ordered sets, not loose presence checks.
+- Treat milestone audit authority separately from older regression commands.
+
+### Key Lessons
+
+- Sensitive scanning must cover every copied text format, including metadata formats that are not primary source code.
+- Independent reviews need the full declared artifact scope, not only implementation files.
+- Archive tooling must scope repeated numeric phase directories by milestone identity rather than directory number alone.
+
+### Cost Observations
+
+- Model mix: not recorded.
+- Sessions: not recorded.
+- Notable: adversarial checks added a small amount of rework but closed three path-safety failures before archival.
+
+---
+
+## Cross-Milestone Trends
 
 | Trend | Observation |
 |-------|-------------|
 | Validation | Runtime log markers remain the most reliable pass/fail evidence. |
 | Scope | Small MCP-visible capability slices were easier to verify than broad Workshop automation. |
 | Risk | Real publishing, encryption, Steam credentials, and UI generation remain high-risk boundaries. |
+| Audit | Exact traceability plus adversarial integration checks catch gaps that green standard suites can miss. |

@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.13
 milestone_name: Local Install Simulation
-current_phase: 2
-status: Complete
-last_updated: "2026-07-13T04:00:00.000+08:00"
+current_phase: null
+status: Awaiting next milestone
+last_updated: "2026-07-13T07:26:25.677Z"
 last_activity: 2026-07-13
-last_activity_desc: Added audit gap closure after v1.13 milestone audit
+last_activity_desc: Milestone v1.13 completed and archived
 progress:
   total_phases: 2
   completed_phases: 2
@@ -24,14 +24,13 @@ progress:
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** v1.13 Local Install Simulation is complete and ready for milestone archival.
+**Current focus:** Planning the next milestone after the v1.13 archive.
 
-## Current Roadmap
+## Archived Roadmap
 
-| Phase | Name | Status |
-|-------|------|--------|
-| 1 | Local Install Simulation | Complete |
-| 2 | Audit Gap Closure | Complete |
+| Milestone | Phases | Status | Archive |
+|---|---|---|---|
+| v1.13 Local Install Simulation | 1-2 | Shipped | `.planning/milestones/v1.13-ROADMAP.md` |
 
 ## Decisions In Effect
 
@@ -44,14 +43,14 @@ See: `.planning/PROJECT.md`
 | Keep one unified MCP tool interface | `.planning/PROJECT.md` |
 | Start with a minimal runnable addon template | `.planning/PROJECT.md` |
 | Runtime validation launches without `-tools` and enables `-condebug` | Remote v1.1 investigation |
-| v1.2 release readiness must stay dry-run only before real Workshop upload automation | `.planning/REQUIREMENTS.md` |
+| v1.2 release readiness must stay dry-run only before real Workshop upload automation | `.planning/MILESTONES.md` |
 | v1.3 Windows validation details must stay runtime-only and sanitized from repository artifacts | `.planning/phases/01-windows-validation-closure/01-VERIFICATION.md` |
 | v1.4 handoff readiness is local-only and must not install globally or publish packages | `.planning/phases/01-plugin-install-handoff-readiness/01-VERIFICATION.md` |
 | v1.5 examples must be schema-valid safe templates and must not store private target or credential material | `.planning/phases/01-operator-runbook-example-workflows/01-VERIFICATION.md` |
-| v1.6 RC gate must be local-only and must not perform upload, login, encryption, signing, Windows smoke, or remote smoke | `.planning/REQUIREMENTS.md` |
+| v1.6 RC gate must be local-only and must not perform upload, login, encryption, signing, Windows smoke, or remote smoke | `.planning/MILESTONES.md` |
 | v1.7 handoff report must be local-only and must aggregate RC evidence, delivery checklist, docs coverage, and explicit release boundaries | `.planning/phases/01-release-handoff-bundle-readiness/01-VERIFICATION.md` |
-| v1.8 milestone report must be local-only and must aggregate v1.2-v1.7 commits, delivery summaries, verification status, review docs, release boundaries, and remaining non-blocking items | `.planning/REQUIREMENTS.md` |
-| v1.13 install simulation must scan every copied text format covered by the plugin layout without leaking matched values | `.planning/v1.13-MILESTONE-AUDIT.md` |
+| v1.8 milestone report must be local-only and must aggregate v1.2-v1.7 commits, delivery summaries, verification status, review docs, release boundaries, and remaining non-blocking items | `.planning/MILESTONES.md` |
+| v1.13 install simulation must scan every copied text format covered by the plugin layout without leaking matched values | `.planning/milestones/v1.13-MILESTONE-AUDIT.md` |
 
 ## Research Inputs
 
@@ -76,7 +75,18 @@ See: `.planning/PROJECT.md`
 
 ## Next Action
 
-Run `$gsd-complete-milestone v1.13` to archive the completed milestone and prepare the next version.
+Run `$gsd-new-milestone` to define the next focused version and fresh requirements.
 
 ---
-*Last updated: 2026-07-13 after the passing v1.13 milestone audit*
+*Last updated: 2026-07-13 after the v1.13 milestone archive*
+
+## Current Position
+
+Phase: Milestone v1.13 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-13 — Milestone v1.13 completed and archived
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
