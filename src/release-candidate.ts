@@ -1237,7 +1237,18 @@ async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise
     return;
   }
 
-  for (const name of names.sort(compareOrdinal)) {
+  const occurrenceCounts = new Map<string, number>();
+  for (const name of names) occurrenceCounts.set(name, (occurrenceCounts.get(name) ?? 0) + 1);
+  for (const [name, count] of [...occurrenceCounts.entries()].sort(([left], [right]) => compareOrdinal(left, right))) {
+    if (count < 2) continue;
+    input.blockers.push({
+      code: "SOURCE_IDENTITY_COLLISION",
+      path: safeChildIdentity(input.identity, name),
+      category: "exact-duplicate"
+    });
+  }
+
+  for (const name of names.filter((name) => occurrenceCounts.get(name) === 1).sort(compareOrdinal)) {
     const identity = safeChildIdentity(input.identity, name);
     const invalidCategory = invalidSourceNameCategory(name);
     if (invalidCategory !== undefined) {

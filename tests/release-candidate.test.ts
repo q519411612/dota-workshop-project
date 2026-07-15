@@ -2638,6 +2638,66 @@ describe("release candidate input validation", () => {
     }
   });
 
+  test("blocks exact duplicate directory identities before candidate creation", async () => {
+    const expected = {
+      ok: false,
+      blockers: [
+        {
+          code: "SOURCE_IDENTITY_COLLISION",
+          path: "game/dota_addons/fixture_addon/nested/repeated.txt",
+          category: "exact-duplicate"
+        },
+        {
+          code: "SOURCE_IDENTITY_COLLISION",
+          path: "game/dota_addons/fixture_addon/repeated.txt",
+          category: "exact-duplicate"
+        }
+      ]
+    };
+
+    for (const reverse of [false, true]) {
+      const fixture = await createFixture();
+      const createCandidateRoot = vi.fn(async (validated: ValidatedReleaseCandidateInput) => (
+        join(validated.tempParent, "candidate")
+      ));
+      const classifySourceEntry = vi.fn(async (path: string): Promise<ReleaseCandidateEntryKind> => (
+        path.endsWith("/nested") ? "directory" : "file"
+      ));
+      const filesystem: ReleaseCandidateFilesystem = {
+        lstat,
+        realpath: async (path) => path.includes("repeated.txt") || path.endsWith("/nested")
+          ? path
+          : await realpath(path),
+        readDirectory: async (path) => {
+          const names = path.endsWith("/game/dota_addons/fixture_addon")
+            ? ["repeated.txt", "nested", "repeated.txt"]
+            : path.endsWith("/game/dota_addons/fixture_addon/nested")
+              ? ["repeated.txt", "repeated.txt"]
+              : [];
+          return reverse ? names.reverse() : names;
+        },
+        classifySourceEntry,
+        createCandidateRoot
+      };
+      const prepared = await prepareReleaseCandidateInput(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+      expect(prepared.ok).toBe(true);
+      if (!prepared.ok) throw new Error("duplicate fixture input was rejected");
+
+      expect(await inventoryReleaseCandidateSources(prepared.value)).toEqual(expected);
+      const lifecycleResult = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        async () => "must not inspect",
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+      expect(lifecycleResult).toEqual(expected);
+      expect(createCandidateRoot).not.toHaveBeenCalled();
+      expect(classifySourceEntry).toHaveBeenCalledTimes(2);
+    }
+  });
+
   test("fails on source mutation without writing source trees", async () => {
     type MutationCheckpoint = "lease" | "before-copy" | "after-copy" | "reconcile" | "callback";
     const mutationScenarios: Array<Readonly<{
