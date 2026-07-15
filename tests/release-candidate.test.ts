@@ -48,6 +48,11 @@ type Fixture = {
   contentAddonRoot: string;
 };
 
+function withoutCleanup<T extends { cleanup?: unknown }>(result: T): Omit<T, "cleanup"> {
+  const { cleanup: _cleanup, ...rest } = result;
+  return rest;
+}
+
 const fixtureRoots: string[] = [];
 
 const compactAssignment = (name: string, value: string): string => [name, "=", value].join("");
@@ -575,7 +580,7 @@ describe("release candidate input validation", () => {
       failedInspect,
       { repositoryRoot: fixture.repositoryRoot, filesystem: createFilesystem({ failCopy: true }) }
     );
-    expect(copyFailure).toMatchObject({
+    expect(withoutCleanup(copyFailure)).toEqual({
       ok: false,
       blockers: [{ code: "CANDIDATE_MATERIALIZATION_FAILED", category: "assembly" }]
     });
@@ -593,7 +598,7 @@ describe("release candidate input validation", () => {
       aliasInspect,
       { repositoryRoot: fixture.repositoryRoot, filesystem: createFilesystem({ aliasDestinationParent: true }) }
     );
-    expect(destinationAlias).toMatchObject({
+    expect(withoutCleanup(destinationAlias)).toEqual({
       ok: false,
       blockers: [{ code: "CANDIDATE_DESTINATION_IDENTITY_MISMATCH", category: "unsafe-isolation" }]
     });
@@ -696,7 +701,7 @@ describe("release candidate input validation", () => {
       const expectedPaths = kind === "directory"
         ? ["alpha-directory", "rogue-directory"]
         : [`rogue-${kind}`];
-      expect(result, kind).toMatchObject({
+      expect(withoutCleanup(result), kind).toEqual({
         ok: false,
         blockers: expectedPaths.map((path) => ({
           code: "CANDIDATE_ROOT_NOT_EMPTY",
@@ -795,7 +800,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: fixture.repositoryRoot, filesystem }
     );
 
-    expect(result).toMatchObject({
+    expect(withoutCleanup(result)).toEqual({
       ok: false,
       blockers: [{ code: "SOURCE_FILE_IDENTITY_CHANGED", category: "assembly" }]
     });
@@ -961,7 +966,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: fixture.repositoryRoot, filesystem }
     );
 
-    expect(result).toMatchObject({
+    expect(withoutCleanup(result)).toEqual({
       ok: false,
       blockers: [{ code: "CANDIDATE_DESTINATION_IDENTITY_MISMATCH", category: "unsafe-isolation" }]
     });
@@ -1052,7 +1057,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: fixture.repositoryRoot, filesystem }
     );
 
-    expect(result).toMatchObject({
+    expect(withoutCleanup(result)).toEqual({
       ok: false,
       blockers: [{ code: "CANDIDATE_TREE_UNEXPECTED", category: "unexpected-entry", path: "rogue-mid-assembly" }]
     });
@@ -1109,7 +1114,7 @@ describe("release candidate input validation", () => {
         async () => "unexpected",
         { repositoryRoot: fixture.repositoryRoot, filesystem }
       );
-      expect(result, stage).toMatchObject({
+      expect(withoutCleanup(result), stage).toEqual({
         ok: false,
         blockers: [{
           code: stage === "source"
@@ -1335,7 +1340,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: callbackFixture.repositoryRoot, filesystem: callbackLifecycle.filesystem }
     );
 
-    expect(callbackResult).toMatchObject({
+    expect(withoutCleanup(callbackResult)).toEqual({
       ok: false,
       blockers: [{ code: "CANDIDATE_INSPECTION_FAILED", category: "inspection" }]
     });
@@ -1363,7 +1368,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: aliasFixture.repositoryRoot, filesystem: aliasLifecycle.filesystem }
     );
 
-    expect(aliasResult).toMatchObject({
+    expect(withoutCleanup(aliasResult)).toEqual({
       ok: false,
       blockers: [{ code: "CANDIDATE_ROOT_NOT_ISOLATED", category: "unsafe-isolation" }]
     });
@@ -1387,7 +1392,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: removalFixture.repositoryRoot, filesystem: removalLifecycle.filesystem }
     );
 
-    expect(removalResult).toMatchObject({
+    expect(withoutCleanup(removalResult)).toEqual({
       ok: false,
       blockers: [{ code: "CANDIDATE_REMOVAL_FAILED", category: "removal" }]
     });
@@ -1459,7 +1464,7 @@ describe("release candidate input validation", () => {
 
       expect(cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
       expect(rawRemoval, scenario.name).not.toHaveBeenCalled();
-      expect(result, scenario.name).toMatchObject({
+      expect(withoutCleanup(result), scenario.name).toEqual({
         ok: false,
         blockers: [{ code: "CANDIDATE_IDENTITY_MISMATCH", category: "removal" }]
       });
@@ -1526,7 +1531,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: swappedFixture.repositoryRoot, filesystem: swappedFilesystem }
     );
 
-    expect(swappedResult).toMatchObject({
+    expect(withoutCleanup(swappedResult)).toEqual({
       ok: false,
       blockers: [{ code: "CANDIDATE_IDENTITY_MISMATCH", category: "removal" }]
     });
@@ -1711,7 +1716,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: fixture.repositoryRoot, filesystem }
     );
 
-    expect(result).toMatchObject({
+    expect(withoutCleanup(result)).toEqual({
       ok: false,
       blockers: [{ code: "CANDIDATE_CLEANUP_RESULT_INVALID", category: "removal" }]
     });
@@ -1782,7 +1787,7 @@ describe("release candidate input validation", () => {
         { repositoryRoot: fixture.repositoryRoot, filesystem }
       );
 
-      expect(result, scenario.name).toMatchObject({
+      expect(withoutCleanup(result), scenario.name).toEqual({
         ok: false,
         blockers: [{ code: "CANDIDATE_CLEANUP_RESULT_INVALID", category: "removal" }]
       });
@@ -2204,7 +2209,7 @@ describe("release candidate input validation", () => {
       async () => "must not inspect",
       { repositoryRoot: fixture.repositoryRoot, filesystem }
     );
-    expect(result).toMatchObject({
+    expect(withoutCleanup(result)).toEqual({
       ok: false,
       blockers: [{ code: "CANDIDATE_ROOT_UNREADABLE", category: "unsafe-isolation" }]
     });
@@ -3082,7 +3087,7 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, scenario.name).toMatchObject({
+      expect(withoutCleanup(result), scenario.name).toEqual({
         ok: false,
         blockers: [{
           code: scenario.checkpoint === "callback" ? "RELEASE_CANDIDATE_INTEGRITY_MISMATCH" : "SOURCE_CHANGED_DURING_ASSEMBLY",
@@ -3457,7 +3462,7 @@ describe("release candidate input validation", () => {
       if (scenario.expectedCode === undefined) {
         expect(result, scenario.name).toMatchObject({ ok: true, value: "validated" });
       } else {
-        expect(result, scenario.name).toMatchObject({
+        expect(withoutCleanup(result), scenario.name).toEqual({
           ok: false,
           blockers: [{ code: scenario.expectedCode, category: scenario.expectedCode === "CANDIDATE_INSPECTION_FAILED" ? "inspection" : "integrity" }]
         });
@@ -3704,7 +3709,7 @@ describe("release candidate input validation", () => {
       duplicateResults.push(execution.result);
     }
     expect(duplicateResults[1]).toEqual(duplicateResults[0]);
-    expect(duplicateResults[0]).toMatchObject({
+    expect(withoutCleanup(duplicateResults[0]!)).toEqual({
       ok: false,
       inclusionLedger: {
         schemaVersion: "1.0",
@@ -3741,7 +3746,7 @@ describe("release candidate input validation", () => {
       if (index === 3) return { ...observation, identityMatched: false };
       return observation;
     }));
-    expect(wrongFacts.result).toMatchObject({
+    expect(withoutCleanup(wrongFacts.result)).toEqual({
       ok: false,
       inclusionLedger: {
         schemaVersion: "1.0",
@@ -3794,7 +3799,7 @@ describe("release candidate input validation", () => {
         }]
       })
     );
-    expect(missingDirectory.result).toMatchObject({
+    expect(withoutCleanup(missingDirectory.result)).toEqual({
       ok: false,
       blockers: [{
         code: "CANDIDATE_TREE_MISSING",
@@ -3892,7 +3897,7 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, candidateFailure).toMatchObject(candidateFailure === "malformed"
+      expect(withoutCleanup(result), candidateFailure).toEqual(candidateFailure === "malformed"
         ? {
             ok: false,
             blockers: [
@@ -4019,7 +4024,7 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, candidateFailure).toMatchObject(candidateFailure === "malformed"
+      expect(withoutCleanup(result), candidateFailure).toEqual(candidateFailure === "malformed"
         ? {
             ok: false,
             blockers: [
@@ -4151,7 +4156,7 @@ describe("release candidate input validation", () => {
       }
     );
 
-    expect(result).toMatchObject({
+    expect(withoutCleanup(result)).toEqual({
       ok: false,
       inclusionLedger: {
         schemaVersion: "1.0",
@@ -4368,7 +4373,7 @@ describe("release candidate input validation", () => {
               count: 1
             }
           ];
-      expect.soft(result, scenario.name).toMatchObject({
+      expect.soft(withoutCleanup(result), scenario.name).toEqual({
         ok: false,
         ...(scenario.candidate === "ledger"
           ? {
@@ -4449,7 +4454,7 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, scenario.name).toMatchObject({
+      expect(withoutCleanup(result), scenario.name).toEqual({
         ok: false,
         blockers: [{
           code: scenario.mutation === "remove" ? "CANDIDATE_TREE_MISSING" : "CANDIDATE_TREE_UNEXPECTED",
@@ -4553,7 +4558,7 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, scenario.name).toMatchObject({ ok: false, blockers: [{ code: "CANDIDATE_INTEGRITY_RESULT_INVALID", category: "integrity" }] });
+      expect(withoutCleanup(result), scenario.name).toEqual({ ok: false, blockers: [{ code: "CANDIDATE_INTEGRITY_RESULT_INVALID", category: "integrity" }] });
       expect(candidateCalls, scenario.name).toBe(2);
       expect(callback, scenario.name).toHaveBeenCalledTimes(1);
       expect(cleanup, scenario.name).toHaveBeenCalledTimes(1);
@@ -4896,12 +4901,13 @@ describe("release candidate input validation", () => {
       const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
         createCandidateLease: (async (
           validated: ValidatedReleaseCandidateInput,
-          recordCreated?: (created: { inspectionRoot: string; identity: { root: string } }) => void
+          recordCreated: (created: { inspectionRoot: string; identity: { root: string } }) => void
         ) => {
           candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
           creationCount += 1;
           const created = { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
-          recordCreated?.(created);
+          recordCreated(created);
+          await Promise.resolve();
           return await scenario.acquire();
         }) as never,
         cleanupCandidateLease
@@ -4942,6 +4948,89 @@ describe("release candidate input validation", () => {
       expect(JSON.stringify(result), scenario.name).not.toContain("private acquisition");
       if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
       await expect(lstat(candidateRoot), scenario.name).rejects.toMatchObject({ code: "ENOENT" });
+    }
+
+    const unusableRegistrationScenarios = [
+      { name: "malformed registered identity", registered: () => null },
+      {
+        name: "throwing registered identity getter",
+        registered: () => Object.defineProperty({}, "inspectionRoot", {
+          get: () => {
+            throw new Error("private registered getter");
+          }
+        })
+      },
+      {
+        name: "throwing registered identity proxy",
+        registered: () => new Proxy({}, {
+          get: () => {
+            throw new Error("private registered proxy");
+          }
+        })
+      }
+    ];
+
+    for (const scenario of unusableRegistrationScenarios) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      let candidateRoot: string | undefined;
+      let creationCount = 0;
+      const callback = vi.fn(async () => "unexpected");
+      const cleanupCandidateLease = vi.fn(async () => ({
+        ok: true as const,
+        removed: true as const,
+        absent: true as const,
+        identityMatched: true as const
+      }));
+      const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+        createCandidateLease: (async (
+          validated: ValidatedReleaseCandidateInput,
+          recordCreated: (created: { inspectionRoot: string; identity: { root: string } }) => void
+        ) => {
+          candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          creationCount += 1;
+          (recordCreated as (created: unknown) => void)(scenario.registered());
+          await Promise.resolve();
+          throw new Error("private failure after unusable registration");
+        }) as never,
+        cleanupCandidateLease
+      });
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        callback,
+        {
+          repositoryRoot: fixture.repositoryRoot,
+          filesystem: {
+            lstat,
+            realpath,
+            readDirectory: async (path) => await readdir(path),
+            classifySourceEntry: classifyFixtureEntry,
+            createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+            candidateLifecycle: lifecycle
+          }
+        }
+      );
+
+      expect(result, scenario.name).toEqual({
+        ok: false,
+        scanCoverage: expect.any(Object),
+        cleanup: {
+          schemaVersion: "1.0",
+          attempted: true,
+          attempts: 1,
+          status: "failed",
+          code: "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE"
+        },
+        blockers: [{ code: "CANDIDATE_ACQUISITION_RESULT_INVALID", category: "creation" }]
+      });
+      expect(creationCount, scenario.name).toBe(1);
+      expect(cleanupCandidateLease, scenario.name).not.toHaveBeenCalled();
+      expect(callback, scenario.name).not.toHaveBeenCalled();
+      expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
+      expect(JSON.stringify(result), scenario.name).not.toContain("private registered");
+      expect(JSON.stringify(result), scenario.name).not.toContain('"absent":true');
+      if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
+      expect((await lstat(candidateRoot)).isDirectory(), scenario.name).toBe(true);
     }
 
     const postLeaseScenarios = [
