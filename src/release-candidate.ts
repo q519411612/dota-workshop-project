@@ -248,6 +248,7 @@ export async function observeIdentityBoundIntegrityStream(
     if (typeof openByteStream !== "function") return invalidIntegrityStream();
     const stream = await Reflect.apply(openByteStream, input, []);
     if (stream === null || typeof stream !== "object") return invalidIntegrityStream();
+    if (stream instanceof Uint8Array) return invalidIntegrityStream();
     const createIterator = Reflect.get(stream, Symbol.asyncIterator);
     if (typeof createIterator !== "function") return invalidIntegrityStream();
     const foreignIterator = Reflect.apply(createIterator, stream, []);
