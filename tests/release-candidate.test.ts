@@ -3751,13 +3751,7 @@ describe("release candidate input validation", () => {
         {
           code: "CANDIDATE_LEDGER_UNOBSERVED",
           category: "integrity-unobserved",
-          path: "game/dota_addons/fixture_addon/scripts/npc/npc_heroes_custom.txt",
-          count: 1
-        },
-        {
-          code: "CANDIDATE_LEDGER_UNEXPECTED",
-          category: "integrity-unexpected",
-          path: "game/dota_addons/fixture_addon/wrong-path.bin",
+          path: "game/dota_addons/fixture_addon/scripts/npc/npc_abilities_custom.txt",
           count: 1
         },
         {
@@ -3765,6 +3759,12 @@ describe("release candidate input validation", () => {
           category: "integrity-missing",
           path: "game/dota_addons/fixture_addon/resource/addon_fixture_addon_english.txt",
           count: 0
+        },
+        {
+          code: "CANDIDATE_LEDGER_UNEXPECTED",
+          category: "integrity-unexpected",
+          path: "game/dota_addons/fixture_addon/wrong-path.bin",
+          count: 1
         }
       ]
     });
