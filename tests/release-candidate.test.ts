@@ -3,6 +3,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  open,
   readFile,
   readdir,
   realpath,
@@ -13,6 +14,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { constants as filesystemConstants } from "node:fs";
 import { afterEach, describe, expect, expectTypeOf, test, vi } from "vitest";
 import {
   continueReleaseCandidatePreparation,
@@ -376,6 +378,193 @@ describe("release candidate input validation", () => {
       expect(cleanupCandidateLease, kind).toHaveBeenCalledTimes(1);
       if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
       await expect(lstat(candidateRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    }
+  });
+
+  test("reads readiness files through one no-follow identity boundary", async () => {
+    const fixture = await createFixture();
+    await populateReadyFixture(fixture);
+    const addonInfoPath = join(fixture.gameAddonRoot, "addoninfo.txt");
+    const externalPath = join(fixture.repositoryRoot, "external-private.txt");
+    await writeFile(externalPath, "password=synthetic-private-value\n");
+    let swapped = false;
+    let externalRead = false;
+    const legacyRead = vi.fn(async (path: string) => {
+      const content = await readFile(path, "utf8");
+      if (path === addonInfoPath && !swapped) {
+        await rm(path);
+        await symlink(externalPath, path);
+        swapped = true;
+        return content;
+      }
+      if (path === addonInfoPath) externalRead = true;
+      return content;
+    });
+    const createCandidateLease = vi.fn(async () => {
+      throw new Error("source identity failure must precede candidate creation");
+    });
+    const operations = {
+      createCandidateLease,
+      cleanupCandidateLease: vi.fn(async () => ({
+        ok: true as const,
+        removed: true as const,
+        absent: true as const,
+        identityMatched: true as const
+      })),
+      readAcceptedSourceFile: vi.fn(async (
+        input: ValidatedReleaseCandidateInput,
+        entry: { root: "game" | "content"; path: string; kind: "file" | "directory" },
+        maxBytes: number
+      ) => {
+        const prefix = `${entry.root}/dota_addons/${input.addonName}/`;
+        const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+        const source = join(sourceRoot, ...entry.path.slice(prefix.length).split("/"));
+        if (source === addonInfoPath && !swapped) {
+          await rm(source);
+          await symlink(externalPath, source);
+          swapped = true;
+        }
+        try {
+          const handle = await open(source, filesystemConstants.O_RDONLY | filesystemConstants.O_NOFOLLOW);
+          try {
+            const info = await handle.stat();
+            if (!info.isFile()) return { ok: false as const, code: "SOURCE_FILE_IDENTITY_CHANGED" as const };
+            if (info.size > maxBytes) {
+              return { ok: true as const, state: "oversized" as const, size: info.size };
+            }
+            return { ok: true as const, state: "readable" as const, size: info.size, content: await handle.readFile("utf8") };
+          } finally {
+            await handle.close();
+          }
+        } catch {
+          return { ok: false as const, code: "SOURCE_FILE_IDENTITY_CHANGED" as const };
+        }
+      })
+    };
+    const filesystem: ReleaseCandidateFilesystem = {
+      ...assemblyOperations,
+      readSourceFile: legacyRead,
+      lstat,
+      realpath,
+      readDirectory: async (path) => await readdir(path),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot: vi.fn(async () => {
+        throw new Error("raw candidate creation must not be used");
+      }),
+      candidateLifecycle: createIdentityBoundCandidateLifecycle(operations)
+    };
+
+    const result = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      async () => "unexpected",
+      { repositoryRoot: fixture.repositoryRoot, filesystem }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      blockers: [{ code: "SOURCE_FILE_IDENTITY_CHANGED", category: "assembly" }]
+    });
+    expect(operations.readAcceptedSourceFile).toHaveBeenCalled();
+    expect(legacyRead).not.toHaveBeenCalled();
+    expect(externalRead).toBe(false);
+    expect(createCandidateLease).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain(fixture.root);
+    expect(JSON.stringify(result)).not.toContain("synthetic-private-value");
+  });
+
+  test("size-gates metadata before reading and rejects wrong required kinds", async () => {
+    const oversizedFixture = await createFixture();
+    await populateReadyFixture(oversizedFixture);
+    const rawRead = vi.fn(async () => {
+      throw new Error("raw source reads are forbidden");
+    });
+    const operations = {
+      createCandidateLease: vi.fn(async () => {
+        throw new Error("readiness blockers must precede creation");
+      }),
+      cleanupCandidateLease: vi.fn(async () => ({
+        ok: true as const,
+        removed: true as const,
+        absent: true as const,
+        identityMatched: true as const
+      })),
+      readAcceptedSourceFile: vi.fn(async (
+        input: ValidatedReleaseCandidateInput,
+        entry: { root: "game" | "content"; path: string; kind: "file" | "directory" },
+        maxBytes: number
+      ) => {
+        const relativePath = entry.path.split(`/dota_addons/${input.addonName}/`)[1];
+        if (relativePath === "addoninfo.txt") {
+          return { ok: true as const, state: "oversized" as const, size: maxBytes + 1 };
+        }
+        const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+        const handle = await open(join(sourceRoot, ...relativePath.split("/")), filesystemConstants.O_RDONLY | filesystemConstants.O_NOFOLLOW);
+        try {
+          const info = await handle.stat();
+          return { ok: true as const, state: "readable" as const, size: info.size, content: await handle.readFile("utf8") };
+        } finally {
+          await handle.close();
+        }
+      })
+    };
+    const oversizedFilesystem: ReleaseCandidateFilesystem = {
+      ...assemblyOperations,
+      readSourceFile: rawRead,
+      lstat,
+      realpath,
+      readDirectory: async (path) => await readdir(path),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot: vi.fn(async () => {
+        throw new Error("raw candidate creation must not be used");
+      }),
+      candidateLifecycle: createIdentityBoundCandidateLifecycle(operations)
+    };
+
+    const oversized = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: oversizedFixture.dotaRoot, tempParent: oversizedFixture.tempParent },
+      async () => "unexpected",
+      { repositoryRoot: oversizedFixture.repositoryRoot, filesystem: oversizedFilesystem }
+    );
+    expect(oversized).toEqual({
+      ok: false,
+      blockers: [{
+        code: "REQUIRED_TEXT_OVERSIZED",
+        category: "oversized-required-text",
+        disposition: "blocker",
+        path: "addoninfo.txt"
+      }]
+    });
+    expect(rawRead).not.toHaveBeenCalled();
+    expect(operations.createCandidateLease).not.toHaveBeenCalled();
+
+    for (const wrongKind of ["lua-directory", "maps-file"] as const) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      if (wrongKind === "lua-directory") {
+        const path = join(fixture.gameAddonRoot, "scripts/vscripts/addon_game_mode.lua");
+        await rm(path);
+        await mkdir(path);
+      } else {
+        const path = join(fixture.contentAddonRoot, "maps");
+        await rm(path, { recursive: true });
+        await writeFile(path, "not a directory\n");
+      }
+      const inspect = vi.fn(async () => "unexpected");
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        inspect,
+        { repositoryRoot: fixture.repositoryRoot, filesystem: oversizedFilesystem }
+      );
+      expect(result, wrongKind).toMatchObject({
+        ok: false,
+        blockers: [{
+          code: "REQUIRED_PATH_WRONG_KIND",
+          category: "required-structure",
+          disposition: "blocker",
+          field: wrongKind === "lua-directory" ? "lua entry" : "content maps directory"
+        }]
+      });
+      expect(inspect).not.toHaveBeenCalled();
     }
   });
 
