@@ -123,6 +123,8 @@ export type ReleaseCandidateLifecycleResult<T> =
     };
 
 type ReleaseCandidateLifecycleFailure = Extract<ReleaseCandidateLifecycleResult<never>, { ok: false }>;
+type AcceptedSourceObservation = Extract<AcceptedSourceObservationResult, { ok: true }>;
+type AcceptedSourceObservations = ReadonlyMap<string, AcceptedSourceObservation>;
 
 export type ReleaseCandidateLease = Readonly<{
   [releaseCandidateLeaseBrand]: true;
@@ -168,6 +170,21 @@ export type AcceptedSourceReadResult =
       contained: true;
     }>
   | Readonly<{ ok: false; code: "SOURCE_FILE_IDENTITY_CHANGED" | "SOURCE_FILE_READ_FAILED" }>;
+
+export type AcceptedSourceObservationResult =
+  | Readonly<{
+      ok: true;
+      kind: "file" | "directory";
+      canonicalPath: string;
+      size: number;
+      mtimeMs: number;
+      ctimeMs: number;
+      mode: number;
+      bytes?: Uint8Array;
+      identityMatched: true;
+      contained: true;
+    }>
+  | Readonly<{ ok: false; code: "SOURCE_ENTRY_CHANGED" | "SOURCE_OBSERVATION_FAILED" }>;
 
 export type CandidateMaterializationOperation = Readonly<{
   destination: string;
@@ -221,6 +238,10 @@ export type IdentityBoundCandidateLifecycle = Readonly<{
     entry: ReleaseCandidateSourceEntry,
     maxBytes: number
   ): Promise<AcceptedSourceReadResult>;
+  observeAcceptedSourceEntry(
+    input: ValidatedReleaseCandidateInput,
+    entry: ReleaseCandidateSourceEntry
+  ): Promise<AcceptedSourceObservationResult>;
   inspectCandidateRoot(lease: ReleaseCandidateLease): Promise<CandidateRootInspectionResult>;
   materializeCandidateEntry(
     lease: ReleaseCandidateLease,
@@ -244,6 +265,10 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
     entry: ReleaseCandidateSourceEntry,
     maxBytes: number
   ): Promise<AcceptedSourceReadResult>;
+  observeAcceptedSourceEntry?(
+    input: ValidatedReleaseCandidateInput,
+    entry: ReleaseCandidateSourceEntry
+  ): Promise<AcceptedSourceObservationResult>;
   inspectCandidateRoot?(identity: TIdentity): Promise<CandidateRootInspectionResult>;
   materializeCandidateEntry?(
     identity: TIdentity,
@@ -259,10 +284,12 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
   const createCandidateLease = operations.createCandidateLease.bind(operations);
   const cleanupCandidateLease = operations.cleanupCandidateLease.bind(operations);
   const readAcceptedSourceFile = operations.readAcceptedSourceFile?.bind(operations);
+  const observeAcceptedSourceEntry = operations.observeAcceptedSourceEntry?.bind(operations);
   const inspectCandidateRoot = operations.inspectCandidateRoot?.bind(operations);
   const materializeCandidateEntry = operations.materializeCandidateEntry?.bind(operations);
   const reconcileCandidateTree = operations.reconcileCandidateTree?.bind(operations);
   const identityBoundAssembly = readAcceptedSourceFile !== undefined
+    && observeAcceptedSourceEntry !== undefined
     && inspectCandidateRoot !== undefined
     && materializeCandidateEntry !== undefined
     && reconcileCandidateTree !== undefined;
@@ -295,6 +322,11 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
         ? { ok: false, code: "SOURCE_FILE_READ_FAILED" }
         : await readAcceptedSourceFile(input, entry, maxBytes)
     ),
+    observeAcceptedSourceEntry: async (input, entry) => (
+      observeAcceptedSourceEntry === undefined
+        ? { ok: false, code: "SOURCE_OBSERVATION_FAILED" }
+        : await observeAcceptedSourceEntry(input, entry)
+    ),
     inspectCandidateRoot: async (lease) => {
       const identity = identities.get(lease);
       if (identity === undefined || inspectCandidateRoot === undefined) {
@@ -325,6 +357,7 @@ type BoundCandidateLifecycle = Readonly<{
   createCandidateLease: IdentityBoundCandidateLifecycle["createCandidateLease"];
   cleanupCandidateLease: IdentityBoundCandidateLifecycle["cleanupCandidateLease"];
   readAcceptedSourceFile: IdentityBoundCandidateLifecycle["readAcceptedSourceFile"];
+  observeAcceptedSourceEntry: IdentityBoundCandidateLifecycle["observeAcceptedSourceEntry"];
   inspectCandidateRoot: IdentityBoundCandidateLifecycle["inspectCandidateRoot"];
   materializeCandidateEntry: IdentityBoundCandidateLifecycle["materializeCandidateEntry"];
   reconcileCandidateTree: IdentityBoundCandidateLifecycle["reconcileCandidateTree"];
@@ -486,9 +519,18 @@ export async function withAssembledReleaseCandidate<T>(
   if (lifecycle === undefined) {
     return lifecycleBlocked("IDENTITY_BOUND_CLEANUP_REQUIRED", "creation");
   }
+  const observations = await captureSourceObservations(prepared.value, inventory.entries, lifecycle);
+  if (!observations.ok) return observations;
   const readiness = await releaseReadinessBlockers(prepared.value, inventory.entries, lifecycle);
   if (!readiness.ok) return readiness;
   if (readiness.blockers.length > 0) return { ok: false, blockers: readiness.blockers };
+  const precreationStability = await verifySourceStability(
+    prepared.value,
+    inventory.entries,
+    observations.value,
+    lifecycle
+  );
+  if (precreationStability !== undefined) return precreationStability;
 
   let created: Awaited<ReturnType<BoundCandidateLifecycle["createCandidateLease"]>>;
   try {
@@ -505,6 +547,7 @@ export async function withAssembledReleaseCandidate<T>(
       created.lease,
       prepared.value,
       inventory.entries,
+      observations.value,
       lifecycle,
       inspect
     );
@@ -533,6 +576,7 @@ function bindIdentityBoundCandidateLifecycle(
     createCandidateLease: capability.createCandidateLease.bind(capability),
     cleanupCandidateLease: capability.cleanupCandidateLease.bind(capability),
     readAcceptedSourceFile: capability.readAcceptedSourceFile.bind(capability),
+    observeAcceptedSourceEntry: capability.observeAcceptedSourceEntry.bind(capability),
     inspectCandidateRoot: capability.inspectCandidateRoot.bind(capability),
     materializeCandidateEntry: capability.materializeCandidateEntry.bind(capability),
     reconcileCandidateTree: capability.reconcileCandidateTree.bind(capability)
@@ -544,6 +588,7 @@ async function inspectCandidateLease<T>(
   lease: ReleaseCandidateLease,
   input: ValidatedReleaseCandidateInput,
   inventory: ReleaseCandidateSourceEntry[],
+  observations: AcceptedSourceObservations,
   lifecycle: BoundCandidateLifecycle,
   inspect: (candidateRoot: string) => Promise<T>
 ): Promise<ReleaseCandidateLifecycleResult<T>> {
@@ -571,15 +616,27 @@ async function inspectCandidateLease<T>(
       async () => await lifecycle.inspectCandidateRoot(lease)
     );
     if (unexpectedEntries !== undefined) return unexpectedEntries;
-    const assemblyFailure = await assembleReleaseCandidate(lease, input, inventory, lifecycle);
+    const preassemblyStability = await verifySourceStability(input, inventory, observations, lifecycle);
+    if (preassemblyStability !== undefined) return preassemblyStability;
+    const assemblyFailure = await assembleReleaseCandidate(lease, input, inventory, observations, lifecycle);
     if (assemblyFailure !== undefined) return assemblyFailure;
+    const postassemblyStability = await verifySourceStability(input, inventory, observations, lifecycle);
+    if (postassemblyStability !== undefined) return postassemblyStability;
     const reconciliationFailure = await reconcileReleaseCandidate(lease, input, inventory, lifecycle);
     if (reconciliationFailure !== undefined) return reconciliationFailure;
+    const prereviewStability = await verifySourceStability(input, inventory, observations, lifecycle);
+    if (prereviewStability !== undefined) return prereviewStability;
+    let value: T | undefined;
+    let inspectionFailed = false;
     try {
-      return { ok: true, value: await inspect(canonicalRoot) };
+      value = await inspect(canonicalRoot);
     } catch {
-      return lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
+      inspectionFailed = true;
     }
+    const finalStability = await verifySourceStability(input, inventory, observations, lifecycle);
+    if (finalStability !== undefined) return finalStability;
+    if (inspectionFailed) return lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
+    return { ok: true, value: value as T };
   } catch {
     return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
   }
@@ -639,6 +696,7 @@ async function assembleReleaseCandidate(
   lease: ReleaseCandidateLease,
   input: ValidatedReleaseCandidateInput,
   inventory: ReleaseCandidateSourceEntry[],
+  observations: AcceptedSourceObservations,
   lifecycle: BoundCandidateLifecycle
 ): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
   const fixedDirectories = [
@@ -662,6 +720,8 @@ async function assembleReleaseCandidate(
   }
 
   for (const entry of inventory) {
+    const beforeUse = await verifySourceEntryObservation(input, entry, observations, lifecycle);
+    if (beforeUse !== undefined) return beforeUse;
     const failure = await parseCandidateMaterialization(async () => (
       await lifecycle.materializeCandidateEntry(lease, input, {
         destination: entry.path,
@@ -670,6 +730,8 @@ async function assembleReleaseCandidate(
       })
     ));
     if (failure !== undefined) return failure;
+    const afterUse = await verifySourceEntryObservation(input, entry, observations, lifecycle);
+    if (afterUse !== undefined) return afterUse;
   }
   return undefined;
 }
@@ -696,9 +758,8 @@ async function parseCandidateMaterialization(
     if (code === "CANDIDATE_DESTINATION_IDENTITY_MISMATCH" || code === "CANDIDATE_DESTINATION_UNEXPECTED") {
       return lifecycleBlocked(code, "unsafe-isolation");
     }
-    if (code === "CANDIDATE_MATERIALIZATION_FAILED" || code === "SOURCE_ENTRY_CHANGED") {
-      return lifecycleBlocked(code, "assembly");
-    }
+    if (code === "SOURCE_ENTRY_CHANGED") return sourceChangedDuringAssembly();
+    if (code === "CANDIDATE_MATERIALIZATION_FAILED") return lifecycleBlocked(code, "assembly");
   } catch {
     return lifecycleBlocked("CANDIDATE_MATERIALIZATION_RESULT_INVALID", "assembly");
   }
@@ -789,6 +850,156 @@ function safeCandidateTreeIdentity(path: string): string {
   const segments = path.split("/");
   if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) return "[invalid]";
   return segments.map(safeCandidateEntryIdentity).join("/");
+}
+
+async function captureSourceObservations(
+  input: ValidatedReleaseCandidateInput,
+  inventory: ReleaseCandidateSourceEntry[],
+  lifecycle: BoundCandidateLifecycle
+): Promise<{ ok: true; value: AcceptedSourceObservations } | ReleaseCandidateLifecycleFailure> {
+  const observations = new Map<string, AcceptedSourceObservation>();
+  for (const entry of sourceEntriesWithRoots(input, inventory)) {
+    const observed = await parseAcceptedSourceObservation(
+      async () => await lifecycle.observeAcceptedSourceEntry(input, entry)
+    );
+    if (!observed.ok) return observed;
+    observations.set(entry.path, observed.value);
+  }
+  return { ok: true, value: observations };
+}
+
+async function verifySourceStability(
+  input: ValidatedReleaseCandidateInput,
+  inventory: ReleaseCandidateSourceEntry[],
+  observations: AcceptedSourceObservations,
+  lifecycle: BoundCandidateLifecycle
+): Promise<ReleaseCandidateLifecycleFailure | undefined> {
+  const rewalk = await inventoryReleaseCandidateSources(input);
+  if (!rewalk.ok) return rewalk;
+  if (!sameSourceInventory(inventory, rewalk.entries)) return sourceChangedDuringAssembly();
+  for (const entry of sourceEntriesWithRoots(input, inventory)) {
+    const failure = await verifySourceEntryObservation(input, entry, observations, lifecycle);
+    if (failure !== undefined) return failure;
+  }
+  return undefined;
+}
+
+function sourceEntriesWithRoots(
+  input: ValidatedReleaseCandidateInput,
+  inventory: ReleaseCandidateSourceEntry[]
+): ReleaseCandidateSourceEntry[] {
+  return [
+    { root: "content", path: `content/dota_addons/${input.addonName}`, kind: "directory" },
+    { root: "game", path: `game/dota_addons/${input.addonName}`, kind: "directory" },
+    ...inventory
+  ];
+}
+
+async function verifySourceEntryObservation(
+  input: ValidatedReleaseCandidateInput,
+  entry: ReleaseCandidateSourceEntry,
+  observations: AcceptedSourceObservations,
+  lifecycle: BoundCandidateLifecycle
+): Promise<ReleaseCandidateLifecycleFailure | undefined> {
+  const accepted = observations.get(entry.path);
+  if (accepted === undefined) return sourceChangedDuringAssembly();
+  const current = await parseAcceptedSourceObservation(
+    async () => await lifecycle.observeAcceptedSourceEntry(input, entry)
+  );
+  if (!current.ok || !sameSourceObservation(accepted, current.value)) {
+    return sourceChangedDuringAssembly();
+  }
+  return undefined;
+}
+
+async function parseAcceptedSourceObservation(
+  acquire: () => Promise<unknown>
+): Promise<{ ok: true; value: AcceptedSourceObservation } | ReleaseCandidateLifecycleFailure> {
+  try {
+    const result = await acquire();
+    if (result === null || typeof result !== "object" || Reflect.get(result, "ok") !== true) {
+      return lifecycleBlocked("SOURCE_OBSERVATION_RESULT_INVALID", "assembly");
+    }
+    const kind = Reflect.get(result, "kind");
+    const canonicalPath = Reflect.get(result, "canonicalPath");
+    const size = Reflect.get(result, "size");
+    const mtimeMs = Reflect.get(result, "mtimeMs");
+    const ctimeMs = Reflect.get(result, "ctimeMs");
+    const mode = Reflect.get(result, "mode");
+    if (
+      (kind !== "file" && kind !== "directory")
+      || typeof canonicalPath !== "string"
+      || canonicalPath.length === 0
+      || !Number.isSafeInteger(size)
+      || size < 0
+      || typeof mtimeMs !== "number"
+      || !Number.isFinite(mtimeMs)
+      || typeof ctimeMs !== "number"
+      || !Number.isFinite(ctimeMs)
+      || !Number.isSafeInteger(mode)
+      || mode < 0
+      || Reflect.get(result, "identityMatched") !== true
+      || Reflect.get(result, "contained") !== true
+    ) return lifecycleBlocked("SOURCE_OBSERVATION_RESULT_INVALID", "assembly");
+    const bytes = Reflect.get(result, "bytes");
+    if (kind === "file" && (!(bytes instanceof Uint8Array) || bytes.byteLength !== size)) {
+      return lifecycleBlocked("SOURCE_OBSERVATION_RESULT_INVALID", "assembly");
+    }
+    if (kind === "directory" && bytes !== undefined) {
+      return lifecycleBlocked("SOURCE_OBSERVATION_RESULT_INVALID", "assembly");
+    }
+    return {
+      ok: true,
+      value: {
+        ok: true,
+        kind,
+        canonicalPath,
+        size,
+        mtimeMs,
+        ctimeMs,
+        mode,
+        ...(kind === "file" ? { bytes: Uint8Array.from(bytes as Uint8Array) } : {}),
+        identityMatched: true,
+        contained: true
+      }
+    };
+  } catch {
+    return lifecycleBlocked("SOURCE_OBSERVATION_RESULT_INVALID", "assembly");
+  }
+}
+
+function sameSourceInventory(
+  accepted: ReleaseCandidateSourceEntry[],
+  current: ReleaseCandidateSourceEntry[]
+): boolean {
+  return accepted.length === current.length && accepted.every((entry, index) => {
+    const candidate = current[index];
+    return candidate !== undefined
+      && entry.root === candidate.root
+      && entry.path === candidate.path
+      && entry.kind === candidate.kind;
+  });
+}
+
+function sameSourceObservation(
+  accepted: AcceptedSourceObservation,
+  current: AcceptedSourceObservation
+): boolean {
+  if (
+    accepted.kind !== current.kind
+    || accepted.canonicalPath !== current.canonicalPath
+    || accepted.size !== current.size
+    || accepted.mtimeMs !== current.mtimeMs
+    || accepted.ctimeMs !== current.ctimeMs
+    || accepted.mode !== current.mode
+  ) return false;
+  if (accepted.kind === "directory") return current.bytes === undefined;
+  if (accepted.bytes === undefined || current.bytes === undefined || accepted.bytes.length !== current.bytes.length) return false;
+  return accepted.bytes.every((byte, index) => byte === current.bytes?.[index]);
+}
+
+function sourceChangedDuringAssembly(): ReleaseCandidateLifecycleFailure {
+  return lifecycleBlocked("SOURCE_CHANGED_DURING_ASSEMBLY", "assembly");
 }
 
 async function releaseReadinessBlockers(

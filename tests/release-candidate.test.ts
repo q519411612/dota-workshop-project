@@ -163,6 +163,40 @@ function createNoFollowSourceReader() {
   };
 }
 
+function createAcceptedSourceObserver() {
+  return async (
+    input: ValidatedReleaseCandidateInput,
+    entry: { root: "game" | "content"; path: string; kind: "file" | "directory" }
+  ) => {
+    const prefix = `${entry.root}/dota_addons/${input.addonName}/`;
+    const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+    const sourcePath = join(sourceRoot, ...entry.path.slice(prefix.length).split("/"));
+    try {
+      const info = await lstat(sourcePath);
+      const kind = info.isFile() ? "file" as const : info.isDirectory() ? "directory" as const : undefined;
+      if (kind === undefined || kind !== entry.kind) return { ok: false as const, code: "SOURCE_ENTRY_CHANGED" as const };
+      const canonicalPath = await realpath(sourcePath);
+      if (canonicalPath !== sourceRoot && !canonicalPath.startsWith(`${sourceRoot}/`)) {
+        return { ok: false as const, code: "SOURCE_ENTRY_CHANGED" as const };
+      }
+      return {
+        ok: true as const,
+        kind,
+        canonicalPath,
+        size: info.size,
+        mtimeMs: info.mtimeMs,
+        ctimeMs: info.ctimeMs,
+        mode: info.mode,
+        ...(kind === "file" ? { bytes: await readFile(sourcePath) } : {}),
+        identityMatched: true as const,
+        contained: true as const
+      };
+    } catch {
+      return { ok: false as const, code: "SOURCE_ENTRY_CHANGED" as const };
+    }
+  };
+}
+
 function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(operations: {
   createCandidateLease(input: ValidatedReleaseCandidateInput): Promise<{ inspectionRoot: string; identity: TIdentity }>;
   cleanupCandidateLease(identity: TIdentity): Promise<CandidateLeaseCleanupResult>;
@@ -246,6 +280,17 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
       }
       return { ok: true, created: true, identityMatched: true, kindMatched: true, contained: true };
     } catch {
+      if (operation.kind === "file") {
+        const prefix = `${operation.source.root}/dota_addons/${input.addonName}/`;
+        const sourceRoot = operation.source.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+        const sourcePath = join(sourceRoot, ...operation.source.path.slice(prefix.length).split("/"));
+        try {
+          const sourceInfo = await lstat(sourcePath);
+          if (!sourceInfo.isFile() || sourceInfo.isSymbolicLink()) return { ok: false, code: "SOURCE_ENTRY_CHANGED" };
+        } catch {
+          return { ok: false, code: "SOURCE_ENTRY_CHANGED" };
+        }
+      }
       return { ok: false, code: "CANDIDATE_MATERIALIZATION_FAILED" };
     }
   };
@@ -290,6 +335,7 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
   };
   return createIdentityBoundCandidateLifecycle({
     readAcceptedSourceFile: createNoFollowSourceReader(),
+    observeAcceptedSourceEntry: createAcceptedSourceObserver(),
     inspectCandidateRoot: defaultInspect,
     materializeCandidateEntry: defaultMaterialize,
     reconcileCandidateTree: defaultReconcile,
@@ -778,6 +824,7 @@ describe("release candidate input validation", () => {
         return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
       },
       readAcceptedSourceFile: createNoFollowSourceReader(),
+      observeAcceptedSourceEntry: createAcceptedSourceObserver(),
       inspectCandidateRoot: vi.fn(async () => ({ ok: true as const, empty: true as const, identityMatched: true as const })),
       materializeCandidateEntry,
       reconcileCandidateTree: vi.fn(async () => ({ ok: true as const, exact: true as const, identityMatched: true as const }))
@@ -868,6 +915,7 @@ describe("release candidate input validation", () => {
       },
       cleanupCandidateLease,
       readAcceptedSourceFile: createNoFollowSourceReader(),
+      observeAcceptedSourceEntry: createAcceptedSourceObserver(),
       inspectCandidateRoot: vi.fn(async () => ({ ok: true as const, empty: true as const, identityMatched: true as const })),
       materializeCandidateEntry,
       reconcileCandidateTree
@@ -998,6 +1046,7 @@ describe("release candidate input validation", () => {
           kindMatched: true as const,
           contained: true as const
         })),
+        observeAcceptedSourceEntry: createAcceptedSourceObserver(),
         inspectCandidateRoot: vi.fn(async () => ({ ok: true as const, empty: true as const, identityMatched: true as const })),
         materializeCandidateEntry: vi.fn(async () => ({ ok: true as const, created: true as const, identityMatched: true as const, kindMatched: true as const, contained: true as const })),
         reconcileCandidateTree: vi.fn(async () => ({ ok: true as const, exact: true as const, identityMatched: true as const }))
