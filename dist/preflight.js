@@ -1,6 +1,7 @@
 import { access, readFile, readdir, stat } from "node:fs/promises";
 import { extname, join, relative, sep } from "node:path";
 import { validateAddonName } from "./addon.js";
+import { evaluateReleaseReadiness, isReleaseTextPath, MAX_SECRET_SCAN_BYTES } from "./release-readiness.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
 const TOOLCHAIN_MARKERS = [
     "package.json",
@@ -11,43 +12,6 @@ const TOOLCHAIN_MARKERS = [
     "webpack.config.js"
 ];
 const PANORAMA_EXTENSIONS = new Set([".xml", ".js", ".css"]);
-const RELEASE_METADATA_KEYS = [
-    "addonSteamAppID",
-    "addontitle",
-    "addonAuthor",
-    "addonDescription",
-    "addonVersion",
-    "DefaultMap",
-    "maps"
-];
-const TEXT_SCAN_EXTENSIONS = new Set([
-    ".cfg",
-    ".css",
-    ".ini",
-    ".js",
-    ".json",
-    ".kv",
-    ".lua",
-    ".md",
-    ".ps1",
-    ".ts",
-    ".tsx",
-    ".txt",
-    ".vdf",
-    ".xml",
-    ".yaml",
-    ".yml"
-]);
-const MAX_SECRET_SCAN_BYTES = 1024 * 1024;
-const PLACEHOLDER_VALUES = new Set(["", "changeme", "change me", "placeholder", "tbd", "todo", "unknown", "your name"]);
-const SECRET_PATTERNS = [
-    { label: "private key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/i },
-    { label: "github token", pattern: /gh[pousr]_[A-Za-z0-9_]{20,}/ },
-    { label: "steam credential", pattern: /\bsteam_(?:password|token|secret|apikey|api_key)\b/i },
-    { label: "password", pattern: /(?:\b|_)(?:password|passwd|pwd)\b\s*[:=]/i },
-    { label: "token", pattern: /\b(?:token|api[_-]?key|secret)\b\s*[:=]/i },
-    { label: "host credential", pattern: /\b(?:remote_|windows_)?(?:host|username)\b\s*[:=].*\b(?:password|token|secret|key)\b/i }
-];
 export async function inspectWorkshopPreflight(input) {
     const operation = "inspect_workshop_preflight";
     const nameValidation = validateAddonName(input.addonName);
@@ -112,13 +76,9 @@ export async function dryRunReleaseReport(input) {
         });
     }
     const paths = preflightPaths(root, input.addonName);
-    const blockers = [];
-    const warnings = releaseBoundaryWarnings();
-    const evidence = [];
-    await appendPackageReadiness(evidence, blockers, paths);
-    await appendMetadataReadiness(evidence, blockers, paths.addonInfo);
-    await appendSecretScan(evidence, blockers, warnings, paths.gameAddon, paths.gameAddon);
-    await appendSecretScan(evidence, blockers, warnings, paths.contentAddon, paths.contentAddon);
+    const observations = await collectReleaseReadinessObservations(paths);
+    const findings = evaluateReleaseReadiness(observations);
+    const { evidence, blockers, warnings } = renderDryRunReadiness(findings, paths);
     evidence.push(`release blockers: ${blockers.length}`);
     evidence.push(`release warnings: ${warnings.length}`);
     evidence.push("dry-run release report generated");
@@ -231,7 +191,7 @@ function releaseBoundaryWarnings() {
         "dry run does not prove runtime validation"
     ];
 }
-async function appendPackageReadiness(evidence, blockers, paths) {
+async function collectReleaseReadinessObservations(paths) {
     const requiredPaths = [
         ["game addon root", paths.gameAddon],
         ["content addon root", paths.contentAddon],
@@ -244,70 +204,90 @@ async function appendPackageReadiness(evidence, blockers, paths) {
         ["unit support file", paths.unitData],
         ["ability support file", paths.abilityData]
     ];
+    const requiredPathObservations = [];
     for (const [label, path] of requiredPaths) {
-        if (await pathExists(path)) {
-            evidence.push(`package evidence: ${label} exists`);
-        }
-        else {
-            blockers.push(`package blocker: ${label} missing`);
-        }
+        requiredPathObservations.push({ label, present: await pathExists(path) });
     }
-}
-async function appendMetadataReadiness(evidence, blockers, addonInfoPath) {
-    if (!(await pathExists(addonInfoPath))) {
-        for (const key of RELEASE_METADATA_KEYS) {
-            blockers.push(`metadata blocker: ${key} missing`);
-        }
-        return;
-    }
-    const metadata = parseAddonInfo(await readFile(addonInfoPath, "utf8"));
-    for (const key of RELEASE_METADATA_KEYS) {
-        const value = metadata.get(key.toLowerCase());
-        if (value === undefined) {
-            blockers.push(`metadata blocker: ${key} missing`);
-        }
-        else if (PLACEHOLDER_VALUES.has(value.trim().toLowerCase())) {
-            blockers.push(`metadata blocker: ${key} placeholder`);
-        }
-        else {
-            evidence.push(`metadata evidence: ${key} present`);
-        }
-    }
-}
-function parseAddonInfo(content) {
-    const values = new Map();
-    const keyValuePattern = /^\s*"([^"]+)"\s+"([^"]*)"/gm;
-    for (const match of content.matchAll(keyValuePattern)) {
-        values.set(match[1].toLowerCase(), match[2]);
-    }
-    return values;
-}
-async function appendSecretScan(evidence, blockers, warnings, root, relativeRoot) {
-    if (!(await pathExists(root))) {
-        return;
-    }
-    const files = [];
-    await collectFiles(root, files);
-    for (const file of files) {
-        const relativePath = normalizeRelativePath(relative(relativeRoot, file));
-        const extension = extname(file).toLowerCase();
-        if (!TEXT_SCAN_EXTENSIONS.has(extension)) {
-            warnings.push(`secret scan skipped non-text file: ${relativePath}`);
+    const metadata = (await pathExists(paths.addonInfo))
+        ? { state: "readable", content: await readFile(paths.addonInfo, "utf8") }
+        : { state: "missing" };
+    const requiredTextPaths = new Set([
+        paths.addonInfo,
+        paths.luaEntry,
+        paths.localization,
+        paths.heroList,
+        paths.heroData,
+        paths.unitData,
+        paths.abilityData
+    ]);
+    const scanRoots = [];
+    for (const [rootName, rootPath] of [
+        ["game", paths.gameAddon],
+        ["content", paths.contentAddon]
+    ]) {
+        if (!(await pathExists(rootPath)))
             continue;
-        }
-        const info = await stat(file);
-        if (info.size > MAX_SECRET_SCAN_BYTES) {
-            warnings.push(`secret scan skipped oversized file: ${relativePath}`);
-            continue;
-        }
-        const content = await readFile(file, "utf8");
-        for (const { label, pattern } of SECRET_PATTERNS) {
-            if (pattern.test(content)) {
-                blockers.push(`secret blocker: ${relativePath} matches ${label}`);
+        const files = [];
+        await collectFiles(rootPath, files);
+        const observations = [];
+        for (const file of files) {
+            const relativePath = normalizeRelativePath(relative(rootPath, file));
+            if (!isReleaseTextPath(file)) {
+                observations.push({ relativePath, state: "non-text" });
+                continue;
             }
+            const info = await stat(file);
+            if (info.size > MAX_SECRET_SCAN_BYTES) {
+                observations.push({ relativePath, state: "oversized", requiredText: requiredTextPaths.has(file) });
+                continue;
+            }
+            observations.push({ relativePath, state: "text", content: await readFile(file, "utf8"), requiredText: requiredTextPaths.has(file) });
+        }
+        scanRoots.push({ root: rootName, files: observations });
+    }
+    return { requiredPaths: requiredPathObservations, metadata, scanRoots };
+}
+function renderDryRunReadiness(findings, paths) {
+    const evidence = [];
+    const blockers = [];
+    const warnings = releaseBoundaryWarnings();
+    for (const finding of findings) {
+        switch (finding.code) {
+            case "REQUIRED_PATH_PRESENT":
+                evidence.push(`package evidence: ${finding.field} exists`);
+                break;
+            case "REQUIRED_PATH_MISSING":
+                blockers.push(`package blocker: ${finding.field} missing`);
+                break;
+            case "METADATA_PRESENT":
+                evidence.push(`metadata evidence: ${finding.field} present`);
+                break;
+            case "METADATA_MISSING":
+                blockers.push(`metadata blocker: ${finding.field} missing`);
+                break;
+            case "METADATA_PLACEHOLDER":
+                blockers.push(`metadata blocker: ${finding.field} placeholder`);
+                break;
+            case "SENSITIVE_MATERIAL":
+                blockers.push(`secret blocker: ${finding.path} matches ${finding.category}`);
+                break;
+            case "NON_TEXT_INCLUDED":
+                warnings.push(`secret scan skipped non-text file: ${finding.path}`);
+                break;
+            case "TEXT_OVERSIZED":
+            case "REQUIRED_TEXT_OVERSIZED":
+                warnings.push(`secret scan skipped oversized file: ${finding.path}`);
+                break;
+            case "TEXT_UNREADABLE":
+            case "REQUIRED_TEXT_UNREADABLE":
+                warnings.push(`secret scan skipped unreadable file: ${finding.path}`);
+                break;
+            case "SECRET_SCAN_COMPLETED":
+                evidence.push(`secret scan completed: ${finding.field === "game" ? paths.gameAddon : paths.contentAddon}`);
+                break;
         }
     }
-    evidence.push(`secret scan completed: ${normalizeRelativePath(relativeRoot)}`);
+    return { evidence, blockers, warnings };
 }
 async function pushExistsEvidence(evidence, path, label) {
     evidence.push(await pathExists(path) ? `${label} exists` : `${label} missing`);
