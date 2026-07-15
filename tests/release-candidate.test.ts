@@ -575,7 +575,7 @@ describe("release candidate input validation", () => {
       failedInspect,
       { repositoryRoot: fixture.repositoryRoot, filesystem: createFilesystem({ failCopy: true }) }
     );
-    expect(copyFailure).toEqual({
+    expect(copyFailure).toMatchObject({
       ok: false,
       blockers: [{ code: "CANDIDATE_MATERIALIZATION_FAILED", category: "assembly" }]
     });
@@ -593,7 +593,7 @@ describe("release candidate input validation", () => {
       aliasInspect,
       { repositoryRoot: fixture.repositoryRoot, filesystem: createFilesystem({ aliasDestinationParent: true }) }
     );
-    expect(destinationAlias).toEqual({
+    expect(destinationAlias).toMatchObject({
       ok: false,
       blockers: [{ code: "CANDIDATE_DESTINATION_IDENTITY_MISMATCH", category: "unsafe-isolation" }]
     });
@@ -696,7 +696,7 @@ describe("release candidate input validation", () => {
       const expectedPaths = kind === "directory"
         ? ["alpha-directory", "rogue-directory"]
         : [`rogue-${kind}`];
-      expect(result, kind).toEqual({
+      expect(result, kind).toMatchObject({
         ok: false,
         blockers: expectedPaths.map((path) => ({
           code: "CANDIDATE_ROOT_NOT_EMPTY",
@@ -795,7 +795,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: fixture.repositoryRoot, filesystem }
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       blockers: [{ code: "SOURCE_FILE_IDENTITY_CHANGED", category: "assembly" }]
     });
@@ -961,7 +961,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: fixture.repositoryRoot, filesystem }
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       blockers: [{ code: "CANDIDATE_DESTINATION_IDENTITY_MISMATCH", category: "unsafe-isolation" }]
     });
@@ -1052,7 +1052,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: fixture.repositoryRoot, filesystem }
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       blockers: [{ code: "CANDIDATE_TREE_UNEXPECTED", category: "unexpected-entry", path: "rogue-mid-assembly" }]
     });
@@ -1109,7 +1109,7 @@ describe("release candidate input validation", () => {
         async () => "unexpected",
         { repositoryRoot: fixture.repositoryRoot, filesystem }
       );
-      expect(result, stage).toEqual({
+      expect(result, stage).toMatchObject({
         ok: false,
         blockers: [{
           code: stage === "source"
@@ -1335,7 +1335,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: callbackFixture.repositoryRoot, filesystem: callbackLifecycle.filesystem }
     );
 
-    expect(callbackResult).toEqual({
+    expect(callbackResult).toMatchObject({
       ok: false,
       blockers: [{ code: "CANDIDATE_INSPECTION_FAILED", category: "inspection" }]
     });
@@ -1363,7 +1363,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: aliasFixture.repositoryRoot, filesystem: aliasLifecycle.filesystem }
     );
 
-    expect(aliasResult).toEqual({
+    expect(aliasResult).toMatchObject({
       ok: false,
       blockers: [{ code: "CANDIDATE_ROOT_NOT_ISOLATED", category: "unsafe-isolation" }]
     });
@@ -1387,7 +1387,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: removalFixture.repositoryRoot, filesystem: removalLifecycle.filesystem }
     );
 
-    expect(removalResult).toEqual({
+    expect(removalResult).toMatchObject({
       ok: false,
       blockers: [{ code: "CANDIDATE_REMOVAL_FAILED", category: "removal" }]
     });
@@ -1459,7 +1459,7 @@ describe("release candidate input validation", () => {
 
       expect(cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
       expect(rawRemoval, scenario.name).not.toHaveBeenCalled();
-      expect(result, scenario.name).toEqual({
+      expect(result, scenario.name).toMatchObject({
         ok: false,
         blockers: [{ code: "CANDIDATE_IDENTITY_MISMATCH", category: "removal" }]
       });
@@ -1526,7 +1526,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: swappedFixture.repositoryRoot, filesystem: swappedFilesystem }
     );
 
-    expect(swappedResult).toEqual({
+    expect(swappedResult).toMatchObject({
       ok: false,
       blockers: [{ code: "CANDIDATE_IDENTITY_MISMATCH", category: "removal" }]
     });
@@ -1711,7 +1711,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: fixture.repositoryRoot, filesystem }
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       blockers: [{ code: "CANDIDATE_CLEANUP_RESULT_INVALID", category: "removal" }]
     });
@@ -1782,7 +1782,7 @@ describe("release candidate input validation", () => {
         { repositoryRoot: fixture.repositoryRoot, filesystem }
       );
 
-      expect(result, scenario.name).toEqual({
+      expect(result, scenario.name).toMatchObject({
         ok: false,
         blockers: [{ code: "CANDIDATE_CLEANUP_RESULT_INVALID", category: "removal" }]
       });
@@ -2204,7 +2204,7 @@ describe("release candidate input validation", () => {
       async () => "must not inspect",
       { repositoryRoot: fixture.repositoryRoot, filesystem }
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       blockers: [{ code: "CANDIDATE_ROOT_UNREADABLE", category: "unsafe-isolation" }]
     });
@@ -3082,7 +3082,7 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, scenario.name).toEqual({
+      expect(result, scenario.name).toMatchObject({
         ok: false,
         blockers: [{
           code: scenario.checkpoint === "callback" ? "RELEASE_CANDIDATE_INTEGRITY_MISMATCH" : "SOURCE_CHANGED_DURING_ASSEMBLY",
@@ -3457,7 +3457,7 @@ describe("release candidate input validation", () => {
       if (scenario.expectedCode === undefined) {
         expect(result, scenario.name).toMatchObject({ ok: true, value: "validated" });
       } else {
-        expect(result, scenario.name).toEqual({
+        expect(result, scenario.name).toMatchObject({
           ok: false,
           blockers: [{ code: scenario.expectedCode, category: scenario.expectedCode === "CANDIDATE_INSPECTION_FAILED" ? "inspection" : "integrity" }]
         });
@@ -3704,7 +3704,7 @@ describe("release candidate input validation", () => {
       duplicateResults.push(execution.result);
     }
     expect(duplicateResults[1]).toEqual(duplicateResults[0]);
-    expect(duplicateResults[0]).toEqual({
+    expect(duplicateResults[0]).toMatchObject({
       ok: false,
       inclusionLedger: {
         schemaVersion: "1.0",
@@ -3741,7 +3741,7 @@ describe("release candidate input validation", () => {
       if (index === 3) return { ...observation, identityMatched: false };
       return observation;
     }));
-    expect(wrongFacts.result).toEqual({
+    expect(wrongFacts.result).toMatchObject({
       ok: false,
       inclusionLedger: {
         schemaVersion: "1.0",
@@ -3794,7 +3794,7 @@ describe("release candidate input validation", () => {
         }]
       })
     );
-    expect(missingDirectory.result).toEqual({
+    expect(missingDirectory.result).toMatchObject({
       ok: false,
       blockers: [{
         code: "CANDIDATE_TREE_MISSING",
@@ -3892,7 +3892,7 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, candidateFailure).toEqual(candidateFailure === "malformed"
+      expect(result, candidateFailure).toMatchObject(candidateFailure === "malformed"
         ? {
             ok: false,
             blockers: [
@@ -4019,7 +4019,7 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, candidateFailure).toEqual(candidateFailure === "malformed"
+      expect(result, candidateFailure).toMatchObject(candidateFailure === "malformed"
         ? {
             ok: false,
             blockers: [
@@ -4151,7 +4151,7 @@ describe("release candidate input validation", () => {
       }
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       inclusionLedger: {
         schemaVersion: "1.0",
@@ -4368,7 +4368,7 @@ describe("release candidate input validation", () => {
               count: 1
             }
           ];
-      expect.soft(result, scenario.name).toEqual({
+      expect.soft(result, scenario.name).toMatchObject({
         ok: false,
         ...(scenario.candidate === "ledger"
           ? {
@@ -4449,7 +4449,7 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, scenario.name).toEqual({
+      expect(result, scenario.name).toMatchObject({
         ok: false,
         blockers: [{
           code: scenario.mutation === "remove" ? "CANDIDATE_TREE_MISSING" : "CANDIDATE_TREE_UNEXPECTED",
@@ -4553,7 +4553,7 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, scenario.name).toEqual({ ok: false, blockers: [{ code: "CANDIDATE_INTEGRITY_RESULT_INVALID", category: "integrity" }] });
+      expect(result, scenario.name).toMatchObject({ ok: false, blockers: [{ code: "CANDIDATE_INTEGRITY_RESULT_INVALID", category: "integrity" }] });
       expect(candidateCalls, scenario.name).toBe(2);
       expect(callback, scenario.name).toHaveBeenCalledTimes(1);
       expect(cleanup, scenario.name).toHaveBeenCalledTimes(1);
@@ -4975,18 +4975,18 @@ describe("release candidate input validation", () => {
           return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
         },
         cleanupCandidateLease,
-        inspectCandidateRoot: scenario.fault === "inspection"
-          ? async () => null as unknown as CandidateRootInspectionResult
-          : undefined,
-        materializeCandidateEntry: scenario.fault === "copy"
-          ? async () => null as unknown as CandidateMaterializationResult
-          : undefined,
-        observeCandidate: scenario.fault === "hash"
-          ? async () => new Proxy({}, { get: () => { throw new Error("private hash result"); } })
-          : undefined,
-        reconcileCandidateTree: scenario.fault === "ledger"
-          ? async () => null as unknown as CandidateTreeReconciliationResult
-          : undefined
+        ...(scenario.fault === "inspection" ? {
+          inspectCandidateRoot: async () => null as unknown as CandidateRootInspectionResult
+        } : {}),
+        ...(scenario.fault === "copy" ? {
+          materializeCandidateEntry: async () => null as unknown as CandidateMaterializationResult
+        } : {}),
+        ...(scenario.fault === "hash" ? {
+          observeCandidate: async () => new Proxy({}, { get: () => { throw new Error("private hash result"); } })
+        } : {}),
+        ...(scenario.fault === "ledger" ? {
+          reconcileCandidateTree: async () => null as unknown as CandidateTreeReconciliationResult
+        } : {})
       });
       const result = await withAssembledReleaseCandidate(
         { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },

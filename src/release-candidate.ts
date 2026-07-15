@@ -149,6 +149,27 @@ export type ReleaseCandidateManifest = Readonly<{
   combinedSha256: string;
 }>;
 
+export type ReleaseCandidateCleanupEvidence =
+  | Readonly<{
+      schemaVersion: "1.0";
+      attempted: true;
+      attempts: 1;
+      status: "verified";
+      identityMatched: true;
+      removed: true;
+      absent: true;
+    }>
+  | Readonly<{
+      schemaVersion: "1.0";
+      attempted: true;
+      attempts: 1;
+      status: "failed";
+      code: CandidateLeaseCleanupFailureCode | "CANDIDATE_CLEANUP_RESULT_INVALID";
+      identityMatched?: boolean;
+      removed?: boolean;
+      absent?: boolean;
+    }>;
+
 export type ReleaseCandidateLifecycleResult<T> =
   | {
       ok: true;
@@ -156,11 +177,13 @@ export type ReleaseCandidateLifecycleResult<T> =
       manifest: ReleaseCandidateManifest;
       inclusionLedger: ReleaseCandidateInclusionLedger;
       scanCoverage: ReleaseScanCoverage;
+      cleanup?: ReleaseCandidateCleanupEvidence;
     }
   | {
       ok: false;
       inclusionLedger?: ReleaseCandidateInclusionLedger;
       scanCoverage?: ReleaseScanCoverage;
+      cleanup?: ReleaseCandidateCleanupEvidence;
       blockers: Array<
         ReleaseCandidateInputBlocker
         | ReleaseCandidateInventoryBlocker
@@ -209,6 +232,28 @@ export type CandidateLeaseCleanupResult =
       absent: boolean;
       identityMatched: boolean;
       code: CandidateLeaseCleanupFailureCode;
+    }>;
+
+export type CandidateLeaseAcquisitionResult =
+  | Readonly<{
+      ok: true;
+      schemaVersion: "1.0";
+      state: "acquired";
+      inspectionRoot: string;
+      lease: ReleaseCandidateLease;
+    }>
+  | Readonly<{
+      ok: false;
+      schemaVersion: "1.0";
+      state: "not-created";
+      code: "CANDIDATE_CREATION_FAILED" | "CANDIDATE_ACQUISITION_RESULT_INVALID";
+    }>
+  | Readonly<{
+      ok: false;
+      schemaVersion: "1.0";
+      state: "created-failure";
+      code: "CANDIDATE_ACQUISITION_RESULT_INVALID";
+      cleanup: ReleaseCandidateCleanupEvidence;
     }>;
 
 export type AcceptedSourceReadResult =
@@ -426,10 +471,7 @@ export type IdentityBoundCandidateLifecycle = Readonly<{
   [identityBoundCandidateLifecycleBrand]: true;
   identityBoundCleanup: true;
   identityBoundAssembly: boolean;
-  createCandidateLease(input: ValidatedReleaseCandidateInput): Promise<Readonly<{
-    inspectionRoot: string;
-    lease: ReleaseCandidateLease;
-  }>>;
+  createCandidateLease(input: ValidatedReleaseCandidateInput): Promise<CandidateLeaseAcquisitionResult>;
   cleanupCandidateLease(lease: ReleaseCandidateLease): Promise<CandidateLeaseCleanupResult>;
   readAcceptedSourceFile(
     input: ValidatedReleaseCandidateInput,
@@ -461,10 +503,10 @@ export type IdentityBoundCandidateLifecycle = Readonly<{
 }>;
 
 export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(operations: {
-  createCandidateLease(input: ValidatedReleaseCandidateInput): Promise<Readonly<{
-    inspectionRoot: string;
-    identity: TIdentity;
-  }>>;
+  createCandidateLease(
+    input: ValidatedReleaseCandidateInput,
+    recordCreated?: (created: Readonly<{ inspectionRoot: string; identity: TIdentity }>) => void
+  ): Promise<unknown>;
   cleanupCandidateLease(identity: TIdentity): Promise<CandidateLeaseCleanupResult>;
   readAcceptedSourceFile?(
     input: ValidatedReleaseCandidateInput,
@@ -514,10 +556,54 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
     identityBoundCleanup: true as const,
     identityBoundAssembly,
     createCandidateLease: async (input) => {
-      const created = await createCandidateLease(input);
+      let recorded: Readonly<{ inspectionRoot: string; identity: TIdentity }> | undefined;
+      let registrationInvalid = false;
+      const recordCreated = (created: Readonly<{ inspectionRoot: string; identity: TIdentity }>): void => {
+        if (recorded !== undefined || registrationInvalid) {
+          registrationInvalid = true;
+          return;
+        }
+        const parsed = parseCreatedCandidateIdentity<TIdentity>(created);
+        if (parsed === undefined) {
+          registrationInvalid = true;
+          return;
+        }
+        recorded = parsed;
+      };
+
+      let returned: unknown;
+      try {
+        returned = await createCandidateLease(input, recordCreated);
+      } catch {
+        return recorded === undefined
+          ? notCreatedAcquisitionFailure("CANDIDATE_CREATION_FAILED")
+          : await cleanupFailedAcquisition(recorded.identity, cleanupCandidateLease);
+      }
+
+      const parsed = parseCreatedCandidateIdentity<TIdentity>(returned);
+      if (
+        registrationInvalid
+        || parsed === undefined
+        || (recorded !== undefined && (
+          recorded.inspectionRoot !== parsed.inspectionRoot
+          || recorded.identity !== parsed.identity
+        ))
+      ) {
+        return recorded === undefined
+          ? notCreatedAcquisitionFailure("CANDIDATE_ACQUISITION_RESULT_INVALID")
+          : await cleanupFailedAcquisition(recorded.identity, cleanupCandidateLease);
+      }
+
+      const created = recorded ?? parsed;
       const lease = Object.freeze({ [releaseCandidateLeaseBrand]: true as const });
       identities.set(lease, created.identity);
-      return Object.freeze({ inspectionRoot: created.inspectionRoot, lease });
+      return Object.freeze({
+        ok: true as const,
+        schemaVersion: "1.0" as const,
+        state: "acquired" as const,
+        inspectionRoot: created.inspectionRoot,
+        lease
+      });
     },
     cleanupCandidateLease: async (lease) => {
       const identity = identities.get(lease);
@@ -576,6 +662,41 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
       }
       return await reconcileCandidateTree(identity, expected);
     }
+  });
+}
+
+function parseCreatedCandidateIdentity<TIdentity extends object>(
+  value: unknown
+): Readonly<{ inspectionRoot: string; identity: TIdentity }> | undefined {
+  try {
+    if (value === null || typeof value !== "object") return undefined;
+    const inspectionRoot = Reflect.get(value, "inspectionRoot");
+    const identity = Reflect.get(value, "identity");
+    if (typeof inspectionRoot !== "string" || inspectionRoot.length === 0) return undefined;
+    if (identity === null || typeof identity !== "object") return undefined;
+    return Object.freeze({ inspectionRoot, identity: identity as TIdentity });
+  } catch {
+    return undefined;
+  }
+}
+
+function notCreatedAcquisitionFailure(
+  code: Extract<CandidateLeaseAcquisitionResult, { state: "not-created" }>["code"]
+): Extract<CandidateLeaseAcquisitionResult, { state: "not-created" }> {
+  return Object.freeze({ ok: false, schemaVersion: "1.0", state: "not-created", code });
+}
+
+async function cleanupFailedAcquisition<TIdentity extends object>(
+  identity: TIdentity,
+  cleanup: (identity: TIdentity) => Promise<CandidateLeaseCleanupResult>
+): Promise<Extract<CandidateLeaseAcquisitionResult, { state: "created-failure" }>> {
+  const evidence = await normalizeCandidateCleanupEvidence(async () => await cleanup(identity));
+  return Object.freeze({
+    ok: false,
+    schemaVersion: "1.0",
+    state: "created-failure",
+    code: "CANDIDATE_ACQUISITION_RESULT_INVALID",
+    cleanup: evidence
   });
 }
 
@@ -784,19 +905,28 @@ export async function withAssembledReleaseCandidate<T>(
   const sourceBefore = await captureSourceIntegrity(prepared.value, inventory.entries, lifecycle);
   if (!sourceBefore.ok) return withScanCoverage(sourceBefore, readiness.scanCoverage);
 
-  let created: Awaited<ReturnType<BoundCandidateLifecycle["createCandidateLease"]>>;
+  let acquisition: CandidateLeaseAcquisitionResult;
   try {
-    created = await lifecycle.createCandidateLease(prepared.value);
+    acquisition = await lifecycle.createCandidateLease(prepared.value);
   } catch {
     return withScanCoverage(lifecycleBlocked("CANDIDATE_CREATION_FAILED", "creation"), readiness.scanCoverage);
   }
+  if (!acquisition.ok) {
+    const failure = withScanCoverage(
+      lifecycleBlocked(acquisition.code, "creation"),
+      readiness.scanCoverage
+    );
+    return acquisition.state === "created-failure"
+      ? { ...failure, cleanup: acquisition.cleanup }
+      : failure;
+  }
 
   let outcome: ReleaseCandidateLifecycleResult<T>;
-  let cleanupFailure: ReleaseCandidateLifecycleResult<never> | undefined;
+  let cleanup: ReleaseCandidateCleanupEvidence;
   try {
     outcome = await inspectCandidateLease(
-      created.inspectionRoot,
-      created.lease,
+      acquisition.inspectionRoot,
+      acquisition.lease,
       prepared.value,
       inventory.entries,
       observations.value,
@@ -806,11 +936,18 @@ export async function withAssembledReleaseCandidate<T>(
       inspect
     );
   } finally {
-    cleanupFailure = await parseCandidateCleanupResult(
-      async () => await lifecycle.cleanupCandidateLease(created.lease)
+    cleanup = await normalizeCandidateCleanupEvidence(
+      async () => await lifecycle.cleanupCandidateLease(acquisition.lease)
     );
   }
-  return cleanupFailure ?? outcome;
+  if (cleanup.status === "failed") {
+    return {
+      ok: false,
+      blockers: [{ code: cleanup.code, category: "removal" }],
+      cleanup
+    };
+  }
+  return { ...outcome, cleanup };
 }
 
 function bindIdentityBoundCandidateLifecycle(
@@ -1887,13 +2024,13 @@ function withScanCoverage<T extends ReleaseCandidateLifecycleFailure>(
   return { ...failure, scanCoverage };
 }
 
-async function parseCandidateCleanupResult(
+async function normalizeCandidateCleanupEvidence(
   acquire: () => Promise<unknown>
-): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+): Promise<ReleaseCandidateCleanupEvidence> {
   try {
     const result = await acquire();
     if (result === null || typeof result !== "object") {
-      return lifecycleBlocked("CANDIDATE_CLEANUP_RESULT_INVALID", "removal");
+      return failedCleanupEvidence("CANDIDATE_CLEANUP_RESULT_INVALID");
     }
 
     const ok = Reflect.get(result, "ok");
@@ -1901,7 +2038,15 @@ async function parseCandidateCleanupResult(
     const absent = Reflect.get(result, "absent");
     const identityMatched = Reflect.get(result, "identityMatched");
     if (ok === true && removed === true && absent === true && identityMatched === true) {
-      return undefined;
+      return Object.freeze({
+        schemaVersion: "1.0",
+        attempted: true,
+        attempts: 1,
+        status: "verified",
+        identityMatched: true,
+        removed: true,
+        absent: true
+      });
     }
 
     const code = Reflect.get(result, "code");
@@ -1912,12 +2057,26 @@ async function parseCandidateCleanupResult(
       && typeof identityMatched === "boolean"
       && isCandidateLeaseCleanupFailureCode(code)
     ) {
-      return lifecycleBlocked(code, "removal");
+      return failedCleanupEvidence(code, { identityMatched, removed, absent });
     }
   } catch {
-    return lifecycleBlocked("CANDIDATE_CLEANUP_RESULT_INVALID", "removal");
+    return failedCleanupEvidence("CANDIDATE_CLEANUP_RESULT_INVALID");
   }
-  return lifecycleBlocked("CANDIDATE_CLEANUP_RESULT_INVALID", "removal");
+  return failedCleanupEvidence("CANDIDATE_CLEANUP_RESULT_INVALID");
+}
+
+function failedCleanupEvidence(
+  code: Extract<ReleaseCandidateCleanupEvidence, { status: "failed" }>["code"],
+  facts: Readonly<{ identityMatched: boolean; removed: boolean; absent: boolean }> | undefined = undefined
+): Extract<ReleaseCandidateCleanupEvidence, { status: "failed" }> {
+  return Object.freeze({
+    schemaVersion: "1.0",
+    attempted: true,
+    attempts: 1,
+    status: "failed",
+    code,
+    ...(facts === undefined ? {} : facts)
+  });
 }
 
 function isCandidateLeaseCleanupFailureCode(
