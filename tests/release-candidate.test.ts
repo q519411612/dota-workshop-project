@@ -3186,7 +3186,17 @@ describe("release candidate input validation", () => {
       sha256: createHash("sha256").digest("hex")
     });
 
-    const invalidInputs: Array<Readonly<{ name: string; input: unknown }>> = [
+    const bufferIterator = vi.fn(() => (async function* (): AsyncGenerator<Uint8Array> {
+      yield Uint8Array.from([0x01, 0x02]);
+    })());
+    const augmentedBuffer = Buffer.from([0x01, 0x02]);
+    Object.defineProperty(augmentedBuffer, Symbol.asyncIterator, { value: bufferIterator });
+    const byteArrayIterator = vi.fn(() => (async function* (): AsyncGenerator<Uint8Array> {
+      yield Uint8Array.from([0x03, 0x04]);
+    })());
+    const augmentedByteArray = Uint8Array.from([0x03, 0x04]);
+    Object.defineProperty(augmentedByteArray, Symbol.asyncIterator, { value: byteArrayIterator });
+    const invalidInputs: Array<Readonly<{ name: string; input: unknown; iterator?: ReturnType<typeof vi.fn> }>> = [
       {
         name: "absolute identity",
         input: {
@@ -3200,6 +3210,22 @@ describe("release candidate input validation", () => {
           root: "game", path: "game/dota_addons/fixture_addon/addon.bin", identityMatched: true, kindMatched: true, contained: true,
           openByteStream: async () => Buffer.from([0x01, 0x02])
         }
+      },
+      {
+        name: "augmented whole-file buffer",
+        input: {
+          root: "game", path: "game/dota_addons/fixture_addon/addon.bin", identityMatched: true, kindMatched: true, contained: true,
+          openByteStream: async () => augmentedBuffer
+        },
+        iterator: bufferIterator
+      },
+      {
+        name: "augmented whole-file byte array",
+        input: {
+          root: "game", path: "game/dota_addons/fixture_addon/addon.bin", identityMatched: true, kindMatched: true, contained: true,
+          openByteStream: async () => augmentedByteArray
+        },
+        iterator: byteArrayIterator
       },
       {
         name: "invalid chunk",
@@ -3240,6 +3266,7 @@ describe("release candidate input validation", () => {
     for (const scenario of invalidInputs) {
       const result = await observe(scenario.input);
       expect(result, scenario.name).toEqual({ ok: false, code: "INTEGRITY_STREAM_RESULT_INVALID" });
+      if (scenario.iterator !== undefined) expect(scenario.iterator, scenario.name).not.toHaveBeenCalled();
       expect(JSON.stringify(result), scenario.name).not.toContain("private");
     }
   });
