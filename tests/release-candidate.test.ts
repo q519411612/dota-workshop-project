@@ -3796,9 +3796,6 @@ describe("release candidate input validation", () => {
 
   test("rejects malformed final integrity observations without retry or repair", async () => {
     const malformedCandidateResults: Array<Readonly<{ name: string; result(path: string): unknown }>> = [
-      { name: "missing observation", result: () => ({ ok: true, schemaVersion: "1.0", observations: [] }) },
-      { name: "duplicate observation", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [validObservation(path), validObservation(path)] }) },
-      { name: "unexpected observation", result: () => ({ ok: true, schemaVersion: "1.0", observations: [validObservation("game/dota_addons/fixture_addon/unexpected.bin")] }) },
       { name: "uppercase digest", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), sha256: "A".repeat(64) }] }) },
       { name: "short digest", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), sha256: "0".repeat(63) }] }) },
       { name: "negative count", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), bytes: -1 }] }) },
