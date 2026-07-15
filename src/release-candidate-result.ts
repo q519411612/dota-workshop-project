@@ -200,6 +200,8 @@ const BLOCKER_CODES = new Set([
   "CANDIDATE_INTEGRITY_IDENTITY_CHANGED",
   "CANDIDATE_INTEGRITY_OBSERVATION_FAILED",
   "CANDIDATE_INTEGRITY_RESULT_INVALID",
+  "CANDIDATE_INSPECTION_FAILED",
+  "CANDIDATE_INSPECTION_VALUE_UNSAFE",
   "CANDIDATE_LEASE_INVALID",
   "CANDIDATE_LEDGER_DUPLICATE",
   "CANDIDATE_LEDGER_MISSING",
@@ -291,6 +293,27 @@ const BOUNDARY_KEYS = [
   "evidenceOnly",
   "realWindowsRuntimeProven"
 ] as const;
+
+export const RELEASE_CANDIDATE_BOUNDARIES: ReleaseCandidateBoundaryDetail = Object.freeze({
+  steamLogin: false,
+  workshopCreate: false,
+  workshopMutation: false,
+  upload: false,
+  archive: false,
+  signing: false,
+  encryption: false,
+  gameLaunch: false,
+  runtimeValidation: false,
+  compilation: false,
+  sourceConversion: false,
+  metadataRepair: false,
+  persistentCandidate: false,
+  fileTransfer: false,
+  temporaryCandidate: true,
+  sourceTreesModified: false,
+  evidenceOnly: true,
+  realWindowsRuntimeProven: false
+});
 
 const MAX_PUBLIC_COLLECTION_ITEMS = 100_000;
 
@@ -727,7 +750,7 @@ function normalizeBoundaries(input: unknown): ReleaseCandidateBoundaryDetail | u
   const output: Record<string, boolean> = {};
   for (const key of BOUNDARY_KEYS) {
     const value = get(input, key);
-    if (typeof value !== "boolean") return undefined;
+    if (value !== RELEASE_CANDIDATE_BOUNDARIES[key]) return undefined;
     output[key] = value;
   }
   return output as ReleaseCandidateBoundaryDetail;
@@ -749,7 +772,15 @@ function validateDomainConsistency(input: Readonly<{
       manifest === undefined
       || inclusionLedger === undefined
       || scanCoverage === undefined
-      || blockers.some((blocker) => blocker.category !== "removal" && blocker.category !== "transport")
+      || blockers.some((blocker) => (
+        blocker.category !== "removal"
+        && blocker.category !== "transport"
+        && !(
+          blocker.category === "inspection"
+          && operation.status === "failed"
+          && blocker.code === operation.code
+        )
+      ))
       || !sameValue(manifest, artifactValidation.manifest)
       || !sameValue(inclusionLedger, artifactValidation.inclusionLedger)
       || !sameValue(scanCoverage, artifactValidation.scanCoverage)
@@ -759,6 +790,10 @@ function validateDomainConsistency(input: Readonly<{
     return false;
   }
   if (artifactValidation.status === "passed" && operation.status === "not-reached") return false;
+  if (
+    operation.status === "failed"
+    && !blockers.some((blocker) => blocker.category === "inspection" && blocker.code === operation.code)
+  ) return false;
   if (artifactValidation.status === "blocked") {
     if (!sameValue(blockers, artifactValidation.blockers)) return false;
     if (!sameValue(inclusionLedger, artifactValidation.inclusionLedger)) return false;

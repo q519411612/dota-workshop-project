@@ -1,4 +1,5 @@
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, open, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { constants as filesystemConstants } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -78,6 +79,15 @@ async function snapshot(root: string): Promise<SnapshotEntry[]> {
   return output;
 }
 
+function collectKeys(value: unknown, keys = new Set<string>()): Set<string> {
+  if (value === null || typeof value !== "object") return keys;
+  for (const [key, nested] of Object.entries(value)) {
+    keys.add(key);
+    collectKeys(nested, keys);
+  }
+  return keys;
+}
+
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(async (root) => await rm(root, { recursive: true, force: true })));
 });
@@ -110,8 +120,8 @@ describe("production Node release candidate preflight", () => {
     expect(await readdir(fixture.tempParent)).toEqual([]);
     expect(JSON.stringify(detail)).not.toContain(fixture.tempParent);
     expect(JSON.stringify(detail)).not.toContain("dota-release-candidate-");
-    expect(JSON.stringify(detail)).not.toContain("inspectionRoot");
-    expect(JSON.stringify(detail)).not.toContain("lease");
+    expect(collectKeys(detail)).not.toContain("inspectionRoot");
+    expect(collectKeys(detail)).not.toContain("lease");
   });
 
   test("uses one production implementation for fixture and injected local roots", async () => {
@@ -204,5 +214,111 @@ describe("production Node release candidate preflight", () => {
     expect(cleanupAttempts).toBe(1);
     expect(await snapshot(fixture.dotaRoot)).toEqual(before);
     expect(await readdir(fixture.tempParent)).toEqual([]);
+  });
+
+  test("blocks readiness before creation and leaves the source trees unchanged", async () => {
+    const fixture = await createReadyFixture();
+    await rm(join(fixture.gameAddonRoot, "addoninfo.txt"));
+    const before = await snapshot(fixture.dotaRoot);
+    let cleanupAttempts = 0;
+    const detail = await preflightNodeReleaseCandidate(
+      { target: { kind: "fixture", root: fixture.dotaRoot }, addonName: fixture.addonName },
+      {
+        repositoryRoot: fixture.repositoryRoot,
+        tempParent: fixture.tempParent,
+        platform: "darwin",
+        onCleanupAttempt: () => { cleanupAttempts += 1; }
+      }
+    );
+
+    expect(detail).toMatchObject({
+      ok: false,
+      operation: { status: "not-reached" },
+      artifactValidation: { status: "not-reached" },
+      cleanup: { attempted: false, attempts: 0, status: "not-reached" }
+    });
+    expect("blockers" in detail && detail.blockers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "REQUIRED_PATH_MISSING" })
+    ]));
+    expect(cleanupAttempts).toBe(0);
+    expect(await snapshot(fixture.dotaRoot)).toEqual(before);
+    expect(await readdir(fixture.tempParent)).toEqual([]);
+  });
+
+  test("cleans once after an exclusive copy failure without mutating sources", async () => {
+    const fixture = await createReadyFixture();
+    const before = await snapshot(fixture.dotaRoot);
+    let cleanupAttempts = 0;
+    const filesystem = createNodeReleaseCandidateFilesystem({
+      platform: "darwin",
+      onCleanupAttempt: () => { cleanupAttempts += 1; },
+      operations: {
+        openFile: async (path, flags) => {
+          if ((flags & filesystemConstants.O_WRONLY) !== 0) throw new Error("copy failed");
+          return await open(path, flags);
+        }
+      }
+    });
+    const detail = await preflightNodeReleaseCandidate(
+      { target: { kind: "fixture", root: fixture.dotaRoot }, addonName: fixture.addonName },
+      {
+        filesystem,
+        repositoryRoot: fixture.repositoryRoot,
+        tempParent: fixture.tempParent,
+        platform: "darwin"
+      }
+    );
+
+    expect(detail).toMatchObject({
+      ok: false,
+      artifactValidation: { status: "blocked" },
+      cleanup: { attempted: true, attempts: 1, status: "verified", absent: true }
+    });
+    expect("blockers" in detail && detail.blockers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "CANDIDATE_MATERIALIZATION_FAILED" })
+    ]));
+    expect(cleanupAttempts).toBe(1);
+    expect(await snapshot(fixture.dotaRoot)).toEqual(before);
+    expect(await readdir(fixture.tempParent)).toEqual([]);
+  });
+
+  test("reports cleanup failure truthfully and never masks passed artifact evidence", async () => {
+    const fixture = await createReadyFixture();
+    const before = await snapshot(fixture.dotaRoot);
+    let cleanupAttempts = 0;
+    const filesystem = createNodeReleaseCandidateFilesystem({
+      platform: "darwin",
+      onCleanupAttempt: () => { cleanupAttempts += 1; },
+      operations: {
+        removeTree: async () => { throw new Error("remove failed"); }
+      }
+    });
+    const detail = await preflightNodeReleaseCandidate(
+      { target: { kind: "fixture", root: fixture.dotaRoot }, addonName: fixture.addonName },
+      {
+        filesystem,
+        repositoryRoot: fixture.repositoryRoot,
+        tempParent: fixture.tempParent,
+        platform: "darwin"
+      }
+    );
+
+    expect(detail).toMatchObject({
+      ok: false,
+      operation: { status: "completed" },
+      artifactValidation: { status: "passed" },
+      cleanup: {
+        attempted: true,
+        attempts: 1,
+        status: "failed",
+        code: "CANDIDATE_REMOVAL_FAILED",
+        removed: false,
+        absent: false
+      },
+      blockers: [{ code: "CANDIDATE_REMOVAL_FAILED", category: "removal" }]
+    });
+    expect(cleanupAttempts).toBe(1);
+    expect(await snapshot(fixture.dotaRoot)).toEqual(before);
+    expect((await readdir(fixture.tempParent)).length).toBe(1);
   });
 });
