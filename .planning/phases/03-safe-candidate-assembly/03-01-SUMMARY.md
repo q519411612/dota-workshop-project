@@ -24,15 +24,18 @@ key-decisions:
   - "Represent unreadable or oversized required text as blockers in structured policy while preserving existing dry-run warning rendering."
   - "Omit unsafe absolute or traversal-like paths from findings instead of exposing private roots."
   - "Redact any credential-bearing evidence-path segment through the same classifier used for sensitive content."
+  - "Classify filesystem read/stat failures at the observation boundary without serializing raw exceptions."
+  - "Use literal policy identities, explicit runtime invariant blockers, and canonical observation ordering."
 
 patterns-established:
   - "Policy findings contain stable code, category, disposition, and only safe field or relative-path identity."
   - "Legacy operations render structured findings through an explicit compatibility seam."
   - "Structurally safe evidence paths pass through one segment-level credential redaction boundary before serialization."
+  - "Policy callers cannot influence finding order; required labels, scan roots, and file paths are canonicalized before evaluation."
 
 requirements-completed: [RCFS-04]
 
-duration: 19min
+duration: 30min
 completed: 2026-07-15
 status: complete
 ---
@@ -43,9 +46,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 19 min
+- **Duration:** 30 min
 - **Started:** 2026-07-15T04:20:00Z
-- **Completed:** 2026-07-15T04:40:00Z
+- **Completed:** 2026-07-15T04:56:00Z
 - **Tasks:** 2
 - **Files modified:** 6
 
@@ -57,6 +60,8 @@ status: complete
 - Restricted structure labels and scan-root identities to stable allowlists so all serialized input-derived fields remain redacted.
 - Synchronized tracked runtime output with the TypeScript source contract.
 - Redacted credential-bearing segments in metadata and scanned-file paths without hiding ordinary safe relative paths.
+- Converted real read/stat failures into stable unreadable findings and explicit dry-run blockers without raw filesystem errors.
+- Added literal/discriminated policy types, runtime invariant blockers, exhaustive rendering, and shuffled-input parity.
 
 ## Task Commits
 
@@ -67,6 +72,8 @@ status: complete
 5. **Synchronize release policy runtime build** - `73419bc` (chore)
 6. **Redact credential-bearing evidence-path segments** - `daeeb0d` (fix)
 7. **Synchronize segment-redaction runtime build** - `942c98d` (chore)
+8. **Fail closed on filesystem and policy invariants** - `22c785f` (fix)
+9. **Synchronize invariant-safe runtime build** - `f46bbfc` (chore)
 
 ## Files Created/Modified
 
@@ -119,14 +126,38 @@ status: complete
 - **Verification:** RED produced 2 expected failures with the credential value visible in both paths; GREEN passed 14/14 focused tests and typecheck before the full gate.
 - **Committed in:** `daeeb0d`, `942c98d`
 
+**5. [Rule 1 - Information Disclosure] Classified filesystem observation failures**
+- **Found during:** Quality review
+- **Issue:** Required-text `readFile` or `stat` failures escaped `dryRunReleaseReport` as raw exceptions containing absolute paths.
+- **Fix:** Added a narrow filesystem adapter and converted both failures to safe unreadable observations; required unreadable text now produces an explicit structured blocker.
+- **Files modified:** `src/preflight.ts`, `tests/preflight.test.ts`, `dist/preflight.js`
+- **Verification:** Real `EACCES` RED escaped with the absolute path; adapter RED ignored an injected stat failure and falsely returned success; both now pass through the structured result.
+- **Committed in:** `22c785f`, `f46bbfc`
+
+**6. [Rule 2 - Policy Invariants] Rejected impossible runtime identities**
+- **Found during:** Quality review
+- **Issue:** Exported policy types accepted arbitrary strings and silently omitted unknown labels/roots; the renderer defaulted every non-game root to content.
+- **Fix:** Added literal identity unions, code-specific finding variants, runtime validation, explicit `POLICY_INPUT_INVALID` blockers, and exhaustive root rendering.
+- **Files modified:** `src/release-readiness.ts`, `src/preflight.ts`, `tests/release-readiness.test.ts`, `dist/release-readiness.js`, `dist/preflight.js`
+- **Verification:** RED produced no blockers for four impossible identities; GREEN returns four stable category-only blockers and never emits scan completion for an invalid root.
+- **Committed in:** `22c785f`, `f46bbfc`
+
+**7. [Rule 1 - Determinism] Canonicalized policy observation order**
+- **Found during:** Quality review
+- **Issue:** Reversing required paths, scan roots, or scan files changed finding order.
+- **Fix:** Canonicalized required labels by policy order, roots by fixed provenance order, and files by sanitized relative identity before classification.
+- **Files modified:** `src/release-readiness.ts`, `tests/release-readiness.test.ts`, `dist/release-readiness.js`
+- **Verification:** Shuffled-input parity RED showed reordered findings; GREEN produces complete equality.
+- **Committed in:** `22c785f`, `f46bbfc`
+
 ---
 
-**Total deviations:** 4 auto-fixed issues (3 information-disclosure controls, 1 runtime synchronization requirement)
+**Total deviations:** 7 auto-fixed issues (4 information-disclosure controls, 2 policy/determinism controls, 1 runtime synchronization requirement)
 **Impact on plan:** The changes strengthen redaction and keep the packaged runtime synchronized without expanding candidate lifecycle or public MCP scope.
 
 ## Issues Encountered
 
-Two independent review passes found three confirmed redaction/runtime issues; each was reproduced, corrected, and verified as documented above.
+Three independent review passes found confirmed redaction, runtime, invariant, and determinism issues; each was reproduced, corrected, and verified as documented above.
 
 ## User Setup Required
 
