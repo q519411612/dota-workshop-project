@@ -3614,7 +3614,7 @@ describe("release candidate input validation", () => {
 
   test("rejects non-bijective candidate integrity ledgers", async () => {
     const runLedger = async (
-      mutateFinal: (observations: FixtureIntegrityObservation[]) => FixtureIntegrityObservation[],
+      mutateFinal: (observations: FixtureIntegrityObservation[]) => unknown[],
       reconcileCandidateTree?: (
         identity: { root: string },
         expected: CandidateExpectedEntry[]
@@ -3723,8 +3723,8 @@ describe("release candidate input validation", () => {
     const wrongFacts = await runLedger((observations) => observations.map((observation, index) => {
       if (index === 0) return { ...observation, root: "content" };
       if (index === 1) return { ...observation, path: "game/dota_addons/fixture_addon/wrong-path.bin" };
-      if (index === 2) return { ...observation, kindMatched: false } as FixtureIntegrityObservation;
-      if (index === 3) return { ...observation, identityMatched: false } as FixtureIntegrityObservation;
+      if (index === 2) return { ...observation, kindMatched: false };
+      if (index === 3) return { ...observation, identityMatched: false };
       return observation;
     }));
     expect(wrongFacts.result).toEqual({
