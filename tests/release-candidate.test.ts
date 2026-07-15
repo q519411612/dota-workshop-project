@@ -490,6 +490,53 @@ describe("release candidate input validation", () => {
     expect(forgedCleanup).not.toHaveBeenCalled();
   });
 
+  test("rejects malformed identity-bound cleanup results", async () => {
+    const fixture = await createFixture();
+    let candidateRoot: string | undefined;
+    const privateCode = `PRIVATE_${fixture.root}_credential_password=private-value`;
+    const filesystem: ReleaseCandidateFilesystem = {
+      lstat,
+      realpath,
+      readDirectory: async (path) => await readdir(path),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot: vi.fn(async () => {
+        throw new Error("raw candidate creation must not be used");
+      }),
+      candidateLifecycle: createIdentityBoundCandidateLifecycle({
+        createCandidateLease: vi.fn(async (validated) => {
+          candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+        }),
+        cleanupCandidateLease: vi.fn(async () => ({
+          ok: false,
+          removed: false,
+          absent: false,
+          identityMatched: false,
+          code: privateCode
+        } as unknown as CandidateLeaseCleanupResult))
+      })
+    };
+
+    const result = await withAssembledReleaseCandidate(
+      {
+        addonName: "fixture_addon",
+        dotaRoot: fixture.dotaRoot,
+        tempParent: fixture.tempParent
+      },
+      async () => "must not survive malformed cleanup",
+      { repositoryRoot: fixture.repositoryRoot, filesystem }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      blockers: [{ code: "CANDIDATE_CLEANUP_RESULT_INVALID", category: "removal" }]
+    });
+    expect(JSON.stringify(result)).not.toContain(fixture.root);
+    expect(JSON.stringify(result)).not.toContain("private-value");
+    if (candidateRoot === undefined) throw new Error("malformed cleanup candidate was not recorded");
+    expect((await lstat(candidateRoot)).isDirectory()).toBe(true);
+  });
+
   test("blocks invalid inputs before candidate creation", async () => {
     const cases: Array<{
       name: string;
