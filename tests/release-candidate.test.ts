@@ -49,8 +49,22 @@ type Fixture = {
   contentAddonRoot: string;
 };
 
-function withoutCleanup<T extends { cleanup?: unknown }>(result: T): Omit<T, "cleanup"> {
-  const { cleanup: _cleanup, ...rest } = result;
+function withoutCleanup<T extends { cleanup?: unknown; operation?: unknown; artifactValidation?: unknown }>(
+  result: T
+): Omit<T, "cleanup" | "operation" | "artifactValidation"> {
+  const {
+    cleanup: _cleanup,
+    operation: _operation,
+    artifactValidation: _artifactValidation,
+    ...rest
+  } = result;
+  return rest;
+}
+
+function withoutResultDomains<T extends { operation?: unknown; artifactValidation?: unknown }>(
+  result: T
+): Omit<T, "operation" | "artifactValidation"> {
+  const { operation: _operation, artifactValidation: _artifactValidation, ...rest } = result;
   return rest;
 }
 
@@ -1202,7 +1216,7 @@ describe("release candidate input validation", () => {
         { repositoryRoot: fixture.repositoryRoot, filesystem }
       );
 
-      expect(result, scenario.name).toEqual({
+      expect(withoutCleanup(result), scenario.name).toEqual({
         ok: false,
         blockers: [{ code: "SOURCE_READ_RESULT_INVALID", category: "assembly" }]
       });
@@ -1243,7 +1257,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: fixture.repositoryRoot, filesystem }
     );
 
-    expect(result).toEqual({
+    expect(withoutCleanup(result)).toEqual({
       ok: false,
       blockers: [{ code: "IDENTITY_BOUND_ASSEMBLY_REQUIRED", category: "creation" }]
     });
@@ -1483,7 +1497,10 @@ describe("release candidate input validation", () => {
       expect(rawRemoval, scenario.name).not.toHaveBeenCalled();
       expect(withoutCleanup(result), scenario.name).toEqual({
         ok: false,
-        blockers: [{ code: "CANDIDATE_IDENTITY_MISMATCH", category: "removal" }]
+        blockers: [
+          { code: "CANDIDATE_ROOT_NOT_OWNED", category: "unsafe-isolation" },
+          { code: "CANDIDATE_IDENTITY_MISMATCH", category: "removal" }
+        ]
       });
       expect(await lstat(sentinel), scenario.name).toBeDefined();
       expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
@@ -1548,10 +1565,16 @@ describe("release candidate input validation", () => {
       { repositoryRoot: swappedFixture.repositoryRoot, filesystem: swappedFilesystem }
     );
 
-    expect(withoutCleanup(swappedResult)).toEqual({
+    expect(swappedResult).toMatchObject({
       ok: false,
-      blockers: [{ code: "CANDIDATE_IDENTITY_MISMATCH", category: "removal" }]
+      operation: { status: "completed" },
+      artifactValidation: { status: "blocked" },
+      cleanup: { status: "failed", code: "CANDIDATE_IDENTITY_MISMATCH" },
+      blockers: expect.arrayContaining([
+        { code: "CANDIDATE_IDENTITY_MISMATCH", category: "removal" }
+      ])
     });
+    expect(swappedResult).not.toHaveProperty("value");
     expect(swappedCleanup).toHaveBeenCalledTimes(1);
     expect(swappedRemoval).not.toHaveBeenCalled();
     expect(await lstat(join(swappedFixture.repositoryRoot, "repository-sentinel.txt"))).toBeDefined();
@@ -1654,7 +1677,7 @@ describe("release candidate input validation", () => {
       async () => "unexpected",
       { repositoryRoot: unmarkedFixture.repositoryRoot, filesystem: unmarkedFilesystem }
     );
-    expect(unmarkedResult).toEqual({
+    expect(withoutCleanup(unmarkedResult)).toEqual({
       ok: false,
       blockers: [{ code: "IDENTITY_BOUND_CLEANUP_REQUIRED", category: "creation" }]
     });
@@ -1686,7 +1709,7 @@ describe("release candidate input validation", () => {
       async () => "unexpected",
       { repositoryRoot: unmarkedFixture.repositoryRoot, filesystem: forgedFilesystem }
     );
-    expect(forgedResult).toEqual({
+    expect(withoutCleanup(forgedResult)).toEqual({
       ok: false,
       blockers: [{ code: "IDENTITY_BOUND_CLEANUP_REQUIRED", category: "creation" }]
     });
@@ -2839,7 +2862,7 @@ describe("release candidate input validation", () => {
         async () => "must not inspect",
         { repositoryRoot: fixture.repositoryRoot, filesystem }
       );
-      expect(lifecycleResult).toEqual(expected);
+      expect(withoutCleanup(lifecycleResult)).toEqual(expected);
       expect(createCandidateRoot).not.toHaveBeenCalled();
       expect(classifySourceEntry).toHaveBeenCalledTimes(4);
     }
@@ -5023,7 +5046,7 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, scenario.name).toEqual({
+      expect(withoutResultDomains(result), scenario.name).toEqual({
         ok: false,
         scanCoverage: expect.any(Object),
         cleanup: {

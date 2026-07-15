@@ -154,6 +154,13 @@ export type ReleaseCandidateManifest = Readonly<{
 export type ReleaseCandidateCleanupEvidence =
   | Readonly<{
       schemaVersion: "1.0";
+      attempted: false;
+      attempts: 0;
+      status: "not-reached";
+      verified: false;
+    }>
+  | Readonly<{
+      schemaVersion: "1.0";
       attempted: true;
       attempts: 1;
       status: "verified";
@@ -185,29 +192,76 @@ export type ReleaseCandidateCleanupEvidence =
       code: "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE";
     }>;
 
+export type ReleaseCandidateOperationEvidence =
+  | Readonly<{ status: "not-reached" }>
+  | Readonly<{ status: "completed" }>
+  | Readonly<{ status: "failed"; code: "CANDIDATE_INSPECTION_FAILED" }>;
+
+export type ReleaseCandidateArtifactValidation =
+  | Readonly<{
+      status: "not-reached";
+    }>
+  | Readonly<{
+      status: "blocked";
+      blockers: readonly (
+        | ReleaseCandidateInputBlocker
+        | ReleaseCandidateInventoryBlocker
+        | ReleaseCandidateLifecycleBlocker
+        | ReleaseReadinessFinding
+      )[];
+      inclusionLedger?: ReleaseCandidateInclusionLedger;
+      scanCoverage?: ReleaseScanCoverage;
+    }>
+  | Readonly<{
+      status: "passed";
+      manifest: ReleaseCandidateManifest;
+      inclusionLedger: ReleaseCandidateInclusionLedger;
+      scanCoverage: ReleaseScanCoverage;
+    }>;
+
 export type ReleaseCandidateLifecycleResult<T> =
   | {
       ok: true;
       value: T;
+      operation: Extract<ReleaseCandidateOperationEvidence, { status: "completed" }>;
+      artifactValidation: Extract<ReleaseCandidateArtifactValidation, { status: "passed" }>;
       manifest: ReleaseCandidateManifest;
       inclusionLedger: ReleaseCandidateInclusionLedger;
       scanCoverage: ReleaseScanCoverage;
-      cleanup?: ReleaseCandidateCleanupEvidence;
+      cleanup: Extract<ReleaseCandidateCleanupEvidence, { status: "verified" }>;
     }
   | {
       ok: false;
+      operation: ReleaseCandidateOperationEvidence;
+      artifactValidation: ReleaseCandidateArtifactValidation;
       inclusionLedger?: ReleaseCandidateInclusionLedger;
       scanCoverage?: ReleaseScanCoverage;
-      cleanup?: ReleaseCandidateCleanupEvidence;
-      blockers: Array<
+      cleanup: ReleaseCandidateCleanupEvidence;
+      blockers: readonly (
         ReleaseCandidateInputBlocker
         | ReleaseCandidateInventoryBlocker
         | ReleaseCandidateLifecycleBlocker
         | ReleaseReadinessFinding
-      >;
+      )[];
     };
 
-type ReleaseCandidateLifecycleFailure = Extract<ReleaseCandidateLifecycleResult<never>, { ok: false }>;
+type ReleaseCandidateLifecycleFailure = {
+  ok: false;
+  inclusionLedger?: ReleaseCandidateInclusionLedger;
+  scanCoverage?: ReleaseScanCoverage;
+  blockers: readonly (
+    ReleaseCandidateInputBlocker
+    | ReleaseCandidateInventoryBlocker
+    | ReleaseCandidateLifecycleBlocker
+    | ReleaseReadinessFinding
+  )[];
+};
+type ReleaseCandidateInspectionOutcome<T> = Readonly<{
+  operation: ReleaseCandidateOperationEvidence;
+  artifactValidation: ReleaseCandidateArtifactValidation;
+  blockers: ReleaseCandidateLifecycleFailure["blockers"];
+  value?: T;
+}>;
 type AcceptedSourceObservation = Extract<AcceptedSourceObservationResult, { ok: true }>;
 type AcceptedSourceObservations = ReadonlyMap<string, AcceptedSourceObservation>;
 type FileIntegrityObservations = ReadonlyMap<string, FileIntegrityObservation>;
@@ -266,7 +320,7 @@ export type CandidateLeaseAcquisitionResult =
       schemaVersion: "1.0";
       state: "contract-failure";
       code: "CANDIDATE_CREATION_CONTRACT_FAILED";
-      cleanup: Extract<ReleaseCandidateCleanupEvidence, { attempted: false }>;
+      cleanup: Extract<ReleaseCandidateCleanupEvidence, { status: "failed"; attempted: false }>;
     }>
   | Readonly<{
       ok: false;
@@ -925,10 +979,10 @@ export async function withAssembledReleaseCandidate<T>(
   dependencies: ReleaseCandidateDependencies = {}
 ): Promise<ReleaseCandidateLifecycleResult<T>> {
   const prepared = await prepareReleaseCandidateInput(input, dependencies);
-  if (!prepared.ok) return prepared;
+  if (!prepared.ok) return finalizePrecreationFailure(prepared);
 
   const inventory = await inventoryReleaseCandidateSourcesInternal(prepared.value);
-  if (!inventory.ok) return inventory;
+  if (!inventory.ok) return finalizePrecreationFailure(inventory);
 
   const filesystem = prepared.value[releaseCandidateFilesystemCapability];
   const capability = filesystem.candidateLifecycle;
@@ -936,21 +990,21 @@ export async function withAssembledReleaseCandidate<T>(
     capability?.identityBoundCleanup !== true
     || capability[identityBoundCandidateLifecycleBrand] !== true
   ) {
-    return lifecycleBlocked("IDENTITY_BOUND_CLEANUP_REQUIRED", "creation");
+    return finalizePrecreationFailure(lifecycleBlocked("IDENTITY_BOUND_CLEANUP_REQUIRED", "creation"));
   }
   if (capability.identityBoundAssembly !== true) {
-    return lifecycleBlocked("IDENTITY_BOUND_ASSEMBLY_REQUIRED", "creation");
+    return finalizePrecreationFailure(lifecycleBlocked("IDENTITY_BOUND_ASSEMBLY_REQUIRED", "creation"));
   }
   const lifecycle = bindIdentityBoundCandidateLifecycle(filesystem);
   if (lifecycle === undefined) {
-    return lifecycleBlocked("IDENTITY_BOUND_CLEANUP_REQUIRED", "creation");
+    return finalizePrecreationFailure(lifecycleBlocked("IDENTITY_BOUND_CLEANUP_REQUIRED", "creation"));
   }
   const observations = await captureSourceObservations(prepared.value, inventory.entries, lifecycle);
-  if (!observations.ok) return observations;
+  if (!observations.ok) return finalizePrecreationFailure(observations);
   const readiness = await releaseReadinessBlockers(prepared.value, inventory.entries, lifecycle);
-  if (!readiness.ok) return readiness;
+  if (!readiness.ok) return finalizePrecreationFailure(readiness);
   if (readiness.blockers.length > 0) {
-    return { ok: false, blockers: readiness.blockers, scanCoverage: readiness.scanCoverage };
+    return finalizePrecreationFailure({ ok: false, blockers: readiness.blockers, scanCoverage: readiness.scanCoverage });
   }
   const precreationStability = await verifySourceStability(
     prepared.value,
@@ -958,25 +1012,29 @@ export async function withAssembledReleaseCandidate<T>(
     observations.value,
     lifecycle
   );
-  if (precreationStability !== undefined) return withScanCoverage(precreationStability, readiness.scanCoverage);
+  if (precreationStability !== undefined) {
+    return finalizePrecreationFailure(withScanCoverage(precreationStability, readiness.scanCoverage));
+  }
   const sourceBefore = await captureSourceIntegrity(prepared.value, inventory.entries, lifecycle);
-  if (!sourceBefore.ok) return withScanCoverage(sourceBefore, readiness.scanCoverage);
+  if (!sourceBefore.ok) return finalizePrecreationFailure(withScanCoverage(sourceBefore, readiness.scanCoverage));
 
   let acquisition: CandidateLeaseAcquisitionResult;
   try {
     acquisition = await lifecycle.createCandidateLease(prepared.value);
   } catch {
-    return withScanCoverage(lifecycleBlocked("CANDIDATE_CREATION_FAILED", "creation"), readiness.scanCoverage);
+    return finalizePrecreationFailure(
+      withScanCoverage(lifecycleBlocked("CANDIDATE_CREATION_FAILED", "creation"), readiness.scanCoverage)
+    );
   }
   if (!acquisition.ok) {
     const failure = withScanCoverage(
       lifecycleBlocked(acquisition.code, "creation"),
       readiness.scanCoverage
     );
-    return { ...failure, cleanup: acquisition.cleanup };
+    return finalizeAcquisitionFailure(failure, acquisition.cleanup);
   }
 
-  let outcome: ReleaseCandidateLifecycleResult<T>;
+  let outcome: ReleaseCandidateInspectionOutcome<T>;
   let cleanup: ReleaseCandidateCleanupEvidence;
   try {
     outcome = await inspectCandidateLease(
@@ -995,14 +1053,7 @@ export async function withAssembledReleaseCandidate<T>(
       async () => await lifecycle.cleanupCandidateLease(acquisition.lease)
     );
   }
-  if (cleanup.status === "failed") {
-    return {
-      ok: false,
-      blockers: [{ code: cleanup.code, category: "removal" }],
-      cleanup
-    };
-  }
-  return { ...outcome, cleanup };
+  return finalizeCandidateLifecycle(outcome, cleanup);
 }
 
 function bindIdentityBoundCandidateLifecycle(
@@ -1041,53 +1092,55 @@ async function inspectCandidateLease<T>(
   scanCoverage: ReleaseScanCoverage,
   lifecycle: BoundCandidateLifecycle,
   inspect: (candidateRoot: string) => Promise<T>
-): Promise<ReleaseCandidateLifecycleResult<T>> {
+): Promise<ReleaseCandidateInspectionOutcome<T>> {
   let root: string;
   try {
     root = resolve(inspectionRoot);
   } catch {
-    return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
+    return blockedArtifact(lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation"), scanCoverage);
   }
 
   if (!isPathInside(root, input.tempParent)) {
-    return lifecycleBlocked("CANDIDATE_ROOT_NOT_OWNED", "unsafe-isolation");
+    return blockedArtifact(lifecycleBlocked("CANDIDATE_ROOT_NOT_OWNED", "unsafe-isolation"), scanCoverage);
   }
 
   try {
     const stats = await parseDirectoryAdapterResult(async () => await lifecycle.lstat(root));
     if (stats === "invalid") {
-      return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
+      return blockedArtifact(lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation"), scanCoverage);
     }
     if (stats === "not-directory") {
-      return lifecycleBlocked("CANDIDATE_ROOT_NOT_OWNED", "unsafe-isolation");
+      return blockedArtifact(lifecycleBlocked("CANDIDATE_ROOT_NOT_OWNED", "unsafe-isolation"), scanCoverage);
     }
     const canonicalRoot = await parseCanonicalPathAdapterResult(
       async () => await lifecycle.realpath(root)
     );
     if (canonicalRoot === undefined) {
-      return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
+      return blockedArtifact(lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation"), scanCoverage);
     }
     if (!isCandidateRootIsolated(canonicalRoot, input)) {
-      return lifecycleBlocked("CANDIDATE_ROOT_NOT_ISOLATED", "unsafe-isolation");
+      return blockedArtifact(lifecycleBlocked("CANDIDATE_ROOT_NOT_ISOLATED", "unsafe-isolation"), scanCoverage);
     }
     const unexpectedEntries = await parseCandidateRootInspection(
       async () => await lifecycle.inspectCandidateRoot(lease)
     );
-    if (unexpectedEntries !== undefined) return unexpectedEntries;
+    if (unexpectedEntries !== undefined) return blockedArtifact(unexpectedEntries, scanCoverage);
     const preassemblyStability = await verifySourceStability(input, inventory, observations, lifecycle);
-    if (preassemblyStability !== undefined) return preassemblyStability;
+    if (preassemblyStability !== undefined) return blockedArtifact(preassemblyStability, scanCoverage);
     const assemblyFailure = await assembleReleaseCandidate(lease, input, inventory, observations, lifecycle);
-    if (assemblyFailure !== undefined) return assemblyFailure;
+    if (assemblyFailure !== undefined) return blockedArtifact(assemblyFailure, scanCoverage);
     const postassemblyStability = await verifySourceStability(input, inventory, observations, lifecycle);
-    if (postassemblyStability !== undefined) return postassemblyStability;
+    if (postassemblyStability !== undefined) return blockedArtifact(postassemblyStability, scanCoverage);
     const reconciliationFailure = await reconcileReleaseCandidate(lease, input, inventory, lifecycle);
-    if (reconciliationFailure !== undefined) return reconciliationFailure;
+    if (reconciliationFailure !== undefined) return blockedArtifact(reconciliationFailure, scanCoverage);
     const prereviewStability = await verifySourceStability(input, inventory, observations, lifecycle);
-    if (prereviewStability !== undefined) return prereviewStability;
+    if (prereviewStability !== undefined) return blockedArtifact(prereviewStability, scanCoverage);
     const expected = expectedCandidateTree(input, inventory);
     const candidateBefore = await captureCandidateIntegrity(lease, expected, inventory, sourceBefore, lifecycle);
-    if (!candidateBefore.ok) return candidateBefore;
-    if (!sameIntegritySets(sourceBefore, candidateBefore.value.observations)) return integrityMismatch();
+    if (!candidateBefore.ok) return blockedArtifact(candidateBefore, scanCoverage);
+    if (!sameIntegritySets(sourceBefore, candidateBefore.value.observations)) {
+      return blockedArtifact(integrityMismatch(), scanCoverage);
+    }
     let value: T | undefined;
     let inspectionFailed = false;
     try {
@@ -1108,28 +1161,50 @@ async function inspectCandidateLease<T>(
       : finalStability
         ?? finalReconciliation
         ?? (!sourceAfter.ok ? sourceAfter : undefined);
-    if (primaryFailure !== undefined) return composeFinalFailure(primaryFailure, candidateAfter);
-    if (!candidateAfter.ok) return candidateAfter;
-    if (inspectionFailed) return lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
+    if (primaryFailure !== undefined) {
+      return blockedArtifact(
+        composeFinalFailure(primaryFailure, candidateAfter),
+        scanCoverage,
+        inspectionFailed ? "failed" : "completed"
+      );
+    }
+    if (!candidateAfter.ok) {
+      return blockedArtifact(candidateAfter, scanCoverage, inspectionFailed ? "failed" : "completed");
+    }
     const manifest = projectReleaseCandidateManifest(inventory, candidateAfter.value.observations);
     if (manifest === undefined) {
-      return lifecycleBlocked("CANDIDATE_MANIFEST_PROJECTION_FAILED", "integrity");
+      return blockedArtifact(
+        lifecycleBlocked("CANDIDATE_MANIFEST_PROJECTION_FAILED", "integrity"),
+        scanCoverage,
+        inspectionFailed ? "failed" : "completed"
+      );
     }
-    return {
-      ok: true,
-      value: value as T,
+    const artifactValidation = freezePassedArtifact(
       manifest,
-      inclusionLedger: candidateAfter.value.inclusionLedger,
+      candidateAfter.value.inclusionLedger,
       scanCoverage
-    };
+    );
+    if (inspectionFailed) {
+      return Object.freeze({
+        operation: operationFailed(),
+        artifactValidation,
+        blockers: [Object.freeze({ code: "CANDIDATE_INSPECTION_FAILED", category: "inspection" as const })]
+      });
+    }
+    return Object.freeze({
+      operation: operationCompleted(),
+      artifactValidation,
+      blockers: [],
+      value: value as T
+    });
   } catch {
-    return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
+    return blockedArtifact(lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation"), scanCoverage);
   }
 }
 
 async function parseCandidateRootInspection(
   acquire: () => Promise<unknown>
-): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+): Promise<ReleaseCandidateLifecycleFailure | undefined> {
   try {
     const result = await acquire();
     if (result === null || typeof result !== "object") {
@@ -1182,7 +1257,7 @@ async function assembleReleaseCandidate(
   inventory: ReleaseCandidateSourceEntry[],
   observations: AcceptedSourceObservations,
   lifecycle: BoundCandidateLifecycle
-): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+): Promise<ReleaseCandidateLifecycleFailure | undefined> {
   const fixedDirectories = [
     { path: "content", root: "content" as const },
     { path: "content/dota_addons", root: "content" as const },
@@ -1222,7 +1297,7 @@ async function assembleReleaseCandidate(
 
 async function parseCandidateMaterialization(
   acquire: () => Promise<unknown>
-): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+): Promise<ReleaseCandidateLifecycleFailure | undefined> {
   try {
     const result = await acquire();
     if (result === null || typeof result !== "object") {
@@ -2079,20 +2154,162 @@ function withScanCoverage<T extends ReleaseCandidateLifecycleFailure>(
   return { ...failure, scanCoverage };
 }
 
+function operationNotReached(): Extract<ReleaseCandidateOperationEvidence, { status: "not-reached" }> {
+  return Object.freeze({ status: "not-reached" });
+}
+
+function operationCompleted(): Extract<ReleaseCandidateOperationEvidence, { status: "completed" }> {
+  return Object.freeze({ status: "completed" });
+}
+
+function operationFailed(): Extract<ReleaseCandidateOperationEvidence, { status: "failed" }> {
+  return Object.freeze({ status: "failed", code: "CANDIDATE_INSPECTION_FAILED" });
+}
+
+function artifactNotReached(): Extract<ReleaseCandidateArtifactValidation, { status: "not-reached" }> {
+  return Object.freeze({ status: "not-reached" });
+}
+
+function freezePassedArtifact(
+  manifest: ReleaseCandidateManifest,
+  inclusionLedger: ReleaseCandidateInclusionLedger,
+  scanCoverage: ReleaseScanCoverage
+): Extract<ReleaseCandidateArtifactValidation, { status: "passed" }> {
+  return Object.freeze({ status: "passed", manifest, inclusionLedger, scanCoverage });
+}
+
+function blockedArtifact<T>(
+  failure: ReleaseCandidateLifecycleFailure,
+  scanCoverage: ReleaseScanCoverage,
+  operation: "not-reached" | "completed" | "failed" = "not-reached"
+): ReleaseCandidateInspectionOutcome<T> {
+  const blockers = Object.freeze([...failure.blockers]);
+  return Object.freeze({
+    operation: operation === "completed"
+      ? operationCompleted()
+      : operation === "failed"
+        ? operationFailed()
+        : operationNotReached(),
+    artifactValidation: Object.freeze({
+      status: "blocked" as const,
+      blockers,
+      ...(failure.inclusionLedger === undefined ? {} : { inclusionLedger: failure.inclusionLedger }),
+      scanCoverage
+    }),
+    blockers
+  });
+}
+
+function cleanupNotReachedEvidence(): Extract<ReleaseCandidateCleanupEvidence, { status: "not-reached" }> {
+  return Object.freeze({
+    schemaVersion: "1.0",
+    attempted: false,
+    attempts: 0,
+    status: "not-reached",
+    verified: false
+  });
+}
+
+function finalizePrecreationFailure(
+  failure: ReleaseCandidateLifecycleFailure
+): ReleaseCandidateLifecycleResult<never> {
+  return Object.freeze({
+    ok: false,
+    operation: operationNotReached(),
+    artifactValidation: artifactNotReached(),
+    cleanup: cleanupNotReachedEvidence(),
+    ...(failure.inclusionLedger === undefined ? {} : { inclusionLedger: failure.inclusionLedger }),
+    ...(failure.scanCoverage === undefined ? {} : { scanCoverage: failure.scanCoverage }),
+    blockers: Object.freeze([...failure.blockers])
+  });
+}
+
+function finalizeAcquisitionFailure(
+  failure: ReleaseCandidateLifecycleFailure,
+  cleanup: ReleaseCandidateCleanupEvidence
+): ReleaseCandidateLifecycleResult<never> {
+  return Object.freeze({
+    ok: false,
+    operation: operationNotReached(),
+    artifactValidation: artifactNotReached(),
+    cleanup,
+    ...(failure.inclusionLedger === undefined ? {} : { inclusionLedger: failure.inclusionLedger }),
+    ...(failure.scanCoverage === undefined ? {} : { scanCoverage: failure.scanCoverage }),
+    blockers: Object.freeze([...failure.blockers])
+  });
+}
+
+function finalizeCandidateLifecycle<T>(
+  outcome: ReleaseCandidateInspectionOutcome<T>,
+  cleanup: ReleaseCandidateCleanupEvidence
+): ReleaseCandidateLifecycleResult<T> {
+  const artifact = outcome.artifactValidation;
+  const overallOk = outcome.operation.status === "completed"
+    && artifact.status === "passed"
+    && cleanup.status === "verified";
+  if (overallOk) {
+    return Object.freeze({
+      ok: true,
+      value: outcome.value as T,
+      operation: outcome.operation,
+      artifactValidation: artifact,
+      manifest: artifact.manifest,
+      inclusionLedger: artifact.inclusionLedger,
+      scanCoverage: artifact.scanCoverage,
+      cleanup
+    });
+  }
+
+  const blockers = [...outcome.blockers];
+  if (cleanup.status === "failed") {
+    blockers.push(Object.freeze({ code: cleanup.code, category: "removal" as const }));
+  }
+  return Object.freeze({
+    ok: false,
+    operation: outcome.operation,
+    artifactValidation: artifact,
+    cleanup,
+    ...(artifact.status === "blocked" && artifact.inclusionLedger !== undefined
+      ? { inclusionLedger: artifact.inclusionLedger }
+      : {}),
+    blockers: Object.freeze(blockers)
+  });
+}
+
 async function normalizeCandidateCleanupEvidence(
   acquire: () => Promise<unknown>
 ): Promise<ReleaseCandidateCleanupEvidence> {
   try {
-    const result = await acquire();
+    const raw = await acquire();
+    if (raw === null || typeof raw !== "object") {
+      return failedCleanupEvidence("CANDIDATE_CLEANUP_RESULT_INVALID");
+    }
+    const result = Object.freeze({
+      schemaVersion: "1.0",
+      attempted: true,
+      attempts: 1,
+      ...raw
+    });
     if (result === null || typeof result !== "object") {
       return failedCleanupEvidence("CANDIDATE_CLEANUP_RESULT_INVALID");
     }
 
+    const schemaVersion = Reflect.get(result, "schemaVersion");
+    const attempted = Reflect.get(result, "attempted");
+    const attempts = Reflect.get(result, "attempts");
     const ok = Reflect.get(result, "ok");
     const removed = Reflect.get(result, "removed");
     const absent = Reflect.get(result, "absent");
     const identityMatched = Reflect.get(result, "identityMatched");
-    if (ok === true && removed === true && absent === true && identityMatched === true) {
+    if (
+      schemaVersion === "1.0"
+      && attempted === true
+      && attempts === 1
+      && ok === true
+      && removed === true
+      && absent === true
+      && identityMatched === true
+    ) {
       return Object.freeze({
         schemaVersion: "1.0",
         attempted: true,
@@ -2107,7 +2324,10 @@ async function normalizeCandidateCleanupEvidence(
 
     const code = Reflect.get(result, "code");
     if (
-      ok === false
+      schemaVersion === "1.0"
+      && attempted === true
+      && attempts === 1
+      && ok === false
       && typeof removed === "boolean"
       && typeof absent === "boolean"
       && typeof identityMatched === "boolean"
@@ -2138,7 +2358,7 @@ function failedCleanupEvidence(
 
 function cleanupIdentityUnavailableEvidence(): Extract<
   ReleaseCandidateCleanupEvidence,
-  { attempted: false }
+  { status: "failed"; attempted: false }
 > {
   return Object.freeze({
     schemaVersion: "1.0",
