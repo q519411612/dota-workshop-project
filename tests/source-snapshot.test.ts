@@ -77,6 +77,49 @@ describe("source snapshot manifest dry run", () => {
     expect(result.manifest.boundaries).toContain("no global install performed");
   });
 
+  test("uses archived milestone requirements as explicit source coverage after completion", async () => {
+    await rm(join(root, ".planning/REQUIREMENTS.md"));
+    await mkdir(join(root, ".planning/milestones/v1.14-phases/03-safe-candidate-assembly"), { recursive: true });
+    await writeFile(join(root, ".planning/milestones/v1.14-REQUIREMENTS.md"), "# Archived Requirements\n");
+    await writeFile(
+      join(root, ".planning/milestones/v1.14-phases/03-safe-candidate-assembly/03-SUMMARY.md"),
+      "# Archived Phase Summary\n"
+    );
+
+    const result = await generateSourceSnapshotManifest({
+      root,
+      generatedAt: FIXED_TIME,
+      commit: FIXED_COMMIT
+    });
+    const paths = result.manifest.files.map((file) => file.path);
+
+    expect(result.ok).toBe(true);
+    expect(paths).toContain(".planning/milestones/v1.14-REQUIREMENTS.md");
+    expect(paths).toContain(".planning/milestones/v1.14-phases/03-safe-candidate-assembly/03-SUMMARY.md");
+    expect(result.manifest.blockers).not.toContainEqual(expect.objectContaining({
+      code: "REQUIRED_SOURCE_PATH_MISSING",
+      path: ".planning/REQUIREMENTS.md"
+    }));
+  });
+
+  test("blocks requirements coverage when active and archived sources are both absent", async () => {
+    await rm(join(root, ".planning/REQUIREMENTS.md"));
+
+    const result = await generateSourceSnapshotManifest({
+      root,
+      generatedAt: FIXED_TIME,
+      commit: FIXED_COMMIT
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.manifest.blockers).toContainEqual({
+      code: "REQUIRED_SOURCE_PATH_MISSING",
+      path: ".planning/REQUIREMENTS.md",
+      field: "files",
+      category: "source coverage"
+    });
+  });
+
   test("blocks sensitive material without including the sensitive value", async () => {
     const sensitiveValue = ["steam", "password", "plain", "text"].join("_");
     await writeFile(join(root, "docs/secret.md"), `credential=${sensitiveValue}\n`);
