@@ -1,8 +1,13 @@
 import { lstat, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, test, vi } from "vitest";
-import { prepareReleaseCandidateInput } from "../src/release-candidate.js";
+import { afterEach, describe, expect, expectTypeOf, test, vi } from "vitest";
+import {
+  continueReleaseCandidatePreparation,
+  prepareReleaseCandidateInput,
+  type ReleaseCandidateFilesystem,
+  type ValidatedReleaseCandidateInput
+} from "../src/release-candidate.js";
 
 type Fixture = {
   root: string;
@@ -304,5 +309,62 @@ describe("release candidate input validation", () => {
       expect(createCandidateRoot, scenario.name).not.toHaveBeenCalled();
       expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
     }
+  });
+
+  test("requires a validated handle before candidate continuation", async () => {
+    type RawValidatedInput = Readonly<{
+      addonName: string;
+      dotaRoot: string;
+      repositoryRoot: string;
+      tempParent: string;
+      gameAddonRoot: string;
+      contentAddonRoot: string;
+    }>;
+
+    const fixture = await createFixture();
+    const rawValidatedInput: RawValidatedInput = {
+      addonName: "fixture_addon",
+      dotaRoot: fixture.dotaRoot,
+      repositoryRoot: fixture.repositoryRoot,
+      tempParent: fixture.tempParent,
+      gameAddonRoot: fixture.gameAddonRoot,
+      contentAddonRoot: fixture.contentAddonRoot
+    };
+    expectTypeOf(rawValidatedInput).not.toMatchTypeOf<ValidatedReleaseCandidateInput>();
+    expectTypeOf(fixture.tempParent).not.toMatchTypeOf<
+      Parameters<ReleaseCandidateFilesystem["createCandidateRoot"]>[0]
+    >();
+
+    const createCandidateRoot = vi.fn(async (validated: ValidatedReleaseCandidateInput) => (
+      join(validated.tempParent, "candidate")
+    ));
+    const filesystem: ReleaseCandidateFilesystem = { lstat, realpath, createCandidateRoot };
+    const continuation = vi.fn(async (validated: ValidatedReleaseCandidateInput) => (
+      await filesystem.createCandidateRoot(validated)
+    ));
+
+    const rejected = await continueReleaseCandidatePreparation(
+      { addonName: "../private-addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      { repositoryRoot: fixture.repositoryRoot, filesystem },
+      continuation
+    );
+
+    expect(rejected).toEqual({
+      ok: false,
+      blockers: [{ code: "INVALID_ADDON_NAME", field: "addonName", category: "invalid" }]
+    });
+    expect(continuation).not.toHaveBeenCalled();
+    expect(createCandidateRoot).not.toHaveBeenCalled();
+
+    const accepted = await continueReleaseCandidatePreparation(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      { repositoryRoot: fixture.repositoryRoot, filesystem },
+      continuation
+    );
+
+    expect(accepted).toEqual({ ok: true, value: join(await realpath(fixture.tempParent), "candidate") });
+    expect(continuation).toHaveBeenCalledTimes(1);
+    expect(createCandidateRoot).toHaveBeenCalledTimes(1);
+    expect(Object.isFrozen(continuation.mock.calls[0][0])).toBe(true);
   });
 });
