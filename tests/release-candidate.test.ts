@@ -49,6 +49,7 @@ const fixtureRoots: string[] = [];
 
 const compactAssignment = (name: string, value: string): string => [name, "=", value].join("");
 const credentialPasswordFixture = (value: string): string => ["credential_", compactAssignment("password", value)].join("");
+const githubPatFixture = (): string => [["g", "h", "p", "_"].join(""), "A".repeat(24)].join("");
 
 type SourceTreeSnapshotEntry = Readonly<{
   path: string;
@@ -2824,6 +2825,74 @@ describe("release candidate input validation", () => {
       expect(serialized, scenario.name).not.toContain(upperCredentialName);
       expect(serialized, scenario.name).not.toContain(secretValue);
       expect(serialized, scenario.name).not.toContain(fixture.root);
+    }
+  });
+
+  test("shares token-shaped evidence redaction with readiness findings", async () => {
+    const tokenName = githubPatFixture();
+    const passwordName = credentialPasswordFixture("shared-classifier-value");
+    const redactedPath = "game/dota_addons/fixture_addon/[redacted]";
+    const scenarios: Array<Readonly<{
+      name: string;
+      names: string[];
+      kind: "file" | "reparse";
+      expected: unknown;
+    }>> = [
+      {
+        name: "token-shaped unsafe entry",
+        names: [tokenName],
+        kind: "reparse",
+        expected: {
+          ok: false,
+          blockers: [{ code: "SOURCE_ENTRY_UNSAFE", path: redactedPath, category: "reparse" }]
+        }
+      },
+      {
+        name: "token-shaped exact collision",
+        names: [tokenName, tokenName],
+        kind: "file",
+        expected: {
+          ok: false,
+          blockers: [{ code: "SOURCE_IDENTITY_COLLISION", path: redactedPath, category: "exact-duplicate" }]
+        }
+      },
+      {
+        name: "password category parity",
+        names: [passwordName],
+        kind: "reparse",
+        expected: {
+          ok: false,
+          blockers: [{ code: "SOURCE_ENTRY_UNSAFE", path: redactedPath, category: "reparse" }]
+        }
+      }
+    ];
+
+    for (const scenario of scenarios) {
+      const fixture = await createFixture();
+      const filesystem: ReleaseCandidateFilesystem = {
+        lstat,
+        realpath: async (path) => path.includes("/dota_addons/fixture_addon/")
+          ? path
+          : await realpath(path),
+        readDirectory: async (path) => (
+          path.endsWith("/game/dota_addons/fixture_addon") ? [...scenario.names] : []
+        ),
+        classifySourceEntry: async () => scenario.kind,
+        createCandidateRoot: vi.fn(async () => { throw new Error("candidate creation is forbidden"); })
+      };
+      const prepared = await prepareReleaseCandidateInput(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+      expect(prepared.ok, scenario.name).toBe(true);
+      if (!prepared.ok) throw new Error("shared sanitizer fixture input was rejected");
+
+      const result = await inventoryReleaseCandidateSources(prepared.value);
+      const serialized = JSON.stringify(result);
+
+      expect(result, scenario.name).toEqual(scenario.expected);
+      expect(serialized, scenario.name).not.toContain(tokenName);
+      expect(serialized, scenario.name).not.toContain(passwordName);
     }
   });
 

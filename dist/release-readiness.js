@@ -188,7 +188,11 @@ function safeFindingPath(path) {
     if (path.includes("\\") || path.split("/").some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
         return undefined;
     }
-    return path
+    return sanitizeRelativeEvidenceIdentity(path);
+}
+export function sanitizeRelativeEvidenceIdentity(identity) {
+    return identity
+        .replaceAll("\\", "/")
         .split("/")
         .map((segment) => (sensitiveCategories(segment).length > 0 ? "[redacted]" : segment))
         .join("/");

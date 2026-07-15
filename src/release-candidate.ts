@@ -6,6 +6,7 @@ import {
   evaluateReleaseReadiness,
   isReleaseTextPath,
   MAX_SECRET_SCAN_BYTES,
+  sanitizeRelativeEvidenceIdentity,
   type ReleaseReadinessFinding,
   type ReleaseReadinessInput
 } from "./release-readiness.js";
@@ -452,7 +453,10 @@ export async function inventoryReleaseCandidateSources(
   if (!result.ok) return result;
   return {
     ok: true,
-    entries: result.entries.map((entry) => ({ ...entry, path: sanitizeRelativeIdentity(entry.path) }))
+    entries: result.entries.map((entry) => ({
+      ...entry,
+      path: sanitizeRelativeEvidenceIdentity(entry.path)
+    }))
   };
 }
 
@@ -498,7 +502,7 @@ async function inventoryReleaseCandidateSourcesInternal(
   if (blockers.length > 0) {
     const sanitizedBlockers = blockers.map((blocker) => ({
       ...blocker,
-      path: sanitizeRelativeIdentity(blocker.path)
+      path: sanitizeRelativeEvidenceIdentity(blocker.path)
     }));
     sanitizedBlockers.sort(compareInventoryBlockers);
     return { ok: false, blockers: sanitizedBlockers };
@@ -711,7 +715,7 @@ async function parseCandidateRootInspection(
 
 function safeCandidateEntryIdentity(name: string): string {
   if (invalidSourceNameCategory(name) !== undefined) return "[invalid]";
-  return sanitizeRelativeIdentity(name);
+  return sanitizeRelativeEvidenceIdentity(name);
 }
 
 async function assembleReleaseCandidate(
@@ -1360,15 +1364,6 @@ function invalidSourceNameCategory(name: string): "absolute" | "traversal" | "se
 function safeChildIdentity(parent: string, name: string): string {
   const normalized = name.replaceAll("\\", "/").replace(/^\/+/, "");
   return `${parent}/${normalized}`;
-}
-
-function sanitizeRelativeIdentity(identity: string): string {
-  return identity
-    .split("/")
-    .map((segment) => (
-      /(?:password|passwd|pwd|token|api[_-]?key|secret)/iu.test(segment) ? "[redacted]" : segment
-    ))
-    .join("/");
 }
 
 function foldIdentity(identity: string): string {
