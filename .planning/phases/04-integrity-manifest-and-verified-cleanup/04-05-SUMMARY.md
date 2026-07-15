@@ -9,23 +9,23 @@ requires:
     plan: 04
     provides: Exhaustive scan coverage and final integrity lifecycle inputs
 provides:
-  - Strict versioned acquired, not-created, and created-failure acquisition outcomes
+  - Strict versioned acquired, created-failure, and creation-contract-failure outcomes
   - Adapter-owned cleanup after post-create acquisition failure
   - Exactly-once cleanup evidence for every valid lease outcome
 affects: [04-integrity-manifest-and-verified-cleanup, artifact-validation, cleanup-precedence, unified-mcp-result]
 
 tech-stack:
   added: []
-  patterns: [creation registration before lease exposure, guarded acquisition normalization, one finally cleanup funnel]
+  patterns: [factory-owned one-shot creation primitive, opaque registered token, guarded acquisition normalization, one finally cleanup funnel]
 
 key-files:
   created: [.planning/phases/04-integrity-manifest-and-verified-cleanup/04-05-SUMMARY.md]
   modified: [src/release-candidate.ts, tests/release-candidate.test.ts]
 
 key-decisions:
-  - "The provider contract requires recording the opaque created identity before any later await or lease result, allowing the identity-bound adapter to clean once if acquisition normalization fails."
-  - "Acquisition distinguishes versioned acquired, not-created, and created-failure states; created failures always carry one strict cleanup evidence record."
-  - "A creation signal with an unusable identity remains a created failure with explicit cleanup-identity-unavailable evidence and no fabricated removal or absence fact."
+  - "The provider cannot create through the supported contract directly; it receives a factory-owned one-shot primitive that stores opaque identity before returning an unforgeable token."
+  - "Acquisition distinguishes versioned acquired, created-failure, and contract-failure states; only the exact factory token can produce a lease."
+  - "When no cleanup-capable identity exists, evidence records attempted false, zero attempts, verified false, and no removal or absence fact."
   - "Every valid lease outcome merges one serialized cleanup record after a single finally call, without retry or raw-path fallback."
 
 patterns-established:
@@ -34,32 +34,33 @@ patterns-established:
 
 requirements-completed: [RCCL-01]
 
-duration: 20min
+duration: 32min
 completed: 2026-07-15
 status: complete
 ---
 
 # Phase 4 Plan 05: Exactly-Once Candidate Cleanup Summary
 
-**Candidate creation now transfers cleanup ownership before lease exposure, and every stateful outcome records exactly one strict cleanup attempt.**
+**Factory-owned candidate creation transfers cleanup ownership before provider post-create work, with exact one-attempt or truthful zero-attempt evidence.**
 
 ## Performance
 
-- **Duration:** 20 min
+- **Duration:** 32 min
 - **Started:** 2026-07-15T15:28:45Z
-- **Completed:** 2026-07-15T15:48:28Z
+- **Completed:** 2026-07-15T16:00:23Z
 - **Tasks:** 2
 - **Files modified:** 3
 
 ## Accomplishments
 
-- Added a strict schema-versioned acquisition union that distinguishes acquired leases, genuine not-created failures, and created failures with adapter-owned cleanup evidence.
-- Added an immediate creation registrar so opaque identity ownership exists before a provider can return a malformed object, throw, reject through a thenable, or trigger hostile getters/proxies.
+- Added a strict schema-versioned acquisition union that distinguishes acquired leases, created failures, and explicit creation-contract failures.
+- Replaced provider-owned creation/registration with a factory-owned one-shot primitive that stores opaque identity and returns an unforgeable token before provider post-create work resumes.
 - Guaranteed one cleanup call for success, candidate-root inspection failure, copy/materialization failure, candidate hash failure, ledger/reconciliation failure, callback throw, and malformed cleanup results.
 - Added serialized cleanup evidence with fixed attempt count and verified/failed states while preserving current blocker semantics for the following artifact-precedence plan.
 - Proved true precreation rejection performs zero creation and zero cleanup attempts.
 - Proved every removable macOS fixture candidate is absent after the operation and no private exception text or root enters result evidence.
-- Preserved creation state independently from identity parsing so malformed, throwing-getter, and throwing-proxy registrations cannot regress to a not-created result.
+- Made cleanup evidence truthful when no usable identity exists: zero cleanup calls produce `attempted: false`, `attempts: 0`, and `verified: false` without removal or absence claims.
+- Proved an out-of-contract provider mutation remains an explicit contract failure and is never represented as cleaned or absent.
 - Restored exact equality checks for legacy blocker, ledger, manifest, and callback-value domains while comparing the intentional cleanup evidence separately.
 
 ## TDD Evidence
@@ -68,6 +69,8 @@ status: complete
 - GREEN: The same focused command passed after adding creation registration, guarded versioned acquisition normalization, internal created-failure cleanup, and the one valid-lease cleanup funnel.
 - Review RED: the focused command failed because malformed/getter/proxy registration set an invalid flag but lost the fact that creation had been signaled, returning `CANDIDATE_CREATION_FAILED` without cleanup-unknown evidence.
 - Review GREEN: the same matrix passed after making the registrar mandatory, tracking creation signal independently, and returning `CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE` without calling cleanup or claiming removal/absence when no usable identity exists.
+- Structural review RED: the focused matrix failed because the callback-based contract still allowed a provider to ignore registration, and identity-unavailable evidence claimed one attempt despite zero cleanup calls.
+- Structural review GREEN: factory-owned creation now registers before returning a token; a later provider throw cleans once, while skipped/malformed primitives return contract-failure evidence with zero truthful attempts.
 - Regression alignment now destructures only the intentional cleanup field and retains exact equality for every pre-existing blocker, ledger, manifest, scan, and callback-value domain.
 
 ## Task Commits
@@ -76,18 +79,21 @@ status: complete
 2. **Guarantee post-create cleanup** - `31c8082` (`feat`, GREEN)
 3. **Expose unusable creation identity** - `48b165e` (`test`, review RED)
 4. **Require atomic cleanup ownership** - `c2b39c8` (`fix`, review GREEN)
+5. **Require factory-owned creation** - `c9507d5` (`test`, structural review RED)
+6. **Own candidate creation atomically** - `e1d668a` (`fix`, structural review GREEN)
 
 ## Files Created/Modified
 
-- `src/release-candidate.ts` - Defines strict acquisition states, creation registration, created-failure cleanup, and versioned exactly-once cleanup evidence.
+- `src/release-candidate.ts` - Defines the factory-owned creation primitive/token, strict acquisition states, created-failure cleanup, and truthful versioned cleanup evidence.
 - `tests/release-candidate.test.ts` - Adds the post-create acquisition and valid-lease fault matrix with creation, cleanup, callback, sanitization, and filesystem-absence assertions.
 - `.planning/phases/04-integrity-manifest-and-verified-cleanup/04-05-SUMMARY.md` - Records TDD and quality-gate evidence.
 
 ## Decisions Made
 
-- Providers receive a required registrar and must transfer cleanup ownership immediately after creation, before any later await or provider settlement; the factory normalizes the result into a closed public acquisition union.
-- A provider that signals creation and then returns inconsistent, malformed, exceptional, getter/proxy, or rejecting-thenable output cannot produce a lease; the registered identity is cleaned exactly once internally.
-- A signaled creation whose registration is itself malformed cannot safely invoke target cleanup; it therefore reports one failed logical attempt with `CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE`, omits identity/removal/absence facts, and never claims the candidate is absent.
+- The supported provider contract exposes only a one-shot `createRegisteredCandidate` primitive; the factory invokes the target-native state creator, validates/stores opaque identity, and returns an unforgeable token before provider control resumes.
+- A provider must return the exact factory token to produce a lease. Throwing, returning malformed data, returning another object, or reusing the primitive after registered creation cleans the stored identity exactly once.
+- Skipping the primitive or failing to return a cleanup-capable identity yields `CANDIDATE_CREATION_CONTRACT_FAILED` with `attempted: false`, zero attempts, `verified: false`, and no removal/absence facts.
+- Host mutation performed independently of the primitive is explicitly outside the supported contract; the lifecycle fails without claiming cleanup or absence.
 - Cleanup evidence is emitted after every valid lease outcome now; Plan 04-06 remains responsible for separating final artifact-validation, operation, and cleanup precedence domains.
 
 ## Deviations from Plan
@@ -110,14 +116,30 @@ status: complete
 - **Verification:** Candidate/install regressions and full suite passed with exact assertions.
 - **Committed in:** `48b165e`
 
+**3. [Rule 2 - Missing Critical] Move creation ownership into the factory**
+- **Found during:** Converged independent quality review
+- **Issue:** A required callback parameter still could not enforce invocation; a one-argument provider could create state directly and throw before registration.
+- **Fix:** Replaced callback registration with a factory-owned one-shot creation primitive and opaque token. Only returning the exact token can expose a lease.
+- **Files modified:** `src/release-candidate.ts`, `tests/release-candidate.test.ts`
+- **Verification:** Supported create-then-throw cleans once; skipped primitive and independent host mutation return explicit contract failure without false absence.
+- **Committed in:** `e1d668a`
+
+**4. [Rule 1 - Evidence Accuracy] Report zero cleanup attempts when identity is unavailable**
+- **Found during:** Converged independent quality review
+- **Issue:** Identity-unavailable evidence claimed one attempt while the cleanup adapter call count was zero.
+- **Fix:** Added the truthful zero-attempt cleanup evidence variant with `verified: false` and no identity/removal/absence fields.
+- **Files modified:** `src/release-candidate.ts`, `tests/release-candidate.test.ts`
+- **Verification:** Exact evidence and call-count regressions pass for malformed primitives and unsupported provider behavior.
+- **Committed in:** `e1d668a`
+
 ---
 
-**Total deviations:** 2 auto-fixed correctness/test-quality issues. **Impact on plan:** Both changes strengthen the required ownership contract without expanding scope.
+**Total deviations:** 4 auto-fixed correctness/test-quality issues. **Impact on plan:** All changes strengthen the required ownership and evidence contract without expanding scope.
 
 ## Issues Encountered
 
 - Adding explicit cleanup evidence made exact-object legacy assertions reject the intentional extra field; the final tests now remove only that field and preserve exact checks for all existing domains.
-- A cleanup-capable identity cannot be recovered safely from a hostile registration. The lifecycle reports explicit uncertainty and leaves no false absence claim instead of attempting raw-path removal.
+- A cleanup-capable identity cannot be recovered safely from a failed creation primitive. The lifecycle reports explicit zero-attempt uncertainty and leaves no false absence claim instead of attempting raw-path removal.
 
 ## Verification Evidence
 
@@ -133,11 +155,11 @@ status: complete
 
 ## Security and Scope Review
 
-- Confirmed opaque identity is stored before lease exposure and never returned to callers.
-- Confirmed the creation signal is stored before hostile identity parsing and survives getter/proxy exceptions.
+- Confirmed opaque identity is stored before the factory primitive returns and is never returned to providers or callers.
+- Confirmed providers cannot obtain a lease by skipping the primitive, returning a forged token, or returning raw created state.
 - Confirmed cleanup is never retried and no raw `rm` fallback exists in production lifecycle code.
 - Confirmed malformed acquisition and cleanup getters, proxies, thenables, and exceptions map to stable sanitized evidence.
-- Confirmed true precreation failures perform no cleanup, while every recorded creation performs one attempt.
+- Confirmed identity-unavailable contract failures report zero attempts truthfully, while every successfully registered creation performs one cleanup attempt after acquisition failure.
 - Confirmed source trees are never written and candidates are not persisted.
 - Confirmed no public MCP/schema/server/remote integration, Steam/Workshop mutation, upload, credentials, archive, signing, encryption, compilation, repair, retention, or real-Windows claim was added.
 
@@ -152,7 +174,7 @@ None - no external service configuration required.
 
 ## Self-Check: PASSED
 
-- RED commit `8545a89` precedes GREEN commit `31c8082`; review RED `48b165e` precedes review GREEN `c2b39c8`.
+- RED commit `8545a89` precedes GREEN commit `31c8082`; review RED/GREEN pairs are `48b165e` → `c2b39c8` and `c9507d5` → `e1d668a`.
 - Focused, candidate/install, full-suite, typecheck, build, RC, diff, generated-artifact, and graph-exclusion gates passed.
 - RCCL-01 has unique Plan 04-05 traceability and complete implementation/test evidence.
 
