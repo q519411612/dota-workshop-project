@@ -1,18 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.13
-milestone_name: Local Install Simulation
-current_phase: null
-status: Awaiting next milestone
-last_updated: "2026-07-13T07:26:25.677Z"
-last_activity: 2026-07-13
-last_activity_desc: Milestone v1.13 completed and archived
+milestone: v1.14
+milestone_name: Workshop Addon Release Candidate Preflight
+status: planning
+last_updated: "2026-07-15T02:38:06.740Z"
+last_activity: 2026-07-15
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Dota Workshop Project
@@ -82,10 +80,10 @@ Run `$gsd-new-milestone` to define the next focused version and fresh requiremen
 
 ## Current Position
 
-Phase: Milestone v1.13 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-13 — Milestone v1.13 completed and archived
+Status: Defining requirements
+Last activity: 2026-07-15 — Milestone v1.14 started
 
 ## Operator Next Steps
 

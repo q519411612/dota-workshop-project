@@ -10,6 +10,18 @@ The v1.1 Workshop MVP milestone is complete and archived. The project now has a 
 
 AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
 
+## Current Milestone: v1.14 Workshop Addon Release Candidate Preflight
+
+**Goal:** Assemble and strictly validate an isolated, temporary, and auditable Dota Workshop addon release candidate through the unified MCP interface without performing any Steam or Workshop mutation.
+
+**Target features:**
+- Add a dedicated MCP operation for release-candidate preflight across fixture, local Windows, and remote Windows target contracts.
+- Assemble the addon's `game` and `content` trees in an isolated temporary candidate directory.
+- Produce a deterministic file manifest with SHA-256 evidence.
+- Fail explicitly on invalid structure, incomplete addon metadata, sensitive content, symbolic links, or unsafe path isolation.
+- Return candidate, validation, cleanup, path, warning, command, and log evidence without silently falling back.
+- Verify deterministic behavior on macOS fixtures without requiring a real Windows host for milestone completion.
+
 ## Requirements
 
 ### Validated
@@ -59,12 +71,17 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 
 ### Active
 
+- [ ] Assemble and validate a temporary Dota Workshop addon release candidate through a dedicated unified MCP operation.
+- [ ] Produce deterministic manifest, SHA-256, blocker, and cleanup evidence for both addon roots.
+- [ ] Preserve fixture, local Windows, and remote Windows contract parity without requiring real Windows evidence for completion.
 - [ ] Collect real same-machine Windows runtime marker evidence if a Windows machine is available.
 - [ ] Collect real Windows ability proof marker evidence if a Windows runtime is available and the proof unit is spawned.
-- [ ] Decide the next publishing readiness increment after dry-run release reporting.
 
 ### Out of Scope
 
+- Steam login, Workshop item creation or mutation, and real upload - v1.14 validates release-candidate artifacts only.
+- Persistent archives, package signing, or content encryption - keep the release candidate temporary and inspectable.
+- Codex plugin distribution artifacts - v1.14 targets Dota Workshop addon trees only.
 - Full gameplay generation beyond the minimal playable loop - keep v2 focused on proving the gameplay validation loop.
 - Fragile UI-only automation as the primary path - prefer command, file, and process control before desktop automation.
 - A complete Dota 2 modding knowledge base - keep detailed references progressively loaded through the skill.
@@ -85,13 +102,14 @@ Milestones v1.1 and v1.13 are archived under `.planning/milestones/`. Current pl
 - **Shipped version:** v1.13 Local Install Simulation on 2026-07-13.
 - **Verification:** 150/150 tests, clean independent review, 9/9 goal verification, and 6/6 milestone requirements/integration/flows.
 - **Install readiness:** plugin-facing files can be consumed from an isolated temporary layout with explicit cleanup, environment, sensitive-material, and path-safety evidence.
-- **Planning state:** no active milestone; v1.13 requirements, audit, roadmap detail, and execution history are archived.
-- **Known follow-ups:** real same-machine Windows runtime evidence, real ability marker evidence, and the next publishing-readiness increment remain unplanned.
+- **Planning state:** v1.14 Workshop Addon Release Candidate Preflight is defining requirements; v1.13 requirements, audit, roadmap detail, and execution history are archived.
+- **Known follow-ups:** real same-machine Windows runtime evidence and real ability marker evidence remain outside the v1.14 completion gate.
 
 ## Next Milestone Goals
 
-- Decide which remaining project-level follow-up provides the smallest useful next vertical slice.
-- Define fresh requirements and boundaries through `$gsd-new-milestone` before implementation.
+- Assemble a temporary Workshop addon release candidate from the `game` and `content` addon roots.
+- Produce deterministic manifest, hash, blocker, and cleanup evidence through a dedicated unified MCP operation.
+- Keep Steam login, Workshop mutation, upload, archives, signing, encryption, and credential handling out of scope.
 - Preserve explicit evidence, no-credential storage, and no-silent-fallback behavior.
 
 ## Constraints
@@ -138,6 +156,7 @@ Milestones v1.1 and v1.13 are archived under `.planning/milestones/`. Current pl
 | Simulate install before global install | A temporary local layout proves plugin consumption readiness without mutating user config or global install state | Implemented |
 | Reject symbolic links in simulated install inputs | Dereferencing links could copy or scan content outside the repository boundary | Implemented |
 | Treat the v1.13 audit as milestone authority | The existing `verify:milestone` command remains intentionally scoped to v1.8 closeout evidence | Implemented |
+| Preflight a temporary addon release candidate before upload automation | An isolated candidate with deterministic manifest, hash, blocker, and cleanup evidence proves artifact boundaries without Steam credentials or Workshop mutation | Pending |
 
 ## Evolution
 
@@ -157,4 +176,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-13 after v1.13 milestone completion*
+*Last updated: 2026-07-15 after starting milestone v1.14*
