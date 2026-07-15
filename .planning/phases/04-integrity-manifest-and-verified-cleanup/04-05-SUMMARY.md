@@ -17,7 +17,7 @@ affects: [04-integrity-manifest-and-verified-cleanup, artifact-validation, clean
 
 tech-stack:
   added: []
-  patterns: [factory-owned one-shot creation primitive, synchronous in-flight promise registration, opaque registered token, guarded acquisition normalization, one finally cleanup funnel]
+  patterns: [factory-owned one-shot creation primitive, synchronous start sentinel, synchronous in-flight promise registration, opaque registered token, guarded acquisition normalization, one finally cleanup funnel]
 
 key-files:
   created: [.planning/phases/04-integrity-manifest-and-verified-cleanup/04-05-SUMMARY.md]
@@ -35,7 +35,7 @@ patterns-established:
 
 requirements-completed: [RCCL-01]
 
-duration: 44min
+duration: 51min
 completed: 2026-07-15
 status: complete
 ---
@@ -46,9 +46,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 44 min
+- **Duration:** 51 min
 - **Started:** 2026-07-15T15:28:45Z
-- **Completed:** 2026-07-15T16:12:42Z
+- **Completed:** 2026-07-15T16:19:21Z
 - **Tasks:** 2
 - **Files modified:** 3
 
@@ -58,6 +58,7 @@ status: complete
 - Replaced provider-owned creation/registration with a factory-owned one-shot primitive that stores opaque identity and returns an unforgeable token before provider post-create work resumes.
 - Retained ownership when providers start creation without awaiting it, including immediate throw and malformed-return paths, by synchronously storing the single in-flight creation promise before provider control resumes.
 - Closed the creation primitive when acquisition settles, rejected concurrent or retained late invocations, and proved only the first in-flight creation can reach the adapter.
+- Closed the synchronous reentrancy window by setting an independent start sentinel before invoking any creation adapter code.
 - Guaranteed one cleanup call for success, candidate-root inspection failure, copy/materialization failure, candidate hash failure, ledger/reconciliation failure, callback throw, and malformed cleanup results.
 - Added serialized cleanup evidence with fixed attempt count and verified/failed states while preserving current blocker semantics for the following artifact-precedence plan.
 - Proved true precreation rejection performs zero creation and zero cleanup attempts.
@@ -76,6 +77,8 @@ status: complete
 - Structural review GREEN: factory-owned creation now registers before returning a token; a later provider throw cleans once, while skipped/malformed primitives return contract-failure evidence with zero truthful attempts.
 - Async ownership review RED: the focused matrix failed because a provider could start creation without awaiting it and settle acquisition first, producing zero-attempt contract failure while the candidate appeared later without cleanup.
 - Async ownership review GREEN: the factory now registers the in-flight promise synchronously, waits for it before acquisition classification, cleans a valid asynchronously created identity once, rejects concurrent creation, and closes retained primitives before any late adapter invocation.
+- Synchronous reentrancy review RED: the focused matrix returned an acquired lease because the creation adapter re-entered the primitive before the outer promise assignment, starting a second identity outside cleanup ownership.
+- Synchronous reentrancy review GREEN: a start sentinel is set before the adapter is invoked, so reentry rejects immediately, the first identity is cleaned once, and no second identity or success lease is produced under the invalid contract.
 - Regression alignment now destructures only the intentional cleanup field and retains exact equality for every pre-existing blocker, ledger, manifest, scan, and callback-value domain.
 
 ## Task Commits
@@ -88,6 +91,8 @@ status: complete
 6. **Own candidate creation atomically** - `e1d668a` (`fix`, structural review GREEN)
 7. **Expose in-flight creation race** - `9fd0961` (`test`, async ownership review RED)
 8. **Retain in-flight creation ownership** - `a0f16d1` (`fix`, async ownership review GREEN)
+9. **Expose synchronous creation reentry** - `ccf2b74` (`test`, synchronous reentrancy review RED)
+10. **Reject synchronous creation reentry** - `df75e19` (`fix`, synchronous reentrancy review GREEN)
 
 ## Files Created/Modified
 
@@ -101,6 +106,7 @@ status: complete
 - A provider must return the exact factory token to produce a lease. Throwing, returning malformed data, returning another object, or reusing the primitive after registered creation cleans the stored identity exactly once.
 - The first primitive invocation synchronously owns one creation promise before any asynchronous adapter work. Acquisition settlement closes the primitive and waits for that promise before deciding acquired, created-failure, or contract-failure state.
 - Concurrent second invocation is an explicit contract violation and never starts another adapter call; a retained primitive invoked after acquisition settlement rejects before candidate creation.
+- The creation-start sentinel is set before calling `createCandidateState`, because promise assignment alone occurs too late to guard synchronous adapter reentry.
 - Skipping the primitive or failing to return a cleanup-capable identity yields `CANDIDATE_CREATION_CONTRACT_FAILED` with `attempted: false`, zero attempts, `verified: false`, and no removal/absence facts.
 - Host mutation performed independently of the primitive is explicitly outside the supported contract; the lifecycle fails without claiming cleanup or absence.
 - Cleanup evidence is emitted after every valid lease outcome now; Plan 04-06 remains responsible for separating final artifact-validation, operation, and cleanup precedence domains.
@@ -149,15 +155,24 @@ status: complete
 - **Verification:** Immediate throw, immediate malformed return, concurrent double invocation, and retained late invocation all pass with exact adapter call counts and filesystem absence evidence.
 - **Committed in:** `a0f16d1`
 
+**6. [Rule 1 - Correctness] Reject synchronous creation-adapter reentry**
+- **Found during:** Final independent ownership review
+- **Issue:** The creation promise was assigned only after the async initializer entered `createCandidateState`. A synchronously reentrant primitive call therefore observed no promise, started a second identity, and allowed the outer registration to produce a success lease.
+- **Fix:** Added a separate start sentinel set synchronously before invoking the creation adapter and used it as the one-shot guard while retaining the existing promise settlement and closure state machine.
+- **Files modified:** `src/release-candidate.ts`, `tests/release-candidate.test.ts`
+- **Verification:** Reentrant invocation rejects, the adapter runs once, the invalid contract produces created-failure, cleanup runs once, and the sole candidate is absent.
+- **Committed in:** `df75e19`
+
 ---
 
-**Total deviations:** 5 auto-fixed correctness/test-quality issues. **Impact on plan:** All changes strengthen the required ownership and evidence contract without expanding scope.
+**Total deviations:** 6 auto-fixed correctness/test-quality issues. **Impact on plan:** All changes strengthen the required ownership and evidence contract without expanding scope.
 
 ## Issues Encountered
 
 - Adding explicit cleanup evidence made exact-object legacy assertions reject the intentional extra field; the final tests now remove only that field and preserve exact checks for all existing domains.
 - A cleanup-capable identity cannot be recovered safely from a failed creation primitive. The lifecycle reports explicit zero-attempt uncertainty and leaves no false absence claim instead of attempting raw-path removal.
 - Provider settlement can precede asynchronously started creation. The lifecycle now waits only for the already-owned creation promise, with no timeout, retry, fallback, or second creator invocation.
+- Async function bodies run synchronously until their first suspension, so promise assignment cannot itself prevent adapter-driven reentry; the explicit start sentinel closes that interval.
 
 ## Verification Evidence
 
@@ -177,6 +192,7 @@ status: complete
 - Confirmed providers cannot obtain a lease by skipping the primitive, returning a forged token, or returning raw created state.
 - Confirmed provider throw or malformed return cannot outrun an already-started creation; valid late identity is cleaned once before the lifecycle returns.
 - Confirmed concurrent and post-settlement primitive calls reject explicitly and never invoke the creation adapter again.
+- Confirmed synchronous adapter reentry rejects before a second adapter invocation and invalidates lease acquisition while preserving cleanup ownership of the first identity.
 - Confirmed cleanup is never retried and no raw `rm` fallback exists in production lifecycle code.
 - Confirmed malformed acquisition and cleanup getters, proxies, thenables, and exceptions map to stable sanitized evidence.
 - Confirmed identity-unavailable contract failures report zero attempts truthfully, while every successfully registered creation performs one cleanup attempt after acquisition failure.
@@ -194,7 +210,7 @@ None - no external service configuration required.
 
 ## Self-Check: PASSED
 
-- RED commit `8545a89` precedes GREEN commit `31c8082`; review RED/GREEN pairs are `48b165e` → `c2b39c8`, `c9507d5` → `e1d668a`, and `9fd0961` → `a0f16d1`.
+- RED commit `8545a89` precedes GREEN commit `31c8082`; review RED/GREEN pairs are `48b165e` → `c2b39c8`, `c9507d5` → `e1d668a`, `9fd0961` → `a0f16d1`, and `ccf2b74` → `df75e19`.
 - Focused, candidate/install, full-suite, typecheck, build, RC, diff, generated-artifact, and graph-exclusion gates passed.
 - RCCL-01 has unique Plan 04-05 traceability and complete implementation/test evidence.
 
