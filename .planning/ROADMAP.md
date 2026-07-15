@@ -52,7 +52,16 @@ Execution history: `.planning/milestones/v1.13-phases/`
   3. An agent receives safe relative-path blockers for links, reparse points, special entries, escapes, traversal, absolute paths, and case-folded collisions, with no dereference or repair.
   4. An agent receives the established structure, metadata, placeholder, and redacted sensitive-material blockers without either source tree being modified.
   5. An agent receives an explicit failure when a source tree changes during assembly.
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+
+- [ ] 03-01: Extract shared release-readiness policy with exact dry-run compatibility.
+- [ ] 03-02: Gate invalid addon and source-root inputs before candidate creation.
+- [ ] 03-03: Reject unsafe filesystem entries and normalized path identities.
+- [ ] 03-04: Own a canonically isolated callback-scoped candidate lifetime.
+- [ ] 03-05: Assemble the complete fixed two-root addon layout.
+- [ ] 03-06: Detect source mutation, prove source immutability, and run the full quality gate.
 
 ### Phase 4: Integrity Manifest and Verified Cleanup
 **Goal**: Users can trust that the candidate exactly matches stable source bytes and that no temporary candidate remains after any outcome.
@@ -82,6 +91,6 @@ Execution history: `.planning/milestones/v1.13-phases/`
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 3. Safe Candidate Assembly | 0/TBD | Not started | - |
+| 3. Safe Candidate Assembly | 0/6 | Planned | - |
 | 4. Integrity Manifest and Verified Cleanup | 0/TBD | Not started | - |
 | 5. Unified MCP and Remote Target Parity | 0/TBD | Not started | - |
