@@ -6,6 +6,7 @@ import {
   continueReleaseCandidatePreparation,
   inventoryReleaseCandidateSources,
   prepareReleaseCandidateInput,
+  withAssembledReleaseCandidate,
   type ReleaseCandidateEntryKind,
   type ReleaseCandidateFilesystem,
   type ValidatedReleaseCandidateInput
@@ -55,6 +56,152 @@ afterEach(async () => {
 });
 
 describe("release candidate input validation", () => {
+  test("keeps the candidate canonically isolated and callback scoped", async () => {
+    const createLifecycleFilesystem = (fixture: Fixture, options: {
+      aliasCreatedRootTo?: string;
+      failRemoval?: boolean;
+    } = {}) => {
+      let candidateRoot: string | undefined;
+      const writes: Array<{ operation: "create" | "remove"; path: string }> = [];
+      const createCandidateRoot = vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+        candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+        writes.push({ operation: "create", path: candidateRoot });
+        return candidateRoot;
+      });
+      const removeCandidateRoot = vi.fn(async (path: string) => {
+        writes.push({ operation: "remove", path });
+        if (options.failRemoval === true) {
+          throw new Error(`EACCES: ${join(fixture.root, "credential_password=private-value")}`);
+        }
+        await rm(path, { recursive: true, force: false });
+      });
+      const filesystem = {
+        lstat,
+        realpath: vi.fn(async (path: string) => (
+          candidateRoot !== undefined
+          && path === candidateRoot
+          && options.aliasCreatedRootTo !== undefined
+            ? await realpath(options.aliasCreatedRootTo)
+            : await realpath(path)
+        )),
+        readDirectory: async (path: string) => await readdir(path),
+        classifySourceEntry: classifyFixtureEntry,
+        createCandidateRoot,
+        removeCandidateRoot
+      };
+      return {
+        filesystem,
+        createCandidateRoot,
+        removeCandidateRoot,
+        writes,
+        candidateRoot: () => candidateRoot
+      };
+    };
+
+    const successfulFixture = await createFixture();
+    const successfulLifecycle = createLifecycleFilesystem(successfulFixture);
+    const inspectSuccess = vi.fn(async (candidateRoot: string) => {
+      expect((await lstat(candidateRoot)).isDirectory()).toBe(true);
+      expect(candidateRoot.startsWith(`${await realpath(successfulFixture.tempParent)}/`)).toBe(true);
+      return "inspected";
+    });
+
+    const successfulResult = await withAssembledReleaseCandidate(
+      {
+        addonName: "fixture_addon",
+        dotaRoot: successfulFixture.dotaRoot,
+        tempParent: successfulFixture.tempParent
+      },
+      inspectSuccess,
+      {
+        repositoryRoot: successfulFixture.repositoryRoot,
+        filesystem: successfulLifecycle.filesystem
+      }
+    );
+
+    expect(successfulResult).toEqual({ ok: true, value: "inspected" });
+    expect(successfulLifecycle.createCandidateRoot).toHaveBeenCalledTimes(1);
+    expect(successfulLifecycle.removeCandidateRoot).toHaveBeenCalledTimes(1);
+    expect(inspectSuccess).toHaveBeenCalledTimes(1);
+    expect(successfulLifecycle.writes.map(({ operation }) => operation)).toEqual(["create", "remove"]);
+    const successfulRoot = successfulLifecycle.candidateRoot();
+    if (successfulRoot === undefined) throw new Error("candidate root was not recorded");
+    await expect(lstat(successfulRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const callbackFixture = await createFixture();
+    const callbackLifecycle = createLifecycleFilesystem(callbackFixture);
+    const privateFailure = join(callbackFixture.root, "credential_password=private-value");
+    const callbackResult = await withAssembledReleaseCandidate(
+      {
+        addonName: "fixture_addon",
+        dotaRoot: callbackFixture.dotaRoot,
+        tempParent: callbackFixture.tempParent
+      },
+      async () => {
+        throw new Error(`inspection failed at ${privateFailure}`);
+      },
+      { repositoryRoot: callbackFixture.repositoryRoot, filesystem: callbackLifecycle.filesystem }
+    );
+
+    expect(callbackResult).toEqual({
+      ok: false,
+      blockers: [{ code: "CANDIDATE_INSPECTION_FAILED", category: "inspection" }]
+    });
+    expect(JSON.stringify(callbackResult)).not.toContain(callbackFixture.root);
+    expect(JSON.stringify(callbackResult)).not.toContain("private-value");
+    const callbackRoot = callbackLifecycle.candidateRoot();
+    if (callbackRoot === undefined) throw new Error("callback candidate root was not recorded");
+    await expect(lstat(callbackRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const aliasFixture = await createFixture();
+    const aliasLifecycle = createLifecycleFilesystem(aliasFixture, {
+      aliasCreatedRootTo: aliasFixture.gameAddonRoot
+    });
+    const inspectAlias = vi.fn(async () => "unexpected");
+    const aliasResult = await withAssembledReleaseCandidate(
+      {
+        addonName: "fixture_addon",
+        dotaRoot: aliasFixture.dotaRoot,
+        tempParent: aliasFixture.tempParent
+      },
+      inspectAlias,
+      { repositoryRoot: aliasFixture.repositoryRoot, filesystem: aliasLifecycle.filesystem }
+    );
+
+    expect(aliasResult).toEqual({
+      ok: false,
+      blockers: [{ code: "CANDIDATE_ROOT_NOT_ISOLATED", category: "unsafe-isolation" }]
+    });
+    expect(aliasLifecycle.createCandidateRoot).toHaveBeenCalledTimes(1);
+    expect(aliasLifecycle.removeCandidateRoot).toHaveBeenCalledTimes(1);
+    expect(inspectAlias).not.toHaveBeenCalled();
+    const aliasRoot = aliasLifecycle.candidateRoot();
+    if (aliasRoot === undefined) throw new Error("aliased candidate root was not recorded");
+    await expect(lstat(aliasRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const removalFixture = await createFixture();
+    const removalLifecycle = createLifecycleFilesystem(removalFixture, { failRemoval: true });
+    const removalResult = await withAssembledReleaseCandidate(
+      {
+        addonName: "fixture_addon",
+        dotaRoot: removalFixture.dotaRoot,
+        tempParent: removalFixture.tempParent
+      },
+      async () => "inspected",
+      { repositoryRoot: removalFixture.repositoryRoot, filesystem: removalLifecycle.filesystem }
+    );
+
+    expect(removalResult).toEqual({
+      ok: false,
+      blockers: [{ code: "CANDIDATE_REMOVAL_FAILED", category: "removal" }]
+    });
+    expect(JSON.stringify(removalResult)).not.toContain(removalFixture.root);
+    expect(JSON.stringify(removalResult)).not.toContain("private-value");
+    const residualRoot = removalLifecycle.candidateRoot();
+    if (residualRoot === undefined) throw new Error("residual candidate root was not recorded");
+    expect((await lstat(residualRoot)).isDirectory()).toBe(true);
+  });
+
   test("blocks invalid inputs before candidate creation", async () => {
     const cases: Array<{
       name: string;
