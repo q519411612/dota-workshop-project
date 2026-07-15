@@ -261,6 +261,7 @@ async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise
       continue;
     }
 
+    addIdentity(input.identities, identity);
     const sourcePath = join(input.sourceRoot, ...input.segments, name);
     let kind: ReleaseCandidateEntryKind;
     try {
@@ -299,7 +300,6 @@ async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise
       continue;
     }
 
-    addIdentity(input.identities, identity);
     input.entries.push({ root: input.root, path: identity, kind });
 
     if (kind === "directory") {
