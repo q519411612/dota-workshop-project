@@ -89,6 +89,57 @@ export function evaluateReleaseReadiness(input) {
     }
     return findings;
 }
+export function evaluateReleaseScanCoverage(input) {
+    const paths = {
+        text: [],
+        binary: [],
+        unreadable: [],
+        oversized: []
+    };
+    const observations = [];
+    for (const scanRoot of input.scanRoots) {
+        if (!isScanRootIdentity(scanRoot?.root) || !Array.isArray(scanRoot.files))
+            continue;
+        for (const file of scanRoot.files) {
+            if (file === null || typeof file !== "object" || typeof file.relativePath !== "string")
+                continue;
+            const category = scanCoverageCategory(file.state);
+            if (category === undefined || safeFindingPath(file.relativePath) === undefined)
+                continue;
+            observations.push({ root: scanRoot.root, relativePath: file.relativePath, category });
+        }
+    }
+    observations.sort((left, right) => {
+        return compareOrdinal(`${left.root}/${left.relativePath}`, `${right.root}/${right.relativePath}`);
+    });
+    for (const observation of observations) {
+        const safePath = safeFindingPath(observation.relativePath);
+        if (safePath !== undefined)
+            paths[observation.category].push(`${observation.root}/${safePath}`);
+    }
+    return Object.freeze({
+        schemaVersion: "1.0",
+        totalFileCount: observations.length,
+        text: coverageCategory(paths.text),
+        binary: coverageCategory(paths.binary),
+        unreadable: coverageCategory(paths.unreadable),
+        oversized: coverageCategory(paths.oversized)
+    });
+}
+function scanCoverageCategory(state) {
+    if (state === "text")
+        return "text";
+    if (state === "binary" || state === "non-text")
+        return "binary";
+    if (state === "unreadable" || state === "invalid-encoding")
+        return "unreadable";
+    if (state === "oversized")
+        return "oversized";
+    return undefined;
+}
+function coverageCategory(paths) {
+    return Object.freeze({ count: paths.length, paths: Object.freeze(paths) });
+}
 function appendMetadataFindings(findings, metadata) {
     if (metadata === null || typeof metadata !== "object" || !("state" in metadata)) {
         findings.push({ code: "POLICY_INPUT_INVALID", category: "metadata-observation", disposition: "blocker" });
@@ -158,7 +209,7 @@ function appendScanFindings(findings, file) {
         }
         return;
     }
-    if (file.state === "non-text") {
+    if (file.state === "binary" || file.state === "non-text") {
         findings.push({
             code: "NON_TEXT_INCLUDED",
             category: "non-text",
@@ -167,7 +218,7 @@ function appendScanFindings(findings, file) {
         });
         return;
     }
-    if (file.state !== "oversized" && file.state !== "unreadable") {
+    if (file.state !== "oversized" && file.state !== "unreadable" && file.state !== "invalid-encoding") {
         findings.push({ code: "POLICY_INPUT_INVALID", category: "metadata-observation", disposition: "blocker" });
         return;
     }
