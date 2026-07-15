@@ -316,6 +316,42 @@ describe("release candidate public detail", () => {
     }
   });
 
+  test("rejects foreign arrays whose length changes during occurrence snapshotting", () => {
+    const input = validSuccess();
+    const firstEntry = input.manifest.entries[0];
+    const originalEntries = [...input.manifest.entries];
+    const changingEntries = () => {
+      let lengthReads = 0;
+      return new Proxy([...originalEntries], {
+        get(target, property, receiver) {
+          if (property === "length") {
+            lengthReads += 1;
+            return lengthReads === 1 ? 2 : 0;
+          }
+          return Reflect.get(target, property, receiver);
+        }
+      });
+    };
+    const combinedSha256 = computeReleaseCandidateCombinedDigest([firstEntry]);
+    input.manifest = { ...input.manifest, entries: changingEntries(), combinedSha256 };
+    input.artifactValidation.manifest = {
+      ...input.artifactValidation.manifest,
+      entries: changingEntries(),
+      combinedSha256
+    };
+    for (const ledger of [input.inclusionLedger, input.artifactValidation.inclusionLedger]) {
+      ledger.expectedFileCount = 1;
+      ledger.observedFileCount = 1;
+      ledger.matchedFileCount = 1;
+    }
+    for (const scanCoverage of [input.scanCoverage, input.artifactValidation.scanCoverage]) {
+      scanCoverage.totalFileCount = 1;
+      scanCoverage.text = { count: 1, paths: [firstEntry.path] };
+    }
+
+    expectNormalizationFailure(input);
+  });
+
   test("normalizes equivalent complete execution facts equally while preserving uncertainty", () => {
     const fixture = validSuccess();
     const remote = structuredClone(fixture);
