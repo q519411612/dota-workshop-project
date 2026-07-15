@@ -7,6 +7,7 @@ import {
   CreateAddonInputSchema,
   DryRunReleaseReportInputSchema,
   InspectWorkshopPreflightInputSchema,
+  PreflightReleaseCandidateInputSchema,
   RunPlayableSmokeInputSchema
 } from "../src/schemas.js";
 
@@ -15,6 +16,7 @@ const requiredExamples = [
   "fixture-create-addon.json",
   "fixture-preflight.json",
   "fixture-release-dry-run.json",
+  "fixture-release-candidate-preflight.json",
   "remote-playable-smoke.template.json"
 ];
 
@@ -22,6 +24,7 @@ const schemasByOperation: Record<string, z.ZodTypeAny> = {
   create_addon: CreateAddonInputSchema,
   inspect_workshop_preflight: InspectWorkshopPreflightInputSchema,
   dry_run_release_report: DryRunReleaseReportInputSchema,
+  preflight_release_candidate: PreflightReleaseCandidateInputSchema,
   run_playable_smoke: RunPlayableSmokeInputSchema
 };
 
@@ -97,5 +100,25 @@ describe("operator runbook and workflow examples", () => {
     expect(readme).toContain("examples/workflows/");
     expect(readme).toContain("safe templates");
     expect(readme).toContain("not upload automation");
+  });
+
+  test("candidate preflight guidance preserves the evidence-only release boundary", async () => {
+    const paths = [
+      "README.md",
+      "skills/dota2-workshop-tools/SKILL.md",
+      "skills/dota2-workshop-tools/references/remote-control.md",
+      "docs/operator-runbook.md"
+    ];
+    for (const path of paths) {
+      const content = await readText(path);
+      expect(content).toContain("preflight_release_candidate");
+      expect(content).toContain("contract evidence");
+      expect(content).toContain("no candidate remains to upload");
+      expect(content).toContain("not an official Valve upload payload");
+    }
+    const runbook = await readText("docs/operator-runbook.md");
+    expect(runbook).toContain("manifest plus verified cleanup proof");
+    expect(runbook).toContain("does not prove real Windows reparse, canonicalization, transport, or cleanup behavior");
+    expect(runbook).toContain("authorization is external runtime configuration");
   });
 });

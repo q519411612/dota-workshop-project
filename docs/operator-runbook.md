@@ -37,6 +37,7 @@ Use fixture targets for local dry checks that do not need Dota 2 or Windows:
 2. Use `examples/workflows/fixture-create-addon.json` with `create_addon`.
 3. Use `examples/workflows/fixture-preflight.json` with `inspect_workshop_preflight`.
 4. Use `examples/workflows/fixture-release-dry-run.json` with `dry_run_release_report`.
+5. Use `examples/workflows/fixture-release-candidate-preflight.json` with `preflight_release_candidate`.
 
 Fixture workflows are useful for checking generated file layout, metadata blockers, publishing boundaries, and sensitive information scanning. They do not prove runtime behavior.
 
@@ -71,6 +72,23 @@ Use `inspect_workshop_preflight` to inspect addon layout, Panorama boundaries, t
 Use `dry_run_release_report` for release/package review after addon files exist. It checks package candidate files, publish-facing metadata, and obvious sensitive material.
 
 These checks are dry-run review steps. They do not create archives, sign packages, encrypt content, authenticate accounts, mutate Workshop state, or upload to Workshop.
+
+## Release Candidate Evidence
+
+Call `preflight_release_candidate` with only `target` and `addonName` when the source addon trees are already complete. Fixture and local targets run the production Node lifecycle. SSH and PowerShell Remoting run one target-native lifecycle; remote failure is final and never falls back locally.
+
+Read the structured result in this order:
+
+1. `artifactValidation` and `blockers` describe the source/candidate evidence that was strictly proven.
+2. `manifest`, `inclusionLedger`, and `scanCoverage` must be complete and internally consistent for artifact success.
+3. `cleanup` must show exactly one attempt, identity match, removal, and verified absence for overall success.
+4. `boundaries` must retain every prohibited-operation statement.
+
+The manifest plus verified cleanup proof is the deliverable; no candidate remains to upload. Do not describe a deleted candidate path as upload-ready. The two-root layout is not an official Valve upload payload.
+
+Fixture, local-adapter, mocked SSH, and mocked PowerShell results are contract evidence. This evidence does not prove real Windows reparse, canonicalization, transport, or cleanup behavior. Real Windows evidence is optional supporting evidence, not the v1.14 completion gate.
+
+Remote authorization is external runtime configuration. `preflight_release_candidate` never accepts, loads, stores, prompts for, or synthesizes credentials. It does not log into Steam, create or modify Workshop items, upload, create persistent archives, sign, encrypt, launch Dota, validate runtime behavior, compile or convert addon source, repair metadata, retain candidates, or transfer addon files.
 
 ## Troubleshooting
 

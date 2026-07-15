@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, test } from "vitest";
@@ -91,6 +91,22 @@ async function createPluginFixture(options: {
 }
 
 describe("plugin readiness verifier", () => {
+  test("keeps candidate preflight discoverable in canonical operator surfaces", async () => {
+    const readme = await readFile("README.md", "utf8");
+    const readmeToolList = readme.slice(
+      readme.indexOf("## MCP Tools"),
+      readme.indexOf("## Targets")
+    );
+    expect(readmeToolList.match(/`preflight_release_candidate`/g)).toHaveLength(1);
+
+    const skill = await readFile("skills/dota2-workshop-tools/SKILL.md", "utf8");
+    const skillToolList = skill.slice(
+      skill.indexOf("Expected v1 operations:"),
+      skill.indexOf("Every result must make failures visible.")
+    );
+    expect(skillToolList.match(/`preflight_release_candidate`/g)).toHaveLength(1);
+  });
+
   test("passes a complete plugin handoff fixture", async () => {
     const root = await createPluginFixture();
     try {

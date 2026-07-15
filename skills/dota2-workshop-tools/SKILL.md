@@ -114,6 +114,8 @@ For v2.7 Workshop preflight, call `inspect_workshop_preflight` when the user ask
 
 For v1.2 release readiness, call `dry_run_release_report` when the user asks for a pre-upload release/package review. Treat blockers as release-stopping until resolved. The operation checks metadata completeness, package candidate files, and sensitive information markers; it never accepts credentials, logs into Steam, encrypts content, creates upload artifacts, uploads to Workshop, or proves runtime validation.
 
+For v1.14 release-candidate evidence, call `preflight_release_candidate` with only `target` and `addonName`. Fixture/local and SSH/PowerShell targets share the same strict artifact, manifest, blocker, cleanup, safe-path, and boundary semantics. Treat the result as contract evidence: it does not prove real Windows reparse, canonicalization, transport, or cleanup behavior. The manifest plus verified cleanup proof is the deliverable, no candidate remains to upload, and the two-root candidate is not an official Valve upload payload. Never retry or fall back locally after a remote failure. Remote authorization is external runtime configuration; the operation never handles credentials, Steam login, Workshop item mutation, upload, archive, signing, encryption, launch, runtime validation, compilation, source conversion, metadata repair, candidate retention, or file transfer.
+
 ## Editing Rules
 
 - Use English identifiers, file names, configuration keys, and API names.

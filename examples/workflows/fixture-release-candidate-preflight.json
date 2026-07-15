@@ -1,0 +1,14 @@
+{
+  "operation": "preflight_release_candidate",
+  "input": {
+    "target": {
+      "kind": "fixture",
+      "root": "/tmp/dota-fixture"
+    },
+    "addonName": "demo_addon"
+  },
+  "notes": [
+    "Contract evidence only; this creates one temporary candidate and verifies its removal.",
+    "The manifest plus cleanup proof is the deliverable, and no candidate remains to upload."
+  ]
+}

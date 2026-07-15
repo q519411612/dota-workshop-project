@@ -279,6 +279,16 @@ The sensitive information scan reports only relative file paths and rule labels.
 
 This is a dry run only. It does not create archives, encrypt content, run build tools, store credentials, log into Steam, mutate Workshop publish state, upload to Workshop, or prove runtime validation.
 
+## Release Candidate Preflight
+
+Use `preflight_release_candidate` after the existing `game` and `content` addon trees are ready for a strict evidence pass. The operation accepts only `target` and `addonName`. Fixture and local targets run the same production Node lifecycle; SSH and PowerShell Remoting run one target-native PowerShell lifecycle with no local fallback.
+
+The operation creates one isolated temporary candidate, inventories every regular source file without ignore or extension filtering, computes the ordinal manifest and combined digest, verifies the inclusion ledger and scan coverage, then removes the candidate exactly once and proves absence. The manifest plus verified cleanup proof is the deliverable; no candidate remains to upload. The deleted path is not upload-ready material and the two-root layout is not an official Valve upload payload.
+
+Passing fixture, local-adapter, mocked SSH, and mocked PowerShell tests are contract evidence. They do not prove real Windows reparse, canonicalization, transport, or cleanup behavior. Results explicitly keep `realWindowsRuntimeProven` false.
+
+Remote authorization is external runtime configuration. The operation never accepts, loads, stores, prompts for, or synthesizes credentials. It does not log into Steam, create or modify a Workshop item, upload, archive, sign, encrypt, launch the game, validate runtime behavior, compile or convert source, repair metadata, retain a candidate, or transfer addon files.
+
 ## Custom Map Preparation
 
 `prepare_custom_map` prepares a launchable custom-map source for an existing addon by copying the installed Workshop template map:
