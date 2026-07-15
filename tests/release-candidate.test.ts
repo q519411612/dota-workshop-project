@@ -196,6 +196,7 @@ describe("release candidate input validation", () => {
     });
 
     const inspect = vi.fn(async (root: string) => {
+      expect(await readdir(root)).toEqual(["content", "game"]);
       const gameRoot = join(root, "game", "dota_addons", "fixture_addon");
       const contentRoot = join(root, "content", "dota_addons", "fixture_addon");
       expect((await lstat(gameRoot)).isDirectory()).toBe(true);
@@ -305,6 +306,68 @@ describe("release candidate input validation", () => {
     });
     expect(JSON.stringify(sensitiveBlocked)).not.toContain("synthetic-private-value");
     expect(candidateRoot).toBeUndefined();
+  });
+
+  test("rejects every unexpected leased-root entry before assembly", async () => {
+    for (const kind of ["file", "directory", "symbolic-link"] as const) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      let candidateRoot: string | undefined;
+      const makeDirectory = vi.fn(async (path: string) => await mkdir(path));
+      const copySourceFile = vi.fn(async (source: string, destination: string) => (
+        await copyFile(source, destination)
+      ));
+      const cleanupCandidateLease = vi.fn(async (identity: { root: string; rogue: string }) => {
+        expect(await lstat(identity.rogue)).toBeDefined();
+        await rm(identity.root, { recursive: true, force: false });
+        return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
+      });
+      const filesystem: ReleaseCandidateFilesystem = {
+        ...assemblyOperations,
+        makeDirectory,
+        copySourceFile,
+        lstat,
+        realpath,
+        readDirectory: async (path) => (await readdir(path)).reverse(),
+        classifySourceEntry: classifyFixtureEntry,
+        createCandidateRoot: vi.fn(async () => {
+          throw new Error("raw candidate creation must not be used");
+        }),
+        candidateLifecycle: createIdentityBoundCandidateLifecycle({
+          createCandidateLease: async (validated) => {
+            candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+            const rogue = join(candidateRoot, `rogue-${kind}`);
+            if (kind === "file") await writeFile(rogue, "rogue\n");
+            if (kind === "directory") await mkdir(rogue);
+            if (kind === "symbolic-link") await symlink(fixture.repositoryRoot, rogue);
+            return { inspectionRoot: candidateRoot, identity: { root: candidateRoot, rogue } };
+          },
+          cleanupCandidateLease
+        })
+      };
+      const inspect = vi.fn(async () => "unexpected");
+
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        inspect,
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+
+      expect(result, kind).toEqual({
+        ok: false,
+        blockers: [{
+          code: "CANDIDATE_ROOT_NOT_EMPTY",
+          category: "unexpected-entry",
+          path: `rogue-${kind}`
+        }]
+      });
+      expect(makeDirectory, kind).not.toHaveBeenCalled();
+      expect(copySourceFile, kind).not.toHaveBeenCalled();
+      expect(inspect, kind).not.toHaveBeenCalled();
+      expect(cleanupCandidateLease, kind).toHaveBeenCalledTimes(1);
+      if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
+      await expect(lstat(candidateRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    }
   });
 
   test("keeps the candidate canonically isolated and callback scoped", async () => {
