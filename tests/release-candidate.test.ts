@@ -5423,4 +5423,259 @@ describe("release candidate input validation", () => {
     expect(precreationCount).toBe(0);
     expect(precreationCleanupCount).toBe(0);
   });
+
+  test("preserves final artifact truth across callback and cleanup failures", async () => {
+    const verifiedCleanup = {
+      schemaVersion: "1.0",
+      attempted: true,
+      attempts: 1,
+      ok: true,
+      removed: true,
+      absent: true,
+      identityMatched: true
+    } as const;
+    const cleanupScenarios: Array<Readonly<{
+      name: string;
+      result: unknown;
+      expectedCode?: string;
+    }>> = [
+      { name: "verified", result: verifiedCleanup },
+      {
+        name: "identity mismatch",
+        result: {
+          schemaVersion: "1.0",
+          attempted: true,
+          attempts: 1,
+          ok: false,
+          removed: true,
+          absent: true,
+          identityMatched: false,
+          code: "CANDIDATE_IDENTITY_MISMATCH"
+        },
+        expectedCode: "CANDIDATE_IDENTITY_MISMATCH"
+      },
+      {
+        name: "removal false",
+        result: {
+          schemaVersion: "1.0",
+          attempted: true,
+          attempts: 1,
+          ok: false,
+          removed: false,
+          absent: false,
+          identityMatched: true,
+          code: "CANDIDATE_REMOVAL_FAILED"
+        },
+        expectedCode: "CANDIDATE_REMOVAL_FAILED"
+      },
+      {
+        name: "absence false",
+        result: {
+          schemaVersion: "1.0",
+          attempted: true,
+          attempts: 1,
+          ok: false,
+          removed: true,
+          absent: false,
+          identityMatched: true,
+          code: "CANDIDATE_ABSENCE_UNVERIFIED"
+        },
+        expectedCode: "CANDIDATE_ABSENCE_UNVERIFIED"
+      },
+      {
+        name: "missing absence",
+        result: { schemaVersion: "1.0", attempted: true, attempts: 1, ok: true, removed: true, identityMatched: true },
+        expectedCode: "CANDIDATE_CLEANUP_RESULT_INVALID"
+      },
+      {
+        name: "unsupported version",
+        result: { ...verifiedCleanup, schemaVersion: "2.0" },
+        expectedCode: "CANDIDATE_CLEANUP_RESULT_INVALID"
+      },
+      {
+        name: "unsafe attempt count",
+        result: { ...verifiedCleanup, attempts: 2 },
+        expectedCode: "CANDIDATE_CLEANUP_RESULT_INVALID"
+      },
+      {
+        name: "throwing getter",
+        result: Object.defineProperty({}, "ok", { get: () => { throw new Error("private cleanup getter"); } }),
+        expectedCode: "CANDIDATE_CLEANUP_RESULT_INVALID"
+      },
+      {
+        name: "throwing proxy",
+        result: new Proxy({}, { get: () => { throw new Error("private cleanup proxy"); } }),
+        expectedCode: "CANDIDATE_CLEANUP_RESULT_INVALID"
+      },
+      {
+        name: "rejecting thenable",
+        result: { then: (_resolve: unknown, reject: (reason: unknown) => void) => reject(new Error("private cleanup thenable")) },
+        expectedCode: "CANDIDATE_CLEANUP_RESULT_INVALID"
+      }
+    ];
+
+    for (const scenario of cleanupScenarios) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      const sourceBefore = await snapshotSourceTrees(fixture);
+      let candidateRoot: string | undefined;
+      const cleanupCandidateLease = vi.fn(async (identity: { root: string }) => {
+        await rm(identity.root, { recursive: true, force: false });
+        return scenario.result as CandidateLeaseCleanupResult;
+      });
+      const callback = vi.fn(async () => Object.freeze({ result: "inspected", candidateRoot: "must-not-escape" }));
+      const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+        createCandidateLease: async (validated) => {
+          candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+        },
+        cleanupCandidateLease
+      });
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        callback,
+        {
+          repositoryRoot: fixture.repositoryRoot,
+          filesystem: {
+            lstat,
+            realpath,
+            readDirectory: async (path) => await readdir(path),
+            classifySourceEntry: classifyFixtureEntry,
+            createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+            candidateLifecycle: lifecycle
+          }
+        }
+      );
+
+      expect(cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
+      expect(callback, scenario.name).toHaveBeenCalledTimes(1);
+      expect(Object.isFrozen(result), scenario.name).toBe(true);
+      expect(Object.isFrozen(Reflect.get(result, "artifactValidation")), scenario.name).toBe(true);
+      expect(Object.isFrozen(Reflect.get(result, "operation")), scenario.name).toBe(true);
+      expect(Object.isFrozen(Reflect.get(result, "cleanup")), scenario.name).toBe(true);
+      expect(result, scenario.name).toMatchObject({
+        ok: scenario.expectedCode === undefined,
+        operation: { status: "completed" },
+        artifactValidation: {
+          status: "passed",
+          manifest: { schemaVersion: "1.0", entries: expect.any(Array), combinedSha256: expect.stringMatching(/^[0-9a-f]{64}$/) },
+          inclusionLedger: { schemaVersion: "1.0", expectedFileCount: 7, observedFileCount: 7, matchedFileCount: 7 },
+          scanCoverage: expect.any(Object)
+        },
+        cleanup: scenario.expectedCode === undefined
+          ? { schemaVersion: "1.0", attempted: true, attempts: 1, status: "verified", verified: true }
+          : { schemaVersion: "1.0", attempted: true, attempts: 1, status: "failed", verified: false, code: scenario.expectedCode }
+      });
+      if (scenario.expectedCode === undefined) {
+        expect(result, scenario.name).toHaveProperty("value");
+      } else {
+        expect(result, scenario.name).not.toHaveProperty("value");
+        expect(JSON.stringify(result), scenario.name).not.toContain("must-not-escape");
+      }
+      expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
+      expect(JSON.stringify(result), scenario.name).not.toContain("private cleanup");
+      expect(await snapshotSourceTrees(fixture), scenario.name).toEqual(sourceBefore);
+      if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
+      await expect(lstat(candidateRoot), scenario.name).rejects.toMatchObject({ code: "ENOENT" });
+    }
+
+    for (const scenario of [
+      { name: "callback failure", mutation: false, callbackThrows: true, artifactStatus: "passed", artifactCode: undefined },
+      { name: "callback mutation", mutation: true, callbackThrows: false, artifactStatus: "blocked", artifactCode: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH" },
+      { name: "mutation before throw", mutation: true, callbackThrows: true, artifactStatus: "blocked", artifactCode: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH" }
+    ] as const) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      const sourceBefore = await snapshotSourceTrees(fixture);
+      const events: string[] = [];
+      let candidateRoot: string | undefined;
+      let callbackSettled = false;
+      const cleanupCandidateLease = vi.fn(async (identity: { root: string }) => {
+        events.push("cleanup");
+        await rm(identity.root, { recursive: true, force: false });
+        return verifiedCleanup;
+      });
+      const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+        createCandidateLease: async (validated) => {
+          candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+        },
+        cleanupCandidateLease,
+        observeAcceptedSource: async (input, entry) => {
+          if (callbackSettled) events.push(`source-after:${entry.path}`);
+          const prefix = `${entry.root}/dota_addons/${input.addonName}/`;
+          const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+          return await streamFixtureIntegrity(join(sourceRoot, ...entry.path.slice(prefix.length).split("/")), entry.root, entry.path);
+        },
+        observeCandidate: async (identity, expected) => {
+          events.push(callbackSettled ? "candidate-after" : "candidate-before");
+          return {
+            ok: true,
+            schemaVersion: "1.0",
+            observations: await Promise.all(expected.filter((entry) => entry.kind === "file").map(async (entry) => {
+              const [root] = entry.path.split("/");
+              return await streamFixtureIntegrity(join(identity.root, ...entry.path.split("/")), root as "game" | "content", entry.path);
+            }))
+          };
+        },
+        reconcileCandidateTree: async (identity, expected) => {
+          if (callbackSettled) events.push("reconcile-after");
+          const actual: CandidateExpectedEntry[] = [];
+          const walk = async (directory: string): Promise<void> => {
+            for (const name of (await readdir(directory)).sort()) {
+              const path = join(directory, name);
+              const info = await lstat(path);
+              actual.push({ path: relative(identity.root, path).replaceAll("\\", "/"), kind: info.isDirectory() ? "directory" : "file" });
+              if (info.isDirectory()) await walk(path);
+            }
+          };
+          await walk(identity.root);
+          return JSON.stringify(actual) === JSON.stringify(expected)
+            ? { ok: true, exact: true, identityMatched: true }
+            : { ok: false, code: "CANDIDATE_TREE_MISMATCH", issues: [{ code: "CANDIDATE_TREE_MISSING", path: "game/dota_addons/fixture_addon/addoninfo.txt" }] };
+        }
+      });
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        async (root) => {
+          events.push("callback");
+          if (scenario.mutation) await writeFile(join(root, "game/dota_addons/fixture_addon/addoninfo.txt"), "mutated candidate\n");
+          callbackSettled = true;
+          if (scenario.callbackThrows) throw new Error(`private callback failure ${fixture.root}`);
+          return Object.freeze({ candidateRoot: root });
+        },
+        {
+          repositoryRoot: fixture.repositoryRoot,
+          filesystem: {
+            lstat,
+            realpath,
+            readDirectory: async (path) => await readdir(path),
+            classifySourceEntry: classifyFixtureEntry,
+            createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+            candidateLifecycle: lifecycle
+          }
+        }
+      );
+
+      expect(result, scenario.name).toMatchObject({
+        ok: false,
+        operation: { status: scenario.callbackThrows ? "failed" : "completed" },
+        artifactValidation: scenario.artifactStatus === "passed"
+          ? { status: "passed", manifest: expect.any(Object), inclusionLedger: expect.any(Object), scanCoverage: expect.any(Object) }
+          : { status: "blocked", blockers: [{ code: scenario.artifactCode, category: "integrity" }] },
+        cleanup: { status: "verified", attempts: 1 }
+      });
+      expect(result, scenario.name).not.toHaveProperty("value");
+      expect(events.indexOf("callback"), scenario.name).toBeGreaterThan(events.indexOf("candidate-before"));
+      expect(events.indexOf("candidate-after"), scenario.name).toBeGreaterThan(events.indexOf("callback"));
+      expect(events.some((event) => event.startsWith("source-after:")), scenario.name).toBe(true);
+      expect(events.indexOf("cleanup"), scenario.name).toBeGreaterThan(events.indexOf("candidate-after"));
+      expect(cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
+      expect(JSON.stringify(result), scenario.name).not.toContain("private callback");
+      expect(await snapshotSourceTrees(fixture), scenario.name).toEqual(sourceBefore);
+      if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
+      await expect(lstat(candidateRoot), scenario.name).rejects.toMatchObject({ code: "ENOENT" });
+    }
+  });
 });
