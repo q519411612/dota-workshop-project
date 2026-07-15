@@ -22,6 +22,14 @@ type Fixture = {
 
 const fixtureRoots: string[] = [];
 
+async function classifyFixtureEntry(path: string): Promise<ReleaseCandidateEntryKind> {
+  const stats = await lstat(path);
+  if (stats.isSymbolicLink()) return "symbolic-link";
+  if (stats.isFile()) return "file";
+  if (stats.isDirectory()) return "directory";
+  return "special";
+}
+
 async function createFixture(): Promise<Fixture> {
   const root = await mkdtemp(join(tmpdir(), "dota-candidate-input-"));
   fixtureRoots.push(root);
@@ -231,6 +239,8 @@ describe("release candidate input validation", () => {
           return await lstat(path);
         }),
         realpath,
+        readDirectory: async (path: string) => await readdir(path),
+        classifySourceEntry: classifyFixtureEntry,
         createCandidateRoot
       };
 
@@ -295,6 +305,8 @@ describe("release candidate input validation", () => {
         realpath: vi.fn(async (path: string) => (
           path === alias.source || path === aliasSource ? aliasTarget : await realpath(path)
         )),
+        readDirectory: async (path: string) => await readdir(path),
+        classifySourceEntry: classifyFixtureEntry,
         createCandidateRoot
       };
 
@@ -340,7 +352,13 @@ describe("release candidate input validation", () => {
     const createCandidateRoot = vi.fn(async (validated: ValidatedReleaseCandidateInput) => (
       join(validated.tempParent, "candidate")
     ));
-    const filesystem: ReleaseCandidateFilesystem = { lstat, realpath, createCandidateRoot };
+    const filesystem: ReleaseCandidateFilesystem = {
+      lstat,
+      realpath,
+      readDirectory: async (path) => await readdir(path),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot
+    };
     const continuation = vi.fn(async (validated: ValidatedReleaseCandidateInput) => (
       await filesystem.createCandidateRoot(validated)
     ));
@@ -380,18 +398,11 @@ describe("release candidate input validation", () => {
     const createCandidateRoot = vi.fn(async (validated: ValidatedReleaseCandidateInput) => (
       join(validated.tempParent, "candidate")
     ));
-    const classify = async (path: string): Promise<ReleaseCandidateEntryKind> => {
-      const stats = await lstat(path);
-      if (stats.isSymbolicLink()) return "symbolic-link";
-      if (stats.isFile()) return "file";
-      if (stats.isDirectory()) return "directory";
-      return "special";
-    };
     const filesystem: ReleaseCandidateFilesystem = {
       lstat,
       realpath,
       readDirectory: async (path) => await readdir(path),
-      classifySourceEntry: classify,
+      classifySourceEntry: classifyFixtureEntry,
       createCandidateRoot
     };
 
@@ -423,6 +434,7 @@ describe("release candidate input validation", () => {
       name: string;
       gameNames?: string[];
       contentNames?: string[];
+      directoryNames?: Record<string, string[]>;
       kinds?: Record<string, ReleaseCandidateEntryKind>;
       canonicalEscapes?: string[];
       expected: { code: string; path: string; category: string }[];
@@ -521,14 +533,26 @@ describe("release candidate input validation", () => {
         }]
       },
       {
-        name: "case-only collision",
+        name: "case-only collision with nested unsafe entry",
         gameNames: ["Scripts", "scripts"],
-        kinds: { "game/Scripts": "directory", "game/scripts": "directory" },
-        expected: [{
-          code: "SOURCE_IDENTITY_COLLISION",
-          path: "game/dota_addons/fixture_addon/scripts",
-          category: "case-fold"
-        }]
+        directoryNames: { "game/scripts": ["linked"] },
+        kinds: {
+          "game/Scripts": "directory",
+          "game/scripts": "directory",
+          "game/scripts/linked": "reparse"
+        },
+        expected: [
+          {
+            code: "SOURCE_IDENTITY_COLLISION",
+            path: "game/dota_addons/fixture_addon/scripts",
+            category: "case-fold"
+          },
+          {
+            code: "SOURCE_ENTRY_UNSAFE",
+            path: "game/dota_addons/fixture_addon/scripts/linked",
+            category: "reparse"
+          }
+        ]
       }
     ];
 
@@ -547,7 +571,7 @@ describe("release candidate input validation", () => {
         readDirectory: vi.fn(async (path) => {
           if (path === gameRoot) return scenario.gameNames ?? [];
           if (path === contentRoot) return scenario.contentNames ?? [];
-          return [];
+          return scenario.directoryNames?.[keyForPath(path)] ?? [];
         }),
         classifySourceEntry: vi.fn(async (path) => {
           classifiedPaths.push(path);
