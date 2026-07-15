@@ -559,6 +559,7 @@ describe("release candidate input validation", () => {
     for (const scenario of scenarios) {
       const classifiedPaths: string[] = [];
       const canonicalizedPaths: string[] = [];
+      const enumeratedPaths: string[] = [];
       const gameRoot = prepared.value.gameAddonRoot;
       const contentRoot = prepared.value.contentAddonRoot;
       const keyForPath = (path: string): string => {
@@ -569,6 +570,7 @@ describe("release candidate input validation", () => {
       const scenarioFilesystem: ReleaseCandidateFilesystem = {
         ...filesystem,
         readDirectory: vi.fn(async (path) => {
+          enumeratedPaths.push(path);
           if (path === gameRoot) return scenario.gameNames ?? [];
           if (path === contentRoot) return scenario.contentNames ?? [];
           return scenario.directoryNames?.[keyForPath(path)] ?? [];
@@ -597,6 +599,15 @@ describe("release candidate input validation", () => {
       if (scenario.name === "canonical escape") {
         expect(canonicalizedPaths).toContain(join(contentRoot, "escaped.txt"));
       }
+      if (["Windows reparse point", "special entry", "unknown entry"].includes(scenario.name)) {
+        const sourceRoot = scenario.gameNames === undefined ? contentRoot : gameRoot;
+        const unsafeName = (scenario.gameNames ?? scenario.contentNames)?.[0];
+        if (unsafeName === undefined) throw new Error("unsafe scenario did not provide an entry name");
+        const unsafePath = join(sourceRoot, unsafeName);
+        expect(classifiedPaths.filter((path) => path === unsafePath), scenario.name).toHaveLength(1);
+        expect(canonicalizedPaths, scenario.name).not.toContain(unsafePath);
+        expect(enumeratedPaths.filter((path) => path === unsafePath), scenario.name).toHaveLength(0);
+      }
     }
 
     await rm(join(fixture.gameAddonRoot, "linked.txt"));
@@ -617,6 +628,51 @@ describe("release candidate input validation", () => {
         { root: "game", path: "game/dota_addons/fixture_addon/zeta", kind: "directory" }
       ]
     });
+    expect(createCandidateRoot).not.toHaveBeenCalled();
+  });
+
+  test("preserves root provenance in deterministic global inventory order", async () => {
+    const fixture = await createFixture();
+    await Promise.all([
+      writeFile(join(fixture.gameAddonRoot, "Shared.TXT"), "game\n"),
+      writeFile(join(fixture.gameAddonRoot, "zeta.txt"), "game zeta\n"),
+      writeFile(join(fixture.contentAddonRoot, "shared.txt"), "content\n"),
+      writeFile(join(fixture.contentAddonRoot, "Alpha.txt"), "content alpha\n")
+    ]);
+    const createCandidateRoot = vi.fn(async (validated: ValidatedReleaseCandidateInput) => (
+      join(validated.tempParent, "candidate")
+    ));
+    const baseFilesystem: ReleaseCandidateFilesystem = {
+      lstat,
+      realpath,
+      readDirectory: async (path) => await readdir(path),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot
+    };
+    const prepared = await prepareReleaseCandidateInput(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      { repositoryRoot: fixture.repositoryRoot, filesystem: baseFilesystem }
+    );
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) throw new Error("fixture input was rejected");
+
+    const forward = await inventoryReleaseCandidateSources(prepared.value, baseFilesystem);
+    const reversed = await inventoryReleaseCandidateSources(prepared.value, {
+      ...baseFilesystem,
+      readDirectory: async (path) => (await readdir(path)).reverse()
+    });
+    const expected = {
+      ok: true,
+      entries: [
+        { root: "content", path: "content/dota_addons/fixture_addon/Alpha.txt", kind: "file" },
+        { root: "content", path: "content/dota_addons/fixture_addon/shared.txt", kind: "file" },
+        { root: "game", path: "game/dota_addons/fixture_addon/Shared.TXT", kind: "file" },
+        { root: "game", path: "game/dota_addons/fixture_addon/zeta.txt", kind: "file" }
+      ]
+    };
+
+    expect(forward).toEqual(expected);
+    expect(reversed).toEqual(expected);
     expect(createCandidateRoot).not.toHaveBeenCalled();
   });
 });
