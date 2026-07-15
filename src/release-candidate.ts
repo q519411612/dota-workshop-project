@@ -892,7 +892,8 @@ async function inspectCandidateLease<T>(
       && !sameIntegritySets(sourceBefore, sourceAfter.value);
     const candidateIntegrityChanged = candidateAfter.ok
       && !sameIntegritySets(sourceBefore, candidateAfter.value.observations);
-    if (sourceIntegrityChanged || candidateIntegrityChanged) return integrityMismatch();
+    if (sourceIntegrityChanged) return integrityMismatchWithCandidateEvidence(candidateAfter);
+    if (candidateIntegrityChanged) return integrityMismatch();
     if (finalStability !== undefined) return finalStability;
     if (finalReconciliation !== undefined) return finalReconciliation;
     if (!sourceAfter.ok) return sourceAfter;
@@ -1461,6 +1462,18 @@ function projectReleaseCandidateManifest(
 
 function integrityMismatch(): ReleaseCandidateLifecycleFailure {
   return lifecycleBlocked("RELEASE_CANDIDATE_INTEGRITY_MISMATCH", "integrity");
+}
+
+function integrityMismatchWithCandidateEvidence(
+  candidate: { ok: true; value: CandidateIntegrityCapture } | ReleaseCandidateLifecycleFailure
+): ReleaseCandidateLifecycleFailure {
+  const mismatch = integrityMismatch();
+  if (candidate.ok || candidate.inclusionLedger === undefined) return mismatch;
+  return {
+    ok: false,
+    inclusionLedger: candidate.inclusionLedger,
+    blockers: [...mismatch.blockers, ...candidate.blockers]
+  };
 }
 
 async function parseCandidateReconciliation(

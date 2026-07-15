@@ -3878,10 +3878,29 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, candidateFailure).toEqual({
-        ok: false,
-        blockers: [{ code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" }]
-      });
+      expect(result, candidateFailure).toEqual(candidateFailure === "malformed"
+        ? {
+            ok: false,
+            blockers: [{ code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" }]
+          }
+        : {
+            ok: false,
+            inclusionLedger: {
+              schemaVersion: "1.0",
+              expectedFileCount: 7,
+              observedFileCount: 8,
+              matchedFileCount: 6
+            },
+            blockers: [
+              { code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" },
+              {
+                code: "CANDIDATE_LEDGER_DUPLICATE",
+                category: "integrity-duplicate",
+                path: "game/dota_addons/fixture_addon/addoninfo.txt",
+                count: 2
+              }
+            ]
+          });
       expect(events, candidateFailure).toEqual([
         "callback",
         "final-source-stability",
@@ -3983,10 +4002,29 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, candidateFailure).toEqual({
-        ok: false,
-        blockers: [{ code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" }]
-      });
+      expect(result, candidateFailure).toEqual(candidateFailure === "malformed"
+        ? {
+            ok: false,
+            blockers: [{ code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" }]
+          }
+        : {
+            ok: false,
+            inclusionLedger: {
+              schemaVersion: "1.0",
+              expectedFileCount: 7,
+              observedFileCount: 8,
+              matchedFileCount: 6
+            },
+            blockers: [
+              { code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" },
+              {
+                code: "CANDIDATE_LEDGER_DUPLICATE",
+                category: "integrity-duplicate",
+                path: "game/dota_addons/fixture_addon/addoninfo.txt",
+                count: 2
+              }
+            ]
+          });
       expect(events, candidateFailure).toEqual([
         "callback",
         "final-source-stability",
