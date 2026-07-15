@@ -237,7 +237,6 @@ async function resolveLatestArchivedMilestone(root) {
         throw error;
     }
     const versions = entries
-        .filter((entry) => entry.isFile())
         .map((entry) => entry.name.match(/^(v\d+(?:\.\d+)*)-REQUIREMENTS\.md$/))
         .filter((match) => match !== null)
         .map((match) => match[1]);

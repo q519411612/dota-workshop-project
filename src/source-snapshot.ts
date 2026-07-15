@@ -314,7 +314,6 @@ async function resolveLatestArchivedMilestone(root: string): Promise<string | un
   }
 
   const versions = entries
-    .filter((entry) => entry.isFile())
     .map((entry) => entry.name.match(/^(v\d+(?:\.\d+)*)-REQUIREMENTS\.md$/))
     .filter((match): match is RegExpMatchArray => match !== null)
     .map((match) => match[1]!);
