@@ -224,6 +224,33 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).not.toContain("$entries = @(); foreach ($file in $script:allFiles)");
   });
 
+  test("binds final candidate hashing and projection to captured target-native identities", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+    const copyStart = script.indexOf("function Copy-FileStreamed");
+    const copyEnd = script.indexOf("\nfunction ", copyStart + 1);
+    const copyFunction = script.slice(copyStart, copyEnd);
+    const observationStart = script.indexOf("function Get-IdentityBoundCandidateObservation");
+    const observationEnd = script.indexOf("\nfunction ", observationStart + 1);
+    const observationFunction = script.slice(observationStart, observationEnd);
+    const beforeProjection = script.indexOf("Assert-CandidateProjectionIdentity", script.indexOf("$finalEntries ="));
+    const manifestIndex = script.indexOf("$manifest =", beforeProjection);
+    const afterProjection = script.indexOf("Assert-CandidateProjectionIdentity", manifestIndex);
+
+    expect(copyFunction).toContain("[IO.FileShare]::None");
+    expect(copyFunction).toContain("Get-WindowsFileIdentity $Destination");
+    expect(copyFunction.indexOf("Get-WindowsFileIdentity $Destination")).toBeLessThan(copyFunction.indexOf("$destinationStream.Dispose()"));
+    expect(script).toContain("$candidateFileIdentities = @{}");
+    expect(script).toContain("$candidateFileIdentities[$file.identity] = Copy-FileStreamed");
+    expect(observationFunction).toContain("[IO.FileStream]::new($candidate, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)");
+    expect(observationFunction).toContain("Get-WindowsFileIdentity $candidate");
+    expect(observationFunction).toContain("$sha.ComputeHash($stream)");
+    expect(observationFunction).not.toContain("Get-FileSha256 $candidate");
+    expect(script).toContain("function Assert-CandidateProjectionIdentity");
+    expect(beforeProjection).toBeGreaterThan(0);
+    expect(manifestIndex).toBeGreaterThan(beforeProjection);
+    expect(afterProjection).toBeGreaterThan(manifestIndex);
+  });
+
   test("embeds and uses the shared precreation and warning contract", () => {
     const script = buildRemoteReleaseCandidateScript(input);
 
