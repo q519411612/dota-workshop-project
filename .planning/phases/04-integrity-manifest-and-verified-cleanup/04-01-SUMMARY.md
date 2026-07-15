@@ -36,7 +36,7 @@ patterns-established:
 
 requirements-completed: [RCIN-01]
 
-duration: 37min
+duration: 52min
 completed: 2026-07-15
 status: complete
 ---
@@ -47,10 +47,10 @@ status: complete
 
 ## Performance
 
-- **Duration:** 37 min
+- **Duration:** 52 min
 - **Started:** 2026-07-15T18:42:00+08:00
-- **Completed:** 2026-07-15T19:18:54+08:00
-- **Tasks:** 2 TDD tasks plus two review-remediation TDD cycles
+- **Completed:** 2026-07-15T19:34:00+08:00
+- **Tasks:** 2 TDD tasks plus three review-remediation TDD cycles
 - **Files modified:** 3
 
 ## Accomplishments
@@ -58,6 +58,7 @@ status: complete
 - Replaced Phase 3 whole-file stability bytes with strict versioned integrity observations containing only safe root/path, byte count, lowercase SHA-256, and identity proof.
 - Added a production `createHash("sha256")` primitive that incrementally consumes only adapter-opened async `Uint8Array` chunks, enforces a 64 KiB chunk ceiling and safe total count, and retains no raw bytes.
 - Wired the controlled macOS fixture through the production primitive for empty, binary, and 256 KiB-plus files across irregular chunk boundaries without passing absolute paths into production code.
+- Removed the obsolete fixture stability observer's whole-file `readFile` and `bytes` property; large-file stability now returns only kind, canonical identity, stat metadata, and identity facts.
 - Captured source-before observations before candidate creation, verified a lease-bound candidate before callback use, then freshly reobserved candidate and source after callback success or throw.
 - Made candidate mutation, source mutation, and mutation-before-throw return one stable integrity blocker while withholding callback values and sanitized exception text.
 - Rejected malformed versions, roots, paths, counts, digests, identity facts, missing/duplicate/unexpected observations, getters, proxies, iterators, thenables, and thrown results without retry or repair.
@@ -71,6 +72,8 @@ status: complete
 4. **Stream identity-bound hashes in production** - `629978b` (feat)
 5. **Require final integrity boundary ordering** - `2a8fd22` (test)
 6. **Keep triple comparison as the final artifact check** - `2fe26e8` (fix)
+7. **Forbid stability byte buffering** - `eba778d` (test)
+8. **Keep fixture stability metadata-only** - `1bae96c` (fix)
 
 ## Files Created/Modified
 
@@ -104,10 +107,17 @@ status: complete
 - **Verification:** RED recorded `candidate-after -> source-after -> stability`; GREEN records `stability -> candidate-after -> source-after -> cleanup` for callback success and throw paths.
 - **Committed in:** `2a8fd22`, `2fe26e8`.
 
+**3. [Rule 2 - Fixture honesty] Remove obsolete whole-file stability bytes**
+- **Found during:** Specification re-review.
+- **Issue:** Production stability normalization no longer retained bytes, but the controlled fixture observer still called `readFile(sourcePath)` and attached an ignored `bytes` property.
+- **Fix:** Removed the full-file fixture read so stability returns metadata only; the same large binary file is observed through the production streaming primitive for byte count and digest.
+- **Verification:** RED found `Reflect.has(stability, "bytes") === true`; GREEN returns no byte/content property while streamed integrity reports the exact 1 MiB-plus byte count and SHA-256. Source mutation and final integrity regressions remain green.
+- **Committed in:** `eba778d`, `1bae96c`.
+
 ---
 
-**Total deviations:** 2 auto-fixed review gaps.
-**Impact on plan:** Both corrections implement explicit RCIN-01 requirements without adding manifest, ledger, coverage, public state, MCP, remote, or persistent artifact scope.
+**Total deviations:** 3 auto-fixed review gaps.
+**Impact on plan:** These corrections implement explicit RCIN-01 requirements without adding manifest, ledger, coverage, public state, MCP, remote, or persistent artifact scope.
 
 ## TDD Gate Compliance
 
@@ -115,6 +125,7 @@ status: complete
 - Test commit `fb69267` precedes GREEN implementation commit `0ccd073`.
 - Production-stream RED `b68d687` precedes GREEN helper commit `629978b`.
 - Final-order RED `2a8fd22` precedes ordering fix commit `2fe26e8`.
+- Fixture-honesty RED `eba778d` precedes metadata-only fix commit `1bae96c`.
 - GREEN focused tests prove callback success, callback throw, candidate mutation, source mutation, mutation-before-throw, fresh final observations, and cleanup ordering.
 - Hostile-result tests prove malformed final observations fail with stable sanitized evidence, one callback invocation, two intentional candidate observations, no materialization retry, and one cleanup.
 
@@ -129,8 +140,8 @@ status: complete
 
 - Focused final triple-integrity test: 1/1 passed.
 - Focused malformed-observation test: 1/1 passed.
-- Candidate/readiness/preflight regression suites: 50/50 passed.
-- Full repository suite: 191/191 passed across 20 files.
+- Candidate/readiness/preflight regression suites: 51/51 passed.
+- Full repository suite: 192/192 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed; generated `dist/release-candidate.js` was removed from the untracked workspace after verification.
 - `npm run verify:rc`: passed all plugin, example, typecheck, test, build, and repository scan gates.
@@ -141,6 +152,7 @@ status: complete
 
 - Initial GREEN parsing compared candidate observations positionally against trusted expected files. Self-review identified that strict integrity should accept any complete occurrence order, so parsing was changed to guarded path-based matching before ordinal sorting and duplicate detection.
 - Specification review correctly identified that fixture-only hashing did not satisfy the production primitive requirement and that metadata stability followed the final triple observations; both were reproduced before correction.
+- Specification re-review found one obsolete fixture-only full-file read that production ignored; removing it made the adapter evidence accurately reflect the streaming-only integrity boundary.
 
 ## User Setup Required
 
