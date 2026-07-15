@@ -51,6 +51,8 @@ status: complete
 - Defined the combined digest as SHA-256 of the UTF-8 JSON value `["1.0", [[root,path,bytes,sha256],...]]`.
 - Preserved exact callback result behavior while attaching manifest evidence only after callback settlement, source stability, final candidate integrity, and source-after integrity all pass.
 - Added an independent fixed canonical byte string and known SHA-256 vector covering delimiter-like content, quotes, a control character, Unicode, shuffled observations, alternate temporary roots, and hostile irrelevant metadata.
+- Added an explicit adversarial pair whose delimiter-joined serialization collides while the fixed nested-JSON representation and digests remain distinct.
+- Proved source canonical-path separator style, permissions, timestamps, locale environment, temporary root, target metadata, and observation order do not affect manifest identity.
 - Reused the strict 04-01 observation parser so unsafe identities, malformed counts or digests, missing observations, duplicates, hostile getters, proxies, iterators, and thenables cannot reach manifest projection.
 
 ## TDD Evidence
@@ -65,12 +67,14 @@ status: complete
 2. `8787265` - `test(04-02): correct independent digest vector`
 3. `283eecc` - `test(04-02): type manifest fixture lookup`
 4. `220a923` - `feat(04-02): produce canonical candidate manifest`
+5. `c679bdb` - `test(04-02): prove canonical digest separation`
 
 ## Verification Evidence
 
 - Focused canonical manifest test: 1/1 passed.
 - Release-candidate and source-snapshot compatibility suites: 37/37 passed.
-- Full repository suite: 193/193 passed across 20 files.
+- Focused collision and host-independence vectors: 2/2 passed.
+- Full repository suite: 194/194 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed; generated untracked `dist/release-candidate.js` was removed after verification.
 - `npm run verify:rc`: passed every plugin, example, typecheck, test, build, repository scan, warning, and blocker gate.
