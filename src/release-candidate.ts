@@ -24,9 +24,11 @@ export type ReleaseCandidateInputBlocker = {
 };
 
 const validatedReleaseCandidateInputBrand: unique symbol = Symbol("validatedReleaseCandidateInput");
+const releaseCandidateFilesystemCapability: unique symbol = Symbol("releaseCandidateFilesystemCapability");
 
 export type ValidatedReleaseCandidateInput = Readonly<{
   [validatedReleaseCandidateInputBrand]: true;
+  [releaseCandidateFilesystemCapability]: ReleaseCandidateFilesystem;
   addonName: string;
   dotaRoot: string;
   repositoryRoot: string;
@@ -66,6 +68,7 @@ export type ReleaseCandidateInventoryResult =
   | { ok: false; blockers: ReleaseCandidateInventoryBlocker[] };
 
 export type ReleaseCandidateFilesystem = {
+  reparsePointAware?: true;
   lstat(path: string): Promise<Pick<Stats, "isDirectory">>;
   realpath(path: string): Promise<string>;
   readDirectory(path: string): Promise<string[]>;
@@ -76,15 +79,20 @@ export type ReleaseCandidateFilesystem = {
 export type ReleaseCandidateDependencies = {
   repositoryRoot?: string;
   filesystem?: ReleaseCandidateFilesystem;
+  platform?: NodeJS.Platform;
 };
 
-const defaultFilesystem: ReleaseCandidateFilesystem = {
-  lstat,
-  realpath,
-  readDirectory: async (path) => await readdir(path),
-  classifySourceEntry: classifySourceEntry,
-  createCandidateRoot: async (input) => await mkdtemp(join(input.tempParent, "dota-release-candidate-"))
-};
+function createDefaultFilesystem(platform: NodeJS.Platform): ReleaseCandidateFilesystem {
+  return {
+    lstat,
+    realpath,
+    readDirectory: async (path) => await readdir(path),
+    classifySourceEntry: platform === "win32"
+      ? async () => "unknown"
+      : classifySourceEntry,
+    createCandidateRoot: async (input) => await mkdtemp(join(input.tempParent, "dota-release-candidate-"))
+  };
+}
 
 export type ReleaseCandidateContinuationResult<T> =
   | { ok: true; value: T }
@@ -109,7 +117,12 @@ export async function prepareReleaseCandidateInput(
     return blocked("INVALID_ADDON_NAME", "addonName", "invalid");
   }
 
-  const filesystem = dependencies.filesystem ?? defaultFilesystem;
+  const platform = dependencies.platform ?? process.platform;
+  if (platform === "win32" && dependencies.filesystem?.reparsePointAware !== true) {
+    return blocked("WINDOWS_REPARSE_CLASSIFIER_REQUIRED", "dotaRoot", "unsafe-isolation");
+  }
+
+  const filesystem = dependencies.filesystem ?? createDefaultFilesystem(platform);
   const dotaRoot = await validateDirectory(input?.dotaRoot, "dotaRoot", "DOTA_ROOT", filesystem);
   if (!dotaRoot.ok) return dotaRoot.result;
 
@@ -152,6 +165,7 @@ export async function prepareReleaseCandidateInput(
     ok: true,
     value: Object.freeze({
       [validatedReleaseCandidateInputBrand]: true as const,
+      [releaseCandidateFilesystemCapability]: filesystem,
       addonName: input.addonName,
       dotaRoot: dotaRoot.path,
       repositoryRoot: repositoryRoot.path,
@@ -163,12 +177,12 @@ export async function prepareReleaseCandidateInput(
 }
 
 export async function inventoryReleaseCandidateSources(
-  input: ValidatedReleaseCandidateInput,
-  filesystem: ReleaseCandidateFilesystem = defaultFilesystem
+  input: ValidatedReleaseCandidateInput
 ): Promise<ReleaseCandidateInventoryResult> {
+  const filesystem = input[releaseCandidateFilesystemCapability];
   const entries: ReleaseCandidateSourceEntry[] = [];
   const blockers: ReleaseCandidateInventoryBlocker[] = [];
-  const identities = new Map<string, string>();
+  const identities = new Map<string, Set<string>>();
   const roots: Array<{
     root: ReleaseCandidateSourceRoot;
     sourcePath: string;
@@ -187,7 +201,7 @@ export async function inventoryReleaseCandidateSources(
   ];
 
   for (const root of roots) {
-    identities.set(foldIdentity(root.identity), root.identity);
+    addIdentity(identities, root.identity);
     await inventorySourceDirectory({
       ...root,
       sourceRoot: root.sourcePath,
@@ -198,6 +212,8 @@ export async function inventoryReleaseCandidateSources(
       identities
     });
   }
+
+  appendCollisionBlockers(identities, blockers);
 
   if (blockers.length > 0) {
     blockers.sort(compareInventoryBlockers);
@@ -217,7 +233,7 @@ type InventoryDirectoryInput = {
   filesystem: ReleaseCandidateFilesystem;
   entries: ReleaseCandidateSourceEntry[];
   blockers: ReleaseCandidateInventoryBlocker[];
-  identities: Map<string, string>;
+  identities: Map<string, Set<string>>;
 };
 
 async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise<void> {
@@ -283,25 +299,7 @@ async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise
       continue;
     }
 
-    const folded = foldIdentity(identity);
-    const existing = input.identities.get(folded);
-    if (existing !== undefined && existing !== identity) {
-      input.blockers.push({
-        code: "SOURCE_IDENTITY_COLLISION",
-        path: identity,
-        category: "case-fold"
-      });
-      if (kind === "directory") {
-        await inventorySourceDirectory({
-          ...input,
-          sourcePath,
-          identity,
-          segments: [...input.segments, name]
-        });
-      }
-      continue;
-    }
-    input.identities.set(folded, identity);
+    addIdentity(input.identities, identity);
     input.entries.push({ root: input.root, path: identity, kind });
 
     if (kind === "directory") {
@@ -351,6 +349,29 @@ function safeChildIdentity(parent: string, name: string): string {
 
 function foldIdentity(identity: string): string {
   return identity.toLowerCase();
+}
+
+function addIdentity(identities: Map<string, Set<string>>, identity: string): void {
+  const folded = foldIdentity(identity);
+  const group = identities.get(folded) ?? new Set<string>();
+  group.add(identity);
+  identities.set(folded, group);
+}
+
+function appendCollisionBlockers(
+  identities: Map<string, Set<string>>,
+  blockers: ReleaseCandidateInventoryBlocker[]
+): void {
+  for (const group of identities.values()) {
+    if (group.size < 2) continue;
+    for (const path of group) {
+      blockers.push({
+        code: "SOURCE_IDENTITY_COLLISION",
+        path,
+        category: "case-fold"
+      });
+    }
+  }
 }
 
 function compareOrdinal(left: string, right: string): number {
