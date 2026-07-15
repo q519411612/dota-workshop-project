@@ -213,8 +213,10 @@ function createNoFollowSourceReader() {
       try {
         const info = await handle.stat();
         if (!info.isFile()) return { ok: false as const, code: "SOURCE_FILE_IDENTITY_CHANGED" as const };
-        if (info.size > maxBytes) return { ok: true as const, state: "oversized" as const, size: info.size, identityMatched: true as const, kindMatched: true as const, contained: true as const };
-        return { ok: true as const, state: "readable" as const, size: info.size, content: await handle.readFile("utf8"), identityMatched: true as const, kindMatched: true as const, contained: true as const };
+        const base = { ok: true as const, schemaVersion: "1.0" as const, size: info.size, identityMatched: true as const, kindMatched: true as const, contained: true as const };
+        if (!isReleaseTextPath(relativePath)) return { ...base, state: "binary" as const };
+        if (info.size > maxBytes) return { ...base, state: "oversized" as const };
+        return { ...base, state: "readable" as const, bytes: await handle.readFile() };
       } finally {
         await handle.close();
       }
@@ -757,10 +759,12 @@ describe("release candidate input validation", () => {
           try {
             const info = await handle.stat();
             if (!info.isFile()) return { ok: false as const, code: "SOURCE_FILE_IDENTITY_CHANGED" as const };
+            const base = { ok: true as const, schemaVersion: "1.0" as const, size: info.size, identityMatched: true as const, kindMatched: true as const, contained: true as const };
+            if (!isReleaseTextPath(entry.path)) return { ...base, state: "binary" as const };
             if (info.size > maxBytes) {
-              return { ok: true as const, state: "oversized" as const, size: info.size, identityMatched: true as const, kindMatched: true as const, contained: true as const };
+              return { ...base, state: "oversized" as const };
             }
-            return { ok: true as const, state: "readable" as const, size: info.size, content: await handle.readFile("utf8"), identityMatched: true as const, kindMatched: true as const, contained: true as const };
+            return { ...base, state: "readable" as const, bytes: await handle.readFile() };
           } finally {
             await handle.close();
           }
@@ -826,13 +830,13 @@ describe("release candidate input validation", () => {
       ) => {
         const relativePath = entry.path.split(`/dota_addons/${input.addonName}/`)[1];
         if (relativePath === "addoninfo.txt") {
-          return { ok: true as const, state: "oversized" as const, size: maxBytes + 1, identityMatched: true as const, kindMatched: true as const, contained: true as const };
+          return { ok: true as const, schemaVersion: "1.0" as const, state: "oversized" as const, size: maxBytes + 1, identityMatched: true as const, kindMatched: true as const, contained: true as const };
         }
         const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
         const handle = await open(join(sourceRoot, ...relativePath.split("/")), filesystemConstants.O_RDONLY | filesystemConstants.O_NOFOLLOW);
         try {
           const info = await handle.stat();
-          return { ok: true as const, state: "readable" as const, size: info.size, content: await handle.readFile("utf8"), identityMatched: true as const, kindMatched: true as const, contained: true as const };
+          return { ok: true as const, schemaVersion: "1.0" as const, state: "readable" as const, size: info.size, bytes: await handle.readFile(), identityMatched: true as const, kindMatched: true as const, contained: true as const };
         } finally {
           await handle.close();
         }
