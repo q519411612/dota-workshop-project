@@ -1707,12 +1707,14 @@ async function releaseReadinessBlockers(
   if (!collected.ok) return collected;
   const blockers = evaluateReleaseReadiness(collected.value)
     .filter((finding) => finding.disposition === "blocker");
+  const scanCoverage = evaluateReleaseScanCoverage(collected.value);
+  if (!scanCoverage.ok) return { ok: false, blockers: [...scanCoverage.blockers] };
   const unique = new Map<string, ReleaseReadinessFinding>();
   for (const blocker of blockers) unique.set(JSON.stringify(blocker), blocker);
   return {
     ok: true,
     blockers: [...unique.values()],
-    scanCoverage: evaluateReleaseScanCoverage(collected.value)
+    scanCoverage: scanCoverage.value
   };
 }
 

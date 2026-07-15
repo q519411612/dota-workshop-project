@@ -45,6 +45,17 @@ export type ReleaseScanCoverage = Readonly<{
   oversized: ReleaseScanCoverageCategory;
 }>;
 
+export type ReleaseScanCoverageResult =
+  | Readonly<{ ok: true; value: ReleaseScanCoverage }>
+  | Readonly<{
+      ok: false;
+      blockers: readonly [Readonly<{
+        code: "POLICY_INPUT_INVALID";
+        category: "scan-coverage-observation";
+        disposition: "blocker";
+      }>];
+    }>;
+
 const TEXT_SCAN_EXTENSIONS = new Set([
   ".cfg",
   ".css",
@@ -91,7 +102,7 @@ export type ReleaseReadinessFinding =
   | { code: "SECRET_SCAN_COMPLETED"; category: "sensitive-material"; disposition: "evidence"; field: ScanRootIdentity }
   | {
       code: "POLICY_INPUT_INVALID";
-      category: "required-structure-identity" | "scan-root-identity" | "relative-path-identity" | "metadata-observation";
+      category: "required-structure-identity" | "scan-root-identity" | "relative-path-identity" | "metadata-observation" | "scan-coverage-observation";
       disposition: "blocker";
     };
 
@@ -158,47 +169,76 @@ export function evaluateReleaseReadiness(input: ReleaseReadinessInput): ReleaseR
   return findings;
 }
 
-export function evaluateReleaseScanCoverage(input: ReleaseReadinessInput): ReleaseScanCoverage {
-  const paths = {
-    text: [] as string[],
-    binary: [] as string[],
-    unreadable: [] as string[],
-    oversized: [] as string[]
-  };
-  const observations: Array<Readonly<{
-    root: ScanRootIdentity;
-    relativePath: string;
-    category: keyof typeof paths;
-  }>> = [];
+export function evaluateReleaseScanCoverage(input: ReleaseReadinessInput): ReleaseScanCoverageResult {
+  try {
+    const scanRoots = Reflect.get(input as object, "scanRoots");
+    if (!Array.isArray(scanRoots)) return invalidScanCoverageInput();
+    const paths = {
+      text: [] as string[],
+      binary: [] as string[],
+      unreadable: [] as string[],
+      oversized: [] as string[]
+    };
+    const observations: Array<Readonly<{
+      root: ScanRootIdentity;
+      relativePath: string;
+      category: keyof typeof paths;
+    }>> = [];
 
-  for (const scanRoot of input.scanRoots) {
-    if (!isScanRootIdentity(scanRoot?.root) || !Array.isArray(scanRoot.files)) continue;
-    for (const file of scanRoot.files) {
-      if (file === null || typeof file !== "object" || typeof file.relativePath !== "string") continue;
-      const category = scanCoverageCategory(file.state);
-      if (category === undefined || safeFindingPath(file.relativePath) === undefined) continue;
-      observations.push({ root: scanRoot.root, relativePath: file.relativePath, category });
+    for (const scanRoot of scanRoots) {
+      if (scanRoot === null || typeof scanRoot !== "object") return invalidScanCoverageInput();
+      const root = Reflect.get(scanRoot, "root");
+      const files = Reflect.get(scanRoot, "files");
+      if (!isScanRootIdentity(root) || !Array.isArray(files)) return invalidScanCoverageInput();
+      for (const file of files) {
+        if (file === null || typeof file !== "object") return invalidScanCoverageInput();
+        const relativePath = Reflect.get(file, "relativePath");
+        const state = Reflect.get(file, "state");
+        const category = scanCoverageCategory(state);
+        if (
+          typeof relativePath !== "string"
+          || category === undefined
+          || safeFindingPath(relativePath) === undefined
+        ) return invalidScanCoverageInput();
+        observations.push({ root, relativePath, category });
+      }
     }
-  }
 
-  observations.sort((left, right) => {
-    return compareOrdinal(
+    observations.sort((left, right) => compareOrdinal(
       `${left.root}/${left.relativePath}`,
       `${right.root}/${right.relativePath}`
-    );
-  });
-  for (const observation of observations) {
-    const safePath = safeFindingPath(observation.relativePath);
-    if (safePath !== undefined) paths[observation.category].push(`${observation.root}/${safePath}`);
-  }
+    ));
+    for (const observation of observations) {
+      const safePath = safeFindingPath(observation.relativePath);
+      if (safePath === undefined) return invalidScanCoverageInput();
+      paths[observation.category].push(`${observation.root}/${safePath}`);
+    }
 
+    return Object.freeze({
+      ok: true,
+      value: Object.freeze({
+        schemaVersion: "1.0",
+        totalFileCount: observations.length,
+        text: coverageCategory(paths.text),
+        binary: coverageCategory(paths.binary),
+        unreadable: coverageCategory(paths.unreadable),
+        oversized: coverageCategory(paths.oversized)
+      })
+    });
+  } catch {
+    return invalidScanCoverageInput();
+  }
+}
+
+function invalidScanCoverageInput(): Extract<ReleaseScanCoverageResult, { ok: false }> {
+  const blockers = [Object.freeze({
+    code: "POLICY_INPUT_INVALID" as const,
+    category: "scan-coverage-observation" as const,
+    disposition: "blocker" as const
+  })] as const;
   return Object.freeze({
-    schemaVersion: "1.0",
-    totalFileCount: observations.length,
-    text: coverageCategory(paths.text),
-    binary: coverageCategory(paths.binary),
-    unreadable: coverageCategory(paths.unreadable),
-    oversized: coverageCategory(paths.oversized)
+    ok: false,
+    blockers: Object.freeze(blockers)
   });
 }
 
