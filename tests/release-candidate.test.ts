@@ -5702,6 +5702,184 @@ describe("release candidate input validation", () => {
     }
   });
 
+  test("keeps precreation and failed acquisition evidence explicit without cleanup invention", async () => {
+    const scenarios = [
+      {
+        name: "precreation",
+        addonName: "invalid/name",
+        populate: false,
+        createCandidateLease: async () => { throw new Error("must not create"); },
+        expectedCode: "INVALID_ADDON_NAME",
+        cleanupStatus: "not-reached",
+        cleanupCode: undefined
+      },
+      {
+        name: "failed acquisition",
+        addonName: "fixture_addon",
+        populate: true,
+        createCandidateLease: async () => { throw new Error("private acquisition failure"); },
+        expectedCode: "CANDIDATE_CREATION_CONTRACT_FAILED",
+        cleanupStatus: "failed",
+        cleanupCode: "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE"
+      }
+    ] as const;
+
+    for (const scenario of scenarios) {
+      const fixture = await createFixture();
+      if (scenario.populate) await populateReadyFixture(fixture);
+      const cleanupCandidateLease = vi.fn(async () => ({
+        ok: true as const,
+        removed: true as const,
+        absent: true as const,
+        identityMatched: true as const
+      }));
+      const callback = vi.fn(async () => "unexpected");
+      const result = await withAssembledReleaseCandidate(
+        { addonName: scenario.addonName, dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        callback,
+        {
+          repositoryRoot: fixture.repositoryRoot,
+          filesystem: {
+            lstat,
+            realpath,
+            readDirectory: async (path) => await readdir(path),
+            classifySourceEntry: classifyFixtureEntry,
+            createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+            candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
+              createCandidateLease: scenario.createCandidateLease,
+              cleanupCandidateLease
+            })
+          }
+        }
+      );
+
+      expect(result, scenario.name).toMatchObject({
+        ok: false,
+        operation: { status: "not-reached" },
+        artifactValidation: { status: "not-reached" },
+        cleanup: {
+          schemaVersion: "1.0",
+          attempted: false,
+          attempts: 0,
+          status: scenario.cleanupStatus,
+          verified: false,
+          ...(scenario.cleanupCode === undefined ? {} : { code: scenario.cleanupCode })
+        },
+        blockers: [{ code: scenario.expectedCode }]
+      });
+      expect(callback, scenario.name).not.toHaveBeenCalled();
+      expect(cleanupCandidateLease, scenario.name).not.toHaveBeenCalled();
+      expect(JSON.stringify(result), scenario.name).not.toContain("private acquisition failure");
+    }
+  });
+
+  test("normalizes a directly thrown cleanup failure without leaking the exception", async () => {
+    const fixture = await createFixture();
+    await populateReadyFixture(fixture);
+    let candidateRoot: string | undefined;
+    const result = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      async () => "must-not-survive",
+      {
+        repositoryRoot: fixture.repositoryRoot,
+        filesystem: {
+          lstat,
+          realpath,
+          readDirectory: async (path) => await readdir(path),
+          classifySourceEntry: classifyFixtureEntry,
+          createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+          candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
+            createCandidateLease: async (validated) => {
+              candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+              return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+            },
+            cleanupCandidateLease: async () => { throw new Error("private direct cleanup failure"); }
+          })
+        }
+      }
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      operation: { status: "completed" },
+      artifactValidation: { status: "passed" },
+      cleanup: {
+        schemaVersion: "1.0",
+        attempted: true,
+        attempts: 1,
+        status: "failed",
+        verified: false,
+        code: "CANDIDATE_CLEANUP_RESULT_INVALID"
+      },
+      blockers: [{ code: "CANDIDATE_CLEANUP_RESULT_INVALID", category: "removal" }]
+    });
+    expect(result).not.toHaveProperty("value");
+    expect(JSON.stringify(result)).not.toContain("must-not-survive");
+    expect(JSON.stringify(result)).not.toContain("private direct cleanup failure");
+    if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
+    await rm(candidateRoot, { recursive: true, force: false });
+  });
+
+  test("separates blocked artifact evidence from cleanup failure evidence", async () => {
+    const fixture = await createFixture();
+    await populateReadyFixture(fixture);
+    let candidateRoot: string | undefined;
+    const result = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      async (root) => {
+        await writeFile(join(root, "game/dota_addons/fixture_addon/addoninfo.txt"), "mutated\n");
+        return Object.freeze({ path: root });
+      },
+      {
+        repositoryRoot: fixture.repositoryRoot,
+        filesystem: {
+          lstat,
+          realpath,
+          readDirectory: async (path) => await readdir(path),
+          classifySourceEntry: classifyFixtureEntry,
+          createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+          candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
+            createCandidateLease: async (validated) => {
+              candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+              return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+            },
+            cleanupCandidateLease: async (identity) => {
+              await rm(identity.root, { recursive: true, force: false });
+              return {
+                ok: false,
+                removed: true,
+                absent: false,
+                identityMatched: true,
+                code: "CANDIDATE_ABSENCE_UNVERIFIED"
+              };
+            }
+          })
+        }
+      }
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      operation: { status: "completed" },
+      artifactValidation: {
+        status: "blocked",
+        blockers: [{ code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" }]
+      },
+      cleanup: { status: "failed", code: "CANDIDATE_ABSENCE_UNVERIFIED" },
+      blockers: [
+        { code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" },
+        { code: "CANDIDATE_ABSENCE_UNVERIFIED", category: "removal" }
+      ]
+    });
+    expect(result).not.toHaveProperty("value");
+    expect(JSON.stringify(result)).not.toContain(fixture.root);
+    if (!result.ok && result.artifactValidation.status === "blocked") {
+      expect(result.artifactValidation.blockers).toHaveLength(1);
+      expect(result.blockers).toHaveLength(2);
+      expect(result.artifactValidation.blockers[0]).not.toBe(result.blockers[0]);
+    }
+  });
+
   test("freezes independent blocker snapshots across every lifecycle domain", async () => {
     const assertFrozenBlockerEvidence = (
       result: Awaited<ReturnType<typeof withAssembledReleaseCandidate>>,
