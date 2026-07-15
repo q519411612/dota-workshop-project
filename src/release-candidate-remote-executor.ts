@@ -62,7 +62,9 @@ export async function executeRemoteReleaseCandidateScript(
       return { transport, outcome: "failed", exitCode: output.exitCode };
     }
     return { transport, outcome: "completed", exitCode: 0, stdout: output.stdout };
-  } catch {
+  } catch (error) {
+    const exitCode = readExitCode(error);
+    if (exitCode !== undefined) return { transport, outcome: "failed", exitCode };
     return { transport, outcome: "uncertain" };
   }
 }
@@ -110,4 +112,14 @@ async function executeInvocation(invocation: RemoteReleaseCandidateInvocation): 
 
 function isSafeDestinationPart(value: string): boolean {
   return value.length > 0 && value.length <= 255 && /^[A-Za-z0-9._:-]+$/.test(value);
+}
+
+function readExitCode(error: unknown): number | undefined {
+  if (error === null || typeof error !== "object") return undefined;
+  try {
+    const code = Reflect.get(error, "code");
+    return Number.isSafeInteger(code) ? code as number : undefined;
+  } catch {
+    return undefined;
+  }
 }
