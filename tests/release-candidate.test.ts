@@ -4990,9 +4990,9 @@ describe("release candidate input validation", () => {
     }
 
     const unusableRegistrationScenarios = [
-      { name: "malformed registered identity", registered: () => null },
+      { name: "malformed registered result", registered: () => null },
       {
-        name: "throwing registered identity getter",
+        name: "throwing registered result getter",
         registered: () => Object.defineProperty({}, "inspectionRoot", {
           get: () => {
             throw new Error("private registered getter");
@@ -5000,12 +5000,18 @@ describe("release candidate input validation", () => {
         })
       },
       {
-        name: "throwing registered identity proxy",
+        name: "throwing registered result proxy",
         registered: () => new Proxy({}, {
           get: () => {
             throw new Error("private registered proxy");
           }
         })
+      },
+      {
+        name: "throwing registered result",
+        registered: () => {
+          throw new Error("private registered throw");
+        }
       }
     ];
 
@@ -5015,12 +5021,15 @@ describe("release candidate input validation", () => {
       let candidateRoot: string | undefined;
       let creationCount = 0;
       const callback = vi.fn(async () => "unexpected");
-      const cleanupCandidateLease = vi.fn(async () => ({
-        ok: true as const,
-        removed: true as const,
-        absent: true as const,
-        identityMatched: true as const
-      }));
+      const cleanupCandidateLease = vi.fn(async (identity: { root: string }) => {
+        await rm(identity.root, { recursive: true, force: false });
+        return {
+          ok: true as const,
+          removed: true as const,
+          absent: true as const,
+          identityMatched: true as const
+        };
+      });
       const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
         createCandidateLease: (async (validated: ValidatedReleaseCandidateInput) => {
           candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
@@ -5051,22 +5060,23 @@ describe("release candidate input validation", () => {
         scanCoverage: expect.any(Object),
         cleanup: {
           schemaVersion: "1.0",
-          attempted: false,
-          attempts: 0,
-          status: "failed",
-          verified: false,
-          code: "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE"
+          attempted: true,
+          attempts: 1,
+          status: "verified",
+          verified: true,
+          identityMatched: true,
+          removed: true,
+          absent: true
         },
-        blockers: [{ code: "CANDIDATE_CREATION_CONTRACT_FAILED", category: "creation" }]
+        blockers: [{ code: "CANDIDATE_ACQUISITION_RESULT_INVALID", category: "creation" }]
       });
       expect(creationCount, scenario.name).toBe(1);
-      expect(cleanupCandidateLease, scenario.name).not.toHaveBeenCalled();
+      expect(cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
       expect(callback, scenario.name).not.toHaveBeenCalled();
       expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
       expect(JSON.stringify(result), scenario.name).not.toContain("private registered");
-      expect(JSON.stringify(result), scenario.name).not.toContain('"absent":true');
       if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
-      expect((await lstat(candidateRoot)).isDirectory(), scenario.name).toBe(true);
+      await expect(lstat(candidateRoot), scenario.name).rejects.toMatchObject({ code: "ENOENT" });
     }
 
     const createFactoryOwnedLifecycle = createIdentityBoundCandidateLifecycle as unknown as <TIdentity extends object>(
