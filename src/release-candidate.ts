@@ -148,7 +148,7 @@ export type IdentityBoundCandidateLifecycle = Readonly<{
   cleanupCandidateLease(lease: ReleaseCandidateLease): Promise<CandidateLeaseCleanupResult>;
 }>;
 
-export function createIdentityBoundCandidateLifecycle<TIdentity>(operations: {
+export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(operations: {
   createCandidateLease(input: ValidatedReleaseCandidateInput): Promise<Readonly<{
     inspectionRoot: string;
     identity: TIdentity;
@@ -425,8 +425,23 @@ function candidateCleanupFailure(
   ) {
     return undefined;
   }
-  const code = result?.ok === false ? result.code : "CANDIDATE_CLEANUP_RESULT_INVALID";
+  const code = result?.ok === false
+    && typeof result.removed === "boolean"
+    && typeof result.absent === "boolean"
+    && typeof result.identityMatched === "boolean"
+    && isCandidateLeaseCleanupFailureCode(result.code)
+    ? result.code
+    : "CANDIDATE_CLEANUP_RESULT_INVALID";
   return lifecycleBlocked(code, "removal");
+}
+
+function isCandidateLeaseCleanupFailureCode(
+  value: unknown
+): value is CandidateLeaseCleanupFailureCode {
+  return value === "CANDIDATE_IDENTITY_MISMATCH"
+    || value === "CANDIDATE_REMOVAL_FAILED"
+    || value === "CANDIDATE_ABSENCE_UNVERIFIED"
+    || value === "CANDIDATE_LEASE_INVALID";
 }
 
 function isCandidateRootIsolated(
