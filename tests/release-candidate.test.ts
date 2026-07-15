@@ -836,6 +836,9 @@ describe("release candidate input validation", () => {
         const handle = await open(join(sourceRoot, ...relativePath.split("/")), filesystemConstants.O_RDONLY | filesystemConstants.O_NOFOLLOW);
         try {
           const info = await handle.stat();
+          if (!isReleaseTextPath(relativePath)) {
+            return { ok: true as const, schemaVersion: "1.0" as const, state: "binary" as const, size: info.size, identityMatched: true as const, kindMatched: true as const, contained: true as const };
+          }
           return { ok: true as const, schemaVersion: "1.0" as const, state: "readable" as const, size: info.size, bytes: await handle.readFile(), identityMatched: true as const, kindMatched: true as const, contained: true as const };
         } finally {
           await handle.close();
