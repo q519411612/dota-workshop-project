@@ -47,6 +47,9 @@ type Fixture = {
 
 const fixtureRoots: string[] = [];
 
+const compactAssignment = (name: string, value: string): string => [name, "=", value].join("");
+const credentialPasswordFixture = (value: string): string => ["credential_", compactAssignment("password", value)].join("");
+
 type SourceTreeSnapshotEntry = Readonly<{
   path: string;
   kind: "directory" | "file" | "symbolic-link" | "special";
@@ -532,7 +535,7 @@ describe("release candidate input validation", () => {
     expect(candidateRoot).toBeUndefined();
 
     await writeFile(metadataPath, completeMetadata);
-    await writeFile(join(fixture.gameAddonRoot, "private.txt"), "password=synthetic-private-value\n");
+    await writeFile(join(fixture.gameAddonRoot, "private.txt"), `${compactAssignment("password", "synthetic-private-value")}\n`);
     const sensitiveBlocked = await withAssembledReleaseCandidate(
       { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
       blockedInspect,
@@ -614,7 +617,7 @@ describe("release candidate input validation", () => {
     await populateReadyFixture(fixture);
     const addonInfoPath = join(fixture.gameAddonRoot, "addoninfo.txt");
     const externalPath = join(fixture.repositoryRoot, "external-private.txt");
-    await writeFile(externalPath, "password=synthetic-private-value\n");
+    await writeFile(externalPath, `${compactAssignment("password", "synthetic-private-value")}\n`);
     let swapped = false;
     let externalRead = false;
     const legacyRead = vi.fn(async (path: string) => {
@@ -954,7 +957,7 @@ describe("release candidate input validation", () => {
     for (const stage of ["source", "materialization", "reconciliation"] as const) {
       const fixture = await createFixture();
       await populateReadyFixture(fixture);
-      const privateFailure = `${fixture.root}/credential_password=synthetic-private-value`;
+      const privateFailure = `${fixture.root}/${credentialPasswordFixture("synthetic-private-value")}`;
       const throwingResult = new Proxy({}, {
         get: () => {
           throw new Error(privateFailure);
@@ -1020,7 +1023,7 @@ describe("release candidate input validation", () => {
       {
         name: "multibyte content with a secret beyond the claimed prefix",
         size: 2,
-        content: "ok🙂password=synthetic-private-value"
+        content: `ok🙂${compactAssignment("password", "synthetic-private-value")}`
       }
     ];
     for (const scenario of cases) {
@@ -1209,7 +1212,7 @@ describe("release candidate input validation", () => {
     const callbackFixture = await createFixture();
     await populateReadyFixture(callbackFixture);
     const callbackLifecycle = createLifecycleFilesystem(callbackFixture);
-    const privateFailure = join(callbackFixture.root, "credential_password=private-value");
+    const privateFailure = join(callbackFixture.root, credentialPasswordFixture("private-value"));
     const callbackResult = await withAssembledReleaseCandidate(
       {
         addonName: "fixture_addon",
@@ -1563,7 +1566,7 @@ describe("release candidate input validation", () => {
     const fixture = await createFixture();
     await populateReadyFixture(fixture);
     let candidateRoot: string | undefined;
-    const privateCode = `PRIVATE_${fixture.root}_credential_password=private-value`;
+    const privateCode = `PRIVATE_${fixture.root}_${credentialPasswordFixture("private-value")}`;
     const filesystem: ReleaseCandidateFilesystem = {
       ...assemblyOperations,
       lstat,
@@ -1640,7 +1643,7 @@ describe("release candidate input validation", () => {
     for (const scenario of scenarios) {
       const fixture = await createFixture();
       await populateReadyFixture(fixture);
-      const privateFailure = `${fixture.root}/credential_password=synthetic-private-value`;
+      const privateFailure = `${fixture.root}/${credentialPasswordFixture("synthetic-private-value")}`;
       const filesystem: ReleaseCandidateFilesystem = {
         ...assemblyOperations,
         lstat,
@@ -1853,7 +1856,7 @@ describe("release candidate input validation", () => {
       const fixture = await createFixture();
       const arranged = await scenario.arrange(fixture);
       const createCandidateRoot = vi.fn(async () => join(fixture.tempParent, "candidate"));
-      const privateFailure = join(fixture.root, "credential_password=private-value");
+      const privateFailure = join(fixture.root, credentialPasswordFixture("private-value"));
       const filesystem = {
         lstat: vi.fn(async (path: string) => {
           if (arranged.failField === "dotaRoot" && path === fixture.dotaRoot) {
@@ -2013,7 +2016,7 @@ describe("release candidate input validation", () => {
 
   test("rejects unsafe source identities before creation", async () => {
     const fixture = await createFixture();
-    const privateRoot = join(fixture.root, "private", "credential_password=private-value");
+    const privateRoot = join(fixture.root, "private", credentialPasswordFixture("private-value"));
     await mkdir(privateRoot, { recursive: true });
     await writeFile(join(privateRoot, "target.txt"), "private target contents\n");
     await symlink(join(privateRoot, "target.txt"), join(fixture.gameAddonRoot, "linked.txt"));

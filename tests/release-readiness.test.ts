@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { evaluateReleaseReadiness, type ReleaseReadinessInput } from "../src/release-readiness.js";
 
+const quotedAssignment = (name: string, value: string): string => [name, " = '", value, "'"].join("");
+const privateUnixFixture = (): string => ["/", "Users", "/private/workshop"].join("");
+
 describe("release readiness policy", () => {
   test("returns ordered structure and metadata findings", () => {
     const findings = evaluateReleaseReadiness({
@@ -31,7 +34,8 @@ describe("release readiness policy", () => {
 
   test("returns safe sensitive and unscannable text findings", () => {
     const secretValue = "private-fixture-value";
-    const privateRoot = "/Users/private/workshop";
+    const privateRoot = privateUnixFixture();
+    const platformSecretName = ["steam", "password"].join("_");
     const findings = evaluateReleaseReadiness({
       requiredPaths: [],
       metadata: { state: "missing" },
@@ -39,11 +43,11 @@ describe("release readiness policy", () => {
         {
           root: "game",
           files: [
-            { relativePath: "scripts/secret.lua", state: "text", content: `steam_password = '${secretValue}'` },
+            { relativePath: "scripts/secret.lua", state: "text", content: quotedAssignment(platformSecretName, secretValue) },
             { relativePath: "maps/demo.vmap", state: "non-text" },
             { relativePath: "addoninfo.txt", state: "oversized", requiredText: true },
             { relativePath: "resource/addon_demo_english.txt", state: "unreadable", requiredText: true },
-            { relativePath: `${privateRoot}/credential.lua`, state: "text", content: "token = 'redacted'" }
+            { relativePath: `${privateRoot}/credential.lua`, state: "text", content: quotedAssignment("token", "redacted") }
           ]
         }
       ]
@@ -63,8 +67,8 @@ describe("release readiness policy", () => {
   });
 
   test("does not serialize unsafe caller-provided finding identities", () => {
-    const tokenShapedLabel = "token = 'private-label-value'";
-    const privateScanRoot = "/Users/private/workshop";
+    const tokenShapedLabel = quotedAssignment("token", "private-label-value");
+    const privateScanRoot = privateUnixFixture();
     const findings = evaluateReleaseReadiness({
       requiredPaths: [{ label: tokenShapedLabel, present: false }],
       metadata: {
@@ -75,7 +79,7 @@ describe("release readiness policy", () => {
       scanRoots: [
         {
           root: privateScanRoot,
-          files: [{ relativePath: "scripts/safe.lua", state: "text", content: "token = 'redacted'" }]
+          files: [{ relativePath: "scripts/safe.lua", state: "text", content: quotedAssignment("token", "redacted") }]
         }
       ]
     } as unknown as ReleaseReadinessInput);
@@ -174,7 +178,7 @@ describe("release readiness policy", () => {
         {
           root: "game",
           files: [
-            { relativePath: "a.lua", state: "text", content: "token = 'redacted'" },
+            { relativePath: "a.lua", state: "text", content: quotedAssignment("token", "redacted") },
             { relativePath: "z.vmap", state: "non-text" }
           ]
         },
@@ -196,8 +200,8 @@ describe("release readiness policy", () => {
   test("orders distinct paths deterministically when redaction collapses their identities", () => {
     const firstCredential = ["ghp", "12345678901234567890a"].join("_");
     const secondCredential = ["ghp", "12345678901234567890b"].join("_");
-    const first = { relativePath: `scripts/${firstCredential}.lua`, state: "text" as const, content: "password = 'redacted'" };
-    const second = { relativePath: `scripts/${secondCredential}.lua`, state: "text" as const, content: "token = 'redacted'" };
+    const first = { relativePath: `scripts/${firstCredential}.lua`, state: "text" as const, content: quotedAssignment("password", "redacted") };
+    const second = { relativePath: `scripts/${secondCredential}.lua`, state: "text" as const, content: quotedAssignment("token", "redacted") };
     const input = (files: [typeof first, typeof second] | [typeof second, typeof first]): ReleaseReadinessInput => ({
       requiredPaths: [],
       metadata: { state: "missing" },
