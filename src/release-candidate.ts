@@ -590,6 +590,7 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
 
       let primitiveClosed = false;
       let contractInvalid = false;
+      let creationStarted = false;
       let creationPromise: Promise<CandidateCreationState> | undefined;
       const rejectedContractPromise = (): Promise<RegisteredCandidateCreation> => {
         const rejected = Promise.reject<RegisteredCandidateCreation>(candidateCreationContractViolation);
@@ -597,10 +598,11 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
         return rejected;
       };
       const createRegisteredCandidate = (): Promise<RegisteredCandidateCreation> => {
-        if (primitiveClosed || creationPromise !== undefined) {
+        if (primitiveClosed || creationStarted) {
           contractInvalid = true;
           return rejectedContractPromise();
         }
+        creationStarted = true;
         creationPromise = (async (): Promise<CandidateCreationState> => {
           try {
             const parsed = parseCreatedCandidateIdentity<TIdentity>(await createCandidateState(input));
