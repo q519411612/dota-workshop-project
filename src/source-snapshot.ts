@@ -78,7 +78,6 @@ const SOURCE_PATHS = [
 const REQUIRED_PATHS = [
   ".codex-plugin/plugin.json",
   ".mcp.json",
-  ".planning/REQUIREMENTS.md",
   "docs",
   "examples",
   "package.json",
@@ -202,6 +201,15 @@ async function readPackageJson(root: string): Promise<{ name: string; version: s
 }
 
 async function appendMissingRequiredPathBlockers(root: string, blockers: SourceSnapshotBlocker[]): Promise<void> {
+  if (!await hasRequirementsSource(root)) {
+    blockers.push({
+      code: "REQUIRED_SOURCE_PATH_MISSING",
+      path: ".planning/REQUIREMENTS.md",
+      field: "files",
+      category: "source coverage"
+    });
+  }
+
   for (const path of REQUIRED_PATHS) {
     try {
       await access(join(root, path));
@@ -216,12 +224,68 @@ async function appendMissingRequiredPathBlockers(root: string, blockers: SourceS
   }
 }
 
+async function hasRequirementsSource(root: string): Promise<boolean> {
+  try {
+    await access(join(root, ".planning/REQUIREMENTS.md"));
+    return true;
+  } catch {
+    // 活跃里程碑关闭后，归档 requirements 是同一来源契约的唯一合法替代。
+  }
+
+  return await resolveLatestArchivedMilestone(root) !== undefined;
+}
+
 async function collectSourceFiles(root: string): Promise<string[]> {
   const files: string[] = [];
   for (const sourcePath of SOURCE_PATHS) {
     await collectPath(root, sourcePath, files);
   }
+  if (!await pathExists(root, ".planning/REQUIREMENTS.md")) {
+    const archivedMilestone = await resolveLatestArchivedMilestone(root);
+    if (archivedMilestone !== undefined) {
+      for (const suffix of ["-REQUIREMENTS.md", "-ROADMAP.md", "-MILESTONE-AUDIT.md", "-phases"]) {
+        await collectPath(root, `.planning/milestones/${archivedMilestone}${suffix}`, files);
+      }
+    }
+  }
   return [...new Set(files)].sort(comparePath);
+}
+
+async function pathExists(root: string, repositoryPath: string): Promise<boolean> {
+  try {
+    await access(join(root, repositoryPath));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveLatestArchivedMilestone(root: string): Promise<string | undefined> {
+  let entries;
+  try {
+    entries = await readdir(join(root, ".planning/milestones"), { withFileTypes: true });
+  } catch {
+    return undefined;
+  }
+
+  const versions = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name.match(/^(v\d+(?:\.\d+)*)-REQUIREMENTS\.md$/))
+    .filter((match): match is RegExpMatchArray => match !== null)
+    .map((match) => match[1]!);
+  versions.sort(compareMilestoneVersion);
+  return versions.at(-1);
+}
+
+function compareMilestoneVersion(left: string, right: string): number {
+  const leftParts = left.slice(1).split(".").map(Number);
+  const rightParts = right.slice(1).split(".").map(Number);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 async function collectPath(root: string, sourcePath: string, files: string[]): Promise<void> {

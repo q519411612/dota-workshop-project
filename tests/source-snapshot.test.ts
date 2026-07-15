@@ -120,6 +120,31 @@ describe("source snapshot manifest dry run", () => {
     });
   });
 
+  test("selects only the latest archived milestone planning source", async () => {
+    await rm(join(root, ".planning/REQUIREMENTS.md"));
+    await mkdir(join(root, ".planning/milestones/v1.13-phases/01-legacy"), { recursive: true });
+    await mkdir(join(root, ".planning/milestones/v1.14-phases/03-current"), { recursive: true });
+    await writeFile(join(root, ".planning/milestones/v1.13-REQUIREMENTS.md"), "# Legacy Requirements\n");
+    await writeFile(
+      join(root, ".planning/milestones/v1.13-phases/01-legacy/01-SUMMARY.md"),
+      `legacy path: ${["", "Users", "private", "legacy"].join("/")}\n`
+    );
+    await writeFile(join(root, ".planning/milestones/v1.14-REQUIREMENTS.md"), "# Current Requirements\n");
+    await writeFile(join(root, ".planning/milestones/v1.14-phases/03-current/03-SUMMARY.md"), "# Current Summary\n");
+
+    const result = await generateSourceSnapshotManifest({
+      root,
+      generatedAt: FIXED_TIME,
+      commit: FIXED_COMMIT
+    });
+    const paths = result.manifest.files.map((file) => file.path);
+
+    expect(result.ok).toBe(true);
+    expect(paths).toContain(".planning/milestones/v1.14-REQUIREMENTS.md");
+    expect(paths).toContain(".planning/milestones/v1.14-phases/03-current/03-SUMMARY.md");
+    expect(paths.some((path) => path.includes("v1.13"))).toBe(false);
+  });
+
   test("blocks sensitive material without including the sensitive value", async () => {
     const sensitiveValue = ["steam", "password", "plain", "text"].join("_");
     await writeFile(join(root, "docs/secret.md"), `credential=${sensitiveValue}\n`);
