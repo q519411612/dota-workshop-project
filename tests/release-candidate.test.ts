@@ -3498,6 +3498,7 @@ describe("release candidate input validation", () => {
         }, "host", { get: () => { throw new Error("host metadata must not be read"); } });
       };
       let candidateRoot: string | undefined;
+      const observeSourceEntry = createAcceptedSourceObserver();
       const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
         createCandidateLease: async (validated) => {
           candidateRoot = await mkdtemp(join(validated.tempParent, reverse ? "host-b-" : "host-a-"));
@@ -3506,6 +3507,19 @@ describe("release candidate input validation", () => {
         cleanupCandidateLease: async (identity) => {
           await rm(identity.root, { recursive: true, force: false });
           return { ok: true, removed: true, absent: true, identityMatched: true };
+        },
+        observeAcceptedSourceEntry: async (input, entry) => {
+          const observed = await observeSourceEntry(input, entry);
+          if (!observed.ok) return observed;
+          return {
+            ...observed,
+            canonicalPath: reverse
+              ? observed.canonicalPath.replaceAll("/", "\\")
+              : observed.canonicalPath,
+            mtimeMs: reverse ? 2_000_000 : 1_000_000,
+            ctimeMs: reverse ? 4_000_000 : 3_000_000,
+            mode: reverse ? 0o444 : 0o755
+          };
         },
         observeAcceptedSource: async (_input, entry) => observation(entry.path),
         observeCandidate: async (_identity, expected) => ({
@@ -3543,8 +3557,18 @@ describe("release candidate input validation", () => {
     vi.spyOn(String.prototype, "localeCompare").mockImplementation(() => {
       throw new Error("locale-sensitive ordering is forbidden");
     });
-    const forward = await run(false);
-    const shuffled = await run(true);
+    const originalLocale = process.env.LC_ALL;
+    let forward;
+    let shuffled;
+    try {
+      process.env.LC_ALL = "en_US.UTF-8";
+      forward = await run(false);
+      process.env.LC_ALL = "tr_TR.UTF-8";
+      shuffled = await run(true);
+    } finally {
+      if (originalLocale === undefined) delete process.env.LC_ALL;
+      else process.env.LC_ALL = originalLocale;
+    }
 
     expect(forward).toEqual({
       schemaVersion: "1.0",
@@ -3555,8 +3579,37 @@ describe("release candidate input validation", () => {
     expect(JSON.stringify([forward.schemaVersion, forward.entries.map(({ root, path, bytes, sha256 }) => [root, path, bytes, sha256])])).toBe(expectedCanonical);
     expect(createHash("sha256").update(Buffer.from(expectedCanonical, "utf8")).digest("hex")).toBe(expectedCombinedSha256);
     expect(JSON.stringify(forward)).not.toContain("private-host");
+    expect(forward.entries.map((entry) => entry.path)).toEqual(manifestEntries.map((entry) => entry.path));
+    expect(forward.entries.every((entry) => !entry.path.includes("\\"))).toBe(true);
     expect(forward.entries.map((entry) => entry.path)).toContain("content/dota_addons/fixture_addon/materials/alpha|beta.bin");
     expect(forward.entries.map((entry) => entry.path)).toContain("content/dota_addons/fixture_addon/materials/quote\"\n.bin");
+  });
+
+  test("keeps nested JSON manifest identity collision-free", () => {
+    const firstDigest = "a".repeat(64);
+    const secondDigest = "b".repeat(64);
+    const combinedPath = `content/dota_addons/fixture_addon/materials/quote\"-控制|1|${firstDigest}\ncontent|content/dota_addons/fixture_addon/materials/next`;
+    const joinedManifest = [
+      ["content", combinedPath, 2, secondDigest]
+    ] as const;
+    const splitManifest = [
+      ["content", "content/dota_addons/fixture_addon/materials/quote\"-控制", 1, firstDigest],
+      ["content", "content/dota_addons/fixture_addon/materials/next", 2, secondDigest]
+    ] as const;
+    const delimiterJoin = (entries: readonly (readonly [string, string, number, string])[]): string => (
+      entries.map((entry) => entry.join("|")).join("\n")
+    );
+    const canonicalDigest = (entries: readonly (readonly [string, string, number, string])[]): string => (
+      createHash("sha256")
+        .update(Buffer.from(JSON.stringify(["1.0", entries]), "utf8"))
+        .digest("hex")
+    );
+
+    expect(joinedManifest).not.toEqual(splitManifest);
+    expect(delimiterJoin(joinedManifest)).toBe(delimiterJoin(splitManifest));
+    expect(canonicalDigest(joinedManifest)).not.toBe(canonicalDigest(splitManifest));
+    expect(canonicalDigest(joinedManifest)).toBe("e7fea908f4fd7b52efec2cb150a0f2eec758f14a77adad7482ab315622c963b4");
+    expect(canonicalDigest(splitManifest)).toBe("d21f4762cf09cab91efca857c63bf1c89f7d5644b8bdfd00b4bd5404a5d04c1a");
   });
 
   test("rejects malformed final integrity observations without retry or repair", async () => {
