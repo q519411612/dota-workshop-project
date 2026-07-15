@@ -95,7 +95,9 @@ async function populateReadyFixture(fixture: Fixture): Promise<void> {
 
 const assemblyOperations = {
   makeDirectory: async (path: string) => await mkdir(path),
-  copySourceFile: async (source: string, destination: string) => await copyFile(source, destination)
+  copySourceFile: async (source: string, destination: string) => await copyFile(source, destination),
+  readSourceFile: async (path: string) => await readFile(path, "utf8"),
+  sourceFileSize: async (path: string) => (await lstat(path)).size
 };
 
 afterEach(async () => {
@@ -179,6 +181,8 @@ describe("release candidate input validation", () => {
         }
         await copyFile(source, destination);
       },
+      readSourceFile: async (path) => await readFile(path, "utf8"),
+      sourceFileSize: async (path) => (await lstat(path)).size,
       candidateLifecycle: createIdentityBoundCandidateLifecycle({
         createCandidateLease: async (validated) => {
           candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
@@ -271,6 +275,35 @@ describe("release candidate input validation", () => {
       blockers: [{ code: "REQUIRED_PATH_MISSING", disposition: "blocker", field: "lua entry" }]
     });
     expect(blockedInspect).not.toHaveBeenCalled();
+    expect(candidateRoot).toBeUndefined();
+
+    await writeFile(join(fixture.gameAddonRoot, "scripts", "vscripts", "addon_game_mode.lua"), "function Activate() end\n");
+    const metadataPath = join(fixture.gameAddonRoot, "addoninfo.txt");
+    const completeMetadata = await readFile(metadataPath, "utf8");
+    await writeFile(metadataPath, completeMetadata.replace("Fixture Addon", "placeholder"));
+    const placeholderBlocked = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      blockedInspect,
+      { repositoryRoot: fixture.repositoryRoot, filesystem: createFilesystem() }
+    );
+    expect(placeholderBlocked).toMatchObject({
+      ok: false,
+      blockers: [{ code: "METADATA_PLACEHOLDER", disposition: "blocker", field: "addontitle" }]
+    });
+    expect(candidateRoot).toBeUndefined();
+
+    await writeFile(metadataPath, completeMetadata);
+    await writeFile(join(fixture.gameAddonRoot, "private.txt"), "password=synthetic-private-value\n");
+    const sensitiveBlocked = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      blockedInspect,
+      { repositoryRoot: fixture.repositoryRoot, filesystem: createFilesystem() }
+    );
+    expect(sensitiveBlocked).toMatchObject({
+      ok: false,
+      blockers: [{ code: "SENSITIVE_MATERIAL", disposition: "blocker", path: "private.txt" }]
+    });
+    expect(JSON.stringify(sensitiveBlocked)).not.toContain("synthetic-private-value");
     expect(candidateRoot).toBeUndefined();
   });
 
@@ -662,6 +695,7 @@ describe("release candidate input validation", () => {
       await mkdtemp(join(validated.tempParent, "dota-release-candidate-"))
     ));
     const unmarkedFilesystem: ReleaseCandidateFilesystem = {
+      ...assemblyOperations,
       lstat,
       realpath,
       readDirectory: async (path) => await readdir(path),
