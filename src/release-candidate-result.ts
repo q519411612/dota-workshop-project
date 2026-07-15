@@ -597,17 +597,40 @@ function normalizeCleanup(input: unknown): ReleaseCandidateCleanupDetail | undef
     && (identityMatched === undefined || typeof identityMatched === "boolean")
     && (removed === undefined || typeof removed === "boolean")
     && (absent === undefined || typeof absent === "boolean")
-  ) return {
-    schemaVersion: "1.0",
-    attempted,
-    attempts,
-    status,
-    verified,
-    code: code as ReleaseCandidateCleanupFailureCode,
-    ...(identityMatched === undefined ? {} : { identityMatched }),
-    ...(removed === undefined ? {} : { removed }),
-    ...(absent === undefined ? {} : { absent })
-  };
+  ) {
+    if (
+      attempted === false
+      && code === "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE"
+      && identityMatched === undefined
+      && removed === undefined
+      && absent === undefined
+    ) return { schemaVersion: "1.0", attempted, attempts, status, verified, code };
+    if (
+      attempted === true
+      && code === "CANDIDATE_CLEANUP_RESULT_INVALID"
+      && identityMatched === undefined
+      && removed === undefined
+      && absent === undefined
+    ) return { schemaVersion: "1.0", attempted, attempts, status, verified, code };
+    if (
+      attempted === true
+      && typeof identityMatched === "boolean"
+      && typeof removed === "boolean"
+      && typeof absent === "boolean"
+      && cleanupFailureFactsAgree(code as ReleaseCandidateCleanupFailureCode, identityMatched, removed, absent)
+    ) return {
+      schemaVersion: "1.0",
+      attempted,
+      attempts,
+      status,
+      verified,
+      code: code as ReleaseCandidateCleanupFailureCode,
+      identityMatched,
+      removed,
+      absent
+    };
+    return undefined;
+  }
   if (
     status === "unknown"
     && verified === false
@@ -731,14 +754,8 @@ function validateDomainConsistency(input: Readonly<{
   if (artifactValidation.status === "passed" && operation.status === "not-reached") return false;
   if (artifactValidation.status === "blocked") {
     if (!sameValue(blockers, artifactValidation.blockers)) return false;
-    if (
-      artifactValidation.inclusionLedger !== undefined
-      && !sameValue(inclusionLedger, artifactValidation.inclusionLedger)
-    ) return false;
-    if (
-      artifactValidation.scanCoverage !== undefined
-      && !sameValue(scanCoverage, artifactValidation.scanCoverage)
-    ) return false;
+    if (!sameValue(inclusionLedger, artifactValidation.inclusionLedger)) return false;
+    if (!sameValue(scanCoverage, artifactValidation.scanCoverage)) return false;
   }
   if (artifactValidation.status === "not-reached" && blockers.length === 0) return false;
   if (artifactValidation.status === "not-reached" && operation.status !== "not-reached") return false;
@@ -750,6 +767,20 @@ function validateDomainConsistency(input: Readonly<{
   }
   if ((execution.outcome === "uncertain") !== (cleanup.status === "unknown")) return false;
   return true;
+}
+
+function cleanupFailureFactsAgree(
+  code: ReleaseCandidateCleanupFailureCode,
+  identityMatched: boolean,
+  removed: boolean,
+  absent: boolean
+): boolean {
+  if (code === "CANDIDATE_IDENTITY_MISMATCH") return identityMatched === false;
+  if (code === "CANDIDATE_REMOVAL_FAILED") return identityMatched === true && removed === false;
+  if (code === "CANDIDATE_ABSENCE_UNVERIFIED") {
+    return identityMatched === true && removed === true && absent === false;
+  }
+  return code === "CANDIDATE_LEASE_INVALID";
 }
 
 function validatePassedEvidence(

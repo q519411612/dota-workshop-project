@@ -154,6 +154,7 @@ describe("release candidate public detail", () => {
     artifactBlocked.artifactValidation = {
       status: "blocked",
       blockers: [blocker],
+      inclusionLedger: artifactBlocked.inclusionLedger,
       scanCoverage: artifactBlocked.scanCoverage
     } as never;
     delete (artifactBlocked as { manifest?: unknown }).manifest;
