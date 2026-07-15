@@ -247,6 +247,8 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).toContain("volumeIdentity = $volumeIdentity; fileIdentity = $fileIdentity");
     expect(observationFunction).toContain("Test-IdentityTupleEqual $firstIdentity $ExpectedIdentity");
     expect(observationFunction).toContain("Test-IdentityTupleEqual $secondIdentity $ExpectedIdentity");
+    expect(observationFunction).toContain("RELEASE_CANDIDATE_IDENTITY_CHANGED");
+    expect(script).toContain("CANDIDATE_ROOT_IDENTITY_CHANGED");
     expect(observationFunction).toContain("$sha.ComputeHash($stream)");
     expect(observationFunction).not.toContain("Get-FileSha256 $candidate");
     expect(script).toContain("function Assert-CandidateProjectionIdentity");

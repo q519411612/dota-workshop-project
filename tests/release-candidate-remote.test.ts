@@ -126,6 +126,21 @@ function blockedPayload() {
   return payload;
 }
 
+function identityBlockedPayload(code: "RELEASE_CANDIDATE_IDENTITY_CHANGED" | "CANDIDATE_ROOT_IDENTITY_CHANGED", category = "candidate-identity") {
+  const payload = successPayload() as any;
+  const blocker = {
+    code,
+    category,
+    disposition: "blocker",
+    ...(code === "RELEASE_CANDIDATE_IDENTITY_CHANGED" ? { path: "game/dota_addons/demo/addoninfo.txt" } : {})
+  };
+  delete payload.manifest;
+  delete payload.inclusionLedger;
+  payload.blockers = [blocker];
+  payload.artifactValidation = { status: "blocked", blockers: [blocker], scanCoverage: payload.scanCoverage };
+  return payload;
+}
+
 function semanticProjection(result: Awaited<ReturnType<typeof preflightRemoteReleaseCandidate>>) {
   const detail: any = structuredClone(result.releaseCandidate);
   if (detail && "execution" in detail) {
@@ -223,6 +238,40 @@ describe("remote release-candidate normalization", () => {
       }
     });
   });
+
+  test.each(["RELEASE_CANDIDATE_IDENTITY_CHANGED", "CANDIDATE_ROOT_IDENTITY_CHANGED"] as const)(
+    "preserves explicit generated identity failure %s in the public result",
+    async (code) => {
+      const result = await preflightRemoteReleaseCandidate({
+        target: target("powershell"),
+        addonName: "demo",
+        executor: async () => ({ exitCode: 0, stdout: JSON.stringify(identityBlockedPayload(code)), stderr: "" })
+      });
+      expect(result).toMatchObject({
+        ok: false,
+        error: { code: "RELEASE_CANDIDATE_PREFLIGHT_FAILED" },
+        releaseCandidate: {
+          normalization: { status: "valid" },
+          blockers: [{ code, category: "candidate-identity" }],
+          artifactValidation: { status: "blocked", blockers: [{ code, category: "candidate-identity" }] }
+        }
+      });
+      expectNoPrivateEvidence(result);
+    }
+  );
+
+  test.each(["RELEASE_CANDIDATE_IDENTITY_CHANGED", "CANDIDATE_ROOT_IDENTITY_CHANGED"] as const)(
+    "rejects hostile category substitution for generated identity failure %s",
+    async (code) => {
+      const result = await preflightRemoteReleaseCandidate({
+        target: target("powershell"),
+        addonName: "demo",
+        executor: async () => ({ exitCode: 0, stdout: JSON.stringify(identityBlockedPayload(code, "candidate-integrity")), stderr: "" })
+      });
+      expect(result).toMatchObject({ ok: false, error: { code: "REMOTE_RELEASE_CANDIDATE_SEMANTIC_INVALID" } });
+      expectNoPrivateEvidence(result);
+    }
+  );
 
   test.each([
     ["empty", "", "REMOTE_RELEASE_CANDIDATE_FRAMING_INVALID"],

@@ -240,6 +240,50 @@ describe("release candidate public detail", () => {
     });
   });
 
+  test.each([
+    ["RELEASE_CANDIDATE_IDENTITY_CHANGED", "candidate-identity", "game/dota_addons/demo/addoninfo.txt"],
+    ["CANDIDATE_ROOT_IDENTITY_CHANGED", "candidate-identity", undefined]
+  ])("preserves generated remote identity blocker %s", (code, category, path) => {
+    const blocked = validSuccess();
+    const blocker = {
+      code,
+      category,
+      disposition: "blocker",
+      ...(path === undefined ? {} : { path })
+    };
+    blocked.artifactValidation = {
+      status: "blocked",
+      blockers: [blocker],
+      inclusionLedger: blocked.inclusionLedger,
+      scanCoverage: blocked.scanCoverage
+    } as never;
+    delete blocked.manifest;
+    blocked.blockers = [blocker] as never;
+
+    expect(normalizeReleaseCandidateDetail(blocked)).toMatchObject({
+      ok: false,
+      normalization: { status: "valid" },
+      artifactValidation: { status: "blocked", blockers: [blocker] },
+      blockers: [blocker]
+    });
+  });
+
+  test.each(["RELEASE_CANDIDATE_IDENTITY_CHANGED", "CANDIDATE_ROOT_IDENTITY_CHANGED"])(
+    "rejects the hostile category substitution for %s",
+    (code) => {
+      const blocked = validSuccess();
+      const blocker = { code, category: "candidate-integrity", disposition: "blocker" };
+      blocked.artifactValidation = { status: "blocked", blockers: [blocker], scanCoverage: blocked.scanCoverage } as never;
+      delete blocked.manifest;
+      delete blocked.inclusionLedger;
+      blocked.blockers = [blocker] as never;
+      expect(normalizeReleaseCandidateDetail(blocked)).toMatchObject({
+        normalization: { status: "failed" },
+        blockers: [{ code: "RELEASE_CANDIDATE_DETAIL_INVALID" }]
+      });
+    }
+  );
+
   test("accepts exact lease-invalid cleanup evidence after passed and blocked artifacts", () => {
     for (const artifactStatus of ["passed", "blocked"] as const) {
       const value = validSuccess();
