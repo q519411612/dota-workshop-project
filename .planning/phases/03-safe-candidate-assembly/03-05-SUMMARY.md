@@ -33,7 +33,7 @@ patterns-established:
 
 requirements-completed: [RCFS-02]
 
-duration: 21min
+duration: 29min
 completed: 2026-07-15
 status: complete
 ---
@@ -44,7 +44,7 @@ status: complete
 
 ## Performance
 
-- **Duration:** 21 min
+- **Duration:** 29 min
 - **Started:** 2026-07-15T07:19:57Z
 - **Completed:** 2026-07-15T07:40:00Z
 - **Tasks:** 2
@@ -56,6 +56,7 @@ status: complete
 - Added immediate source kind and canonical-containment revalidation before every directory creation and file copy, plus candidate-parent canonical checks and unexpected-destination rejection.
 - Evaluated structure, metadata, placeholder, and redacted sensitive-material readiness through `evaluateReleaseReadiness` before candidate creation.
 - Ensured copy and destination failures skip the inspection callback, serialize only stable blockers, and preserve the identity-bound cleanup lifecycle.
+- Proved the leased candidate root is exactly empty before the first assembly write; rogue files, directories, and symbolic links produce deterministic safe-identity blockers while remaining present until lease cleanup.
 - Kept source trees read-only and avoided recursive copy, retry, repair, filtering, generation, archive, manifest, hash, MCP, and remote behavior.
 
 ## Task Commits
@@ -64,6 +65,7 @@ status: complete
 2. **Align prior lifecycle fixtures with complete readiness and assembly capabilities** - `2bf967a` (test)
 3. **Cover shared readiness blocker categories and redaction** - `6705bfb` (test)
 4. **Implement explicit directory and file assembly** - `250228c` (feat)
+5. **Reject non-empty leased candidate roots** - `e2a7730`, `8c64699` (test), `ba52dc6` (fix)
 
 ## Files Created/Modified
 
@@ -79,25 +81,39 @@ status: complete
 
 ## Deviations from Plan
 
-None - the plan was executed within RCFS-02. Two additional test-only commits refined compatibility with the previously delivered lease lifecycle and exercised all required shared-readiness blocker classes without expanding production scope.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Unexpected candidate contents] Require an empty leased root before assembly**
+- **Found during:** Independent specification review after initial completion.
+- **Issue:** Per-destination checks prevented overwrite and escape but did not reject unrelated entries already present elsewhere in the leased root, so the callback could observe rogue content.
+- **Fix:** Enumerate the canonical root before every assembly operation, require it to be exactly empty, sort all unexpected identities ordinally, sanitize unsafe identities, and return `CANDIDATE_ROOT_NOT_EMPTY` without deleting or repairing entries before lease cleanup.
+- **Files modified:** `tests/release-candidate.test.ts`, `src/release-candidate.ts`.
+- **Verification:** RED returned success and invoked inspection with `rogue-file`; GREEN blocks files, directories, and symbolic links before all mkdir/copy calls, preserves each rogue through cleanup entry, calls cleanup exactly once, and exposes stable sorted identities.
+- **Committed in:** `e2a7730`, `8c64699`, `ba52dc6`.
+
+---
+
+**Total deviations:** 1 auto-fixed correctness issue.
+**Impact on plan:** The correction closes an RCFS-02 completeness hole without adding manifest, hash, remote, or formal cleanup-evidence scope.
 
 ## TDD Gate Compliance
 
 - RED command failed with `CANDIDATE_INSPECTION_FAILED` because the callback observed a candidate without the required fixed directories and files.
 - RED commit `5cfd11a` precedes implementation commit `250228c`.
 - GREEN proves byte-identical binary copying, all inclusion categories, nested empty directories, shuffled enumeration, cleanup after copy failure, destination escape prevention, and callback-after-completion ordering.
+- Review RED commit `e2a7730` proves a rogue leased-root file previously survived into a successful callback; fix `ba52dc6` requires an empty root before assembly.
 
 ## Independent Review
 
 - Reviewed destination containment and overwrite behavior, per-write source reclassification, precreation readiness/redaction, callback ordering, and cleanup ownership independently after implementation.
-- No confirmed defects remained. No raw exception, private source path, credential value, unexpected destination write, recursive copy, retry, repair, or source mutation path was found.
+- The review found and corrected the non-empty leased-root gap. Re-review found no remaining raw exception, private source path, credential value, unexpected destination write, recursive copy, retry, repair, or source mutation path.
 
 ## Verification Evidence
 
 - Focused complete-layout test: 1/1 passed.
-- Candidate lifecycle suite: 14/14 passed.
+- Candidate lifecycle suite: 15/15 passed.
 - Readiness and preflight regression suites: 19/19 passed.
-- Full repository suite: 174/174 passed across 20 files.
+- Full repository suite: 175/175 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed.
 - `git diff --check`: passed.
