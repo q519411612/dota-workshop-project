@@ -5,11 +5,13 @@ import type { Stats } from "node:fs";
 import { validateAddonName } from "./addon.js";
 import {
   evaluateReleaseReadiness,
+  evaluateReleaseScanCoverage,
   isReleaseTextPath,
   MAX_SECRET_SCAN_BYTES,
   sanitizeRelativeEvidenceIdentity,
   type ReleaseReadinessFinding,
-  type ReleaseReadinessInput
+  type ReleaseReadinessInput,
+  type ReleaseScanCoverage
 } from "./release-readiness.js";
 
 export type ReleaseCandidateInput = {
@@ -153,10 +155,12 @@ export type ReleaseCandidateLifecycleResult<T> =
       value: T;
       manifest: ReleaseCandidateManifest;
       inclusionLedger: ReleaseCandidateInclusionLedger;
+      scanCoverage: ReleaseScanCoverage;
     }
   | {
       ok: false;
       inclusionLedger?: ReleaseCandidateInclusionLedger;
+      scanCoverage?: ReleaseScanCoverage;
       blockers: Array<
         ReleaseCandidateInputBlocker
         | ReleaseCandidateInventoryBlocker
@@ -210,16 +214,27 @@ export type CandidateLeaseCleanupResult =
 export type AcceptedSourceReadResult =
   | Readonly<{
       ok: true;
+      schemaVersion: "1.0";
       state: "readable";
       size: number;
-      content: string;
+      bytes: Uint8Array;
       identityMatched: true;
       kindMatched: true;
       contained: true;
     }>
   | Readonly<{
       ok: true;
+      schemaVersion: "1.0";
       state: "oversized";
+      size: number;
+      identityMatched: true;
+      kindMatched: true;
+      contained: true;
+    }>
+  | Readonly<{
+      ok: true;
+      schemaVersion: "1.0";
+      state: "binary" | "unreadable";
       size: number;
       identityMatched: true;
       kindMatched: true;
@@ -756,22 +771,24 @@ export async function withAssembledReleaseCandidate<T>(
   if (!observations.ok) return observations;
   const readiness = await releaseReadinessBlockers(prepared.value, inventory.entries, lifecycle);
   if (!readiness.ok) return readiness;
-  if (readiness.blockers.length > 0) return { ok: false, blockers: readiness.blockers };
+  if (readiness.blockers.length > 0) {
+    return { ok: false, blockers: readiness.blockers, scanCoverage: readiness.scanCoverage };
+  }
   const precreationStability = await verifySourceStability(
     prepared.value,
     inventory.entries,
     observations.value,
     lifecycle
   );
-  if (precreationStability !== undefined) return precreationStability;
+  if (precreationStability !== undefined) return withScanCoverage(precreationStability, readiness.scanCoverage);
   const sourceBefore = await captureSourceIntegrity(prepared.value, inventory.entries, lifecycle);
-  if (!sourceBefore.ok) return sourceBefore;
+  if (!sourceBefore.ok) return withScanCoverage(sourceBefore, readiness.scanCoverage);
 
   let created: Awaited<ReturnType<BoundCandidateLifecycle["createCandidateLease"]>>;
   try {
     created = await lifecycle.createCandidateLease(prepared.value);
   } catch {
-    return lifecycleBlocked("CANDIDATE_CREATION_FAILED", "creation");
+    return withScanCoverage(lifecycleBlocked("CANDIDATE_CREATION_FAILED", "creation"), readiness.scanCoverage);
   }
 
   let outcome: ReleaseCandidateLifecycleResult<T>;
@@ -784,6 +801,7 @@ export async function withAssembledReleaseCandidate<T>(
       inventory.entries,
       observations.value,
       sourceBefore.value,
+      readiness.scanCoverage,
       lifecycle,
       inspect
     );
@@ -828,6 +846,7 @@ async function inspectCandidateLease<T>(
   inventory: ReleaseCandidateSourceEntry[],
   observations: AcceptedSourceObservations,
   sourceBefore: FileIntegrityObservations,
+  scanCoverage: ReleaseScanCoverage,
   lifecycle: BoundCandidateLifecycle,
   inspect: (candidateRoot: string) => Promise<T>
 ): Promise<ReleaseCandidateLifecycleResult<T>> {
@@ -908,7 +927,8 @@ async function inspectCandidateLease<T>(
       ok: true,
       value: value as T,
       manifest,
-      inclusionLedger: candidateAfter.value.inclusionLedger
+      inclusionLedger: candidateAfter.value.inclusionLedger,
+      scanCoverage
     };
   } catch {
     return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
@@ -1680,7 +1700,7 @@ async function releaseReadinessBlockers(
   inventory: ReleaseCandidateSourceEntry[],
   lifecycle: BoundCandidateLifecycle
 ): Promise<
-  | { ok: true; blockers: ReleaseReadinessFinding[] }
+  | { ok: true; blockers: ReleaseReadinessFinding[]; scanCoverage: ReleaseScanCoverage }
   | ReleaseCandidateLifecycleFailure
 > {
   const collected = await collectReleaseReadinessInput(input, inventory, lifecycle);
@@ -1689,7 +1709,11 @@ async function releaseReadinessBlockers(
     .filter((finding) => finding.disposition === "blocker");
   const unique = new Map<string, ReleaseReadinessFinding>();
   for (const blocker of blockers) unique.set(JSON.stringify(blocker), blocker);
-  return { ok: true, blockers: [...unique.values()] };
+  return {
+    ok: true,
+    blockers: [...unique.values()],
+    scanCoverage: evaluateReleaseScanCoverage(collected.value)
+  };
 }
 
 async function collectReleaseReadinessInput(
@@ -1722,9 +1746,11 @@ async function collectReleaseReadinessInput(
   ];
 
   const observations = new Map<string, Extract<AcceptedSourceReadResult, { ok: true }>>();
-  for (const entry of inventory.filter((candidate) => candidate.kind === "file" && isReleaseTextPath(candidate.path))) {
+  for (const entry of inventory.filter((candidate) => candidate.kind === "file")) {
+    const relativePath = entry.path.split(`/dota_addons/${input.addonName}/`)[1];
     const observed = await parseAcceptedSourceRead(
-      async () => await lifecycle.readAcceptedSourceFile(input, entry, MAX_SECRET_SCAN_BYTES)
+      async () => await lifecycle.readAcceptedSourceFile(input, entry, MAX_SECRET_SCAN_BYTES),
+      isReleaseTextPath(relativePath)
     );
     if (!observed.ok) return observed;
     observations.set(entry.path, observed.value);
@@ -1733,9 +1759,14 @@ async function collectReleaseReadinessInput(
   let metadata: ReleaseReadinessInput["metadata"] = { state: "missing" };
   const metadataObservation = observations.get(`${gamePrefix}/addoninfo.txt`);
   if (metadataObservation?.state === "readable") {
-    metadata = { state: "readable", content: metadataObservation.content };
+    const content = decodeReleaseText(metadataObservation.bytes);
+    metadata = content === undefined
+      ? { state: "unreadable", path: "addoninfo.txt" }
+      : { state: "readable", content };
   } else if (metadataObservation?.state === "oversized") {
     metadata = { state: "oversized", path: "addoninfo.txt" };
+  } else if (metadataObservation?.state === "unreadable") {
+    metadata = { state: "unreadable", path: "addoninfo.txt" };
   }
 
   const requiredText = new Set([
@@ -1753,15 +1784,16 @@ async function collectReleaseReadinessInput(
     const files: ReleaseReadinessInput["scanRoots"][number]["files"] = [];
     for (const entry of inventory.filter((candidate) => candidate.root === root && candidate.kind === "file")) {
       const relativePath = entry.path.slice(prefix.length + 1);
-      if (!isReleaseTextPath(relativePath)) {
-        files.push({ relativePath, state: "non-text", requiredText: requiredText.has(relativePath) });
-        continue;
-      }
       const observed = observations.get(entry.path);
-      if (observed?.state === "oversized") {
+      if (observed?.state === "binary") {
+        files.push({ relativePath, state: "binary", requiredText: requiredText.has(relativePath) });
+      } else if (observed?.state === "oversized") {
         files.push({ relativePath, state: "oversized", requiredText: requiredText.has(relativePath) });
       } else if (observed?.state === "readable") {
-        files.push({ relativePath, state: "text", content: observed.content, requiredText: requiredText.has(relativePath) });
+        const content = decodeReleaseText(observed.bytes);
+        files.push(content === undefined
+          ? { relativePath, state: "invalid-encoding", requiredText: requiredText.has(relativePath) }
+          : { relativePath, state: "text", content, requiredText: requiredText.has(relativePath) });
       } else files.push({ relativePath, state: "unreadable", requiredText: requiredText.has(relativePath) });
     }
     scanRoots.push({ root, files });
@@ -1770,7 +1802,8 @@ async function collectReleaseReadinessInput(
 }
 
 async function parseAcceptedSourceRead(
-  acquire: () => Promise<unknown>
+  acquire: () => Promise<unknown>,
+  expectedText: boolean
 ): Promise<
   | { ok: true; value: Extract<AcceptedSourceReadResult, { ok: true }> }
   | ReleaseCandidateLifecycleFailure
@@ -1790,7 +1823,7 @@ async function parseAcceptedSourceRead(
     }
     const state = Reflect.get(result, "state");
     const size = Reflect.get(result, "size");
-    if (ok !== true || !Number.isSafeInteger(size) || size < 0) {
+    if (ok !== true || Reflect.get(result, "schemaVersion") !== "1.0" || !Number.isSafeInteger(size) || size < 0) {
       return lifecycleBlocked("SOURCE_READ_RESULT_INVALID", "assembly");
     }
     const identityMatched = Reflect.get(result, "identityMatched");
@@ -1800,21 +1833,56 @@ async function parseAcceptedSourceRead(
       return lifecycleBlocked("SOURCE_READ_RESULT_INVALID", "assembly");
     }
     if (state === "oversized" && size > MAX_SECRET_SCAN_BYTES) {
-      return { ok: true, value: { ok: true, state, size, identityMatched, kindMatched, contained } };
+      if (!expectedText) return lifecycleBlocked("SOURCE_READ_RESULT_INVALID", "assembly");
+      return { ok: true, value: { ok: true, schemaVersion: "1.0", state, size, identityMatched, kindMatched, contained } };
     }
-    const content = Reflect.get(result, "content");
+    if (state === "binary" && !expectedText) {
+      return { ok: true, value: { ok: true, schemaVersion: "1.0", state, size, identityMatched, kindMatched, contained } };
+    }
+    if (state === "unreadable" && expectedText) {
+      return { ok: true, value: { ok: true, schemaVersion: "1.0", state, size, identityMatched, kindMatched, contained } };
+    }
+    const bytes = Reflect.get(result, "bytes");
     if (
       state === "readable"
+      && expectedText
       && size <= MAX_SECRET_SCAN_BYTES
-      && typeof content === "string"
-      && Buffer.byteLength(content, "utf8") === size
+      && bytes instanceof Uint8Array
+      && bytes.byteLength === size
     ) {
-      return { ok: true, value: { ok: true, state, size, content, identityMatched, kindMatched, contained } };
+      return {
+        ok: true,
+        value: {
+          ok: true,
+          schemaVersion: "1.0",
+          state,
+          size,
+          bytes: Uint8Array.from(bytes),
+          identityMatched,
+          kindMatched,
+          contained
+        }
+      };
     }
   } catch {
     return lifecycleBlocked("SOURCE_READ_RESULT_INVALID", "assembly");
   }
   return lifecycleBlocked("SOURCE_READ_RESULT_INVALID", "assembly");
+}
+
+function decodeReleaseText(bytes: Uint8Array): string | undefined {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return undefined;
+  }
+}
+
+function withScanCoverage<T extends ReleaseCandidateLifecycleFailure>(
+  failure: T,
+  scanCoverage: ReleaseScanCoverage
+): T & { scanCoverage: ReleaseScanCoverage } {
+  return { ...failure, scanCoverage };
 }
 
 async function parseCandidateCleanupResult(

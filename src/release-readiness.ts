@@ -31,6 +31,20 @@ export type ReleaseMetadataKey = (typeof RELEASE_METADATA_KEYS)[number];
 export type RequiredPathLabel = (typeof REQUIRED_PATH_LABELS)[number];
 export type ScanRootIdentity = (typeof SCAN_ROOT_IDENTITIES)[number];
 
+export type ReleaseScanCoverageCategory = Readonly<{
+  count: number;
+  paths: readonly string[];
+}>;
+
+export type ReleaseScanCoverage = Readonly<{
+  schemaVersion: "1.0";
+  totalFileCount: number;
+  text: ReleaseScanCoverageCategory;
+  binary: ReleaseScanCoverageCategory;
+  unreadable: ReleaseScanCoverageCategory;
+  oversized: ReleaseScanCoverageCategory;
+}>;
+
 const TEXT_SCAN_EXTENSIONS = new Set([
   ".cfg",
   ".css",
@@ -96,8 +110,8 @@ export type ReleaseReadinessInput = {
     root: ScanRootIdentity;
     files: Array<
       | { relativePath: string; state: "text"; content: string; requiredText?: boolean }
-      | { relativePath: string; state: "non-text"; requiredText?: boolean }
-      | { relativePath: string; state: "oversized" | "unreadable"; requiredText?: boolean }
+      | { relativePath: string; state: "binary" | "non-text"; requiredText?: boolean }
+      | { relativePath: string; state: "oversized" | "unreadable" | "invalid-encoding"; requiredText?: boolean }
     >;
   }>;
 };
@@ -142,6 +156,62 @@ export function evaluateReleaseReadiness(input: ReleaseReadinessInput): ReleaseR
   }
 
   return findings;
+}
+
+export function evaluateReleaseScanCoverage(input: ReleaseReadinessInput): ReleaseScanCoverage {
+  const paths = {
+    text: [] as string[],
+    binary: [] as string[],
+    unreadable: [] as string[],
+    oversized: [] as string[]
+  };
+  const observations: Array<Readonly<{
+    root: ScanRootIdentity;
+    relativePath: string;
+    category: keyof typeof paths;
+  }>> = [];
+
+  for (const scanRoot of input.scanRoots) {
+    if (!isScanRootIdentity(scanRoot?.root) || !Array.isArray(scanRoot.files)) continue;
+    for (const file of scanRoot.files) {
+      if (file === null || typeof file !== "object" || typeof file.relativePath !== "string") continue;
+      const category = scanCoverageCategory(file.state);
+      if (category === undefined || safeFindingPath(file.relativePath) === undefined) continue;
+      observations.push({ root: scanRoot.root, relativePath: file.relativePath, category });
+    }
+  }
+
+  observations.sort((left, right) => {
+    return compareOrdinal(
+      `${left.root}/${left.relativePath}`,
+      `${right.root}/${right.relativePath}`
+    );
+  });
+  for (const observation of observations) {
+    const safePath = safeFindingPath(observation.relativePath);
+    if (safePath !== undefined) paths[observation.category].push(`${observation.root}/${safePath}`);
+  }
+
+  return Object.freeze({
+    schemaVersion: "1.0",
+    totalFileCount: observations.length,
+    text: coverageCategory(paths.text),
+    binary: coverageCategory(paths.binary),
+    unreadable: coverageCategory(paths.unreadable),
+    oversized: coverageCategory(paths.oversized)
+  });
+}
+
+function scanCoverageCategory(state: unknown): "text" | "binary" | "unreadable" | "oversized" | undefined {
+  if (state === "text") return "text";
+  if (state === "binary" || state === "non-text") return "binary";
+  if (state === "unreadable" || state === "invalid-encoding") return "unreadable";
+  if (state === "oversized") return "oversized";
+  return undefined;
+}
+
+function coverageCategory(paths: string[]): ReleaseScanCoverageCategory {
+  return Object.freeze({ count: paths.length, paths: Object.freeze(paths) });
 }
 
 function appendMetadataFindings(findings: ReleaseReadinessFinding[], metadata: ReleaseReadinessInput["metadata"]): void {
@@ -221,7 +291,7 @@ function appendScanFindings(
     return;
   }
 
-  if (file.state === "non-text") {
+  if (file.state === "binary" || file.state === "non-text") {
     findings.push({
       code: "NON_TEXT_INCLUDED",
       category: "non-text",
@@ -231,7 +301,7 @@ function appendScanFindings(
     return;
   }
 
-  if (file.state !== "oversized" && file.state !== "unreadable") {
+  if (file.state !== "oversized" && file.state !== "unreadable" && file.state !== "invalid-encoding") {
     findings.push({ code: "POLICY_INPUT_INVALID", category: "metadata-observation", disposition: "blocker" });
     return;
   }
