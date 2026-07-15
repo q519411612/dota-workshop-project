@@ -1,7 +1,14 @@
-import { lstat, mkdtemp, readdir, realpath } from "node:fs/promises";
+import { copyFile, lstat, mkdir, mkdtemp, readFile, readdir, realpath, stat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import type { Stats } from "node:fs";
+import { constants as filesystemConstants, type Stats } from "node:fs";
 import { validateAddonName } from "./addon.js";
+import {
+  evaluateReleaseReadiness,
+  isReleaseTextPath,
+  MAX_SECRET_SCAN_BYTES,
+  type ReleaseReadinessFinding,
+  type ReleaseReadinessInput
+} from "./release-readiness.js";
 
 export type ReleaseCandidateInput = {
   addonName: string;
@@ -76,6 +83,10 @@ export type ReleaseCandidateFilesystem = {
   readDirectory(path: string): Promise<string[]>;
   classifySourceEntry(path: string): Promise<ReleaseCandidateEntryKind>;
   createCandidateRoot(input: ValidatedReleaseCandidateInput): Promise<string>;
+  makeDirectory?(path: string): Promise<void>;
+  copySourceFile?(source: string, destination: string): Promise<void>;
+  readSourceFile?(path: string): Promise<string>;
+  sourceFileSize?(path: string): Promise<number>;
   candidateLifecycle?: IdentityBoundCandidateLifecycle;
 };
 
@@ -93,13 +104,19 @@ function createDefaultFilesystem(platform: NodeJS.Platform): ReleaseCandidateFil
     classifySourceEntry: platform === "win32"
       ? async () => "unknown"
       : classifySourceEntry,
-    createCandidateRoot: async (input) => await mkdtemp(join(input.tempParent, "dota-release-candidate-"))
+    createCandidateRoot: async (input) => await mkdtemp(join(input.tempParent, "dota-release-candidate-")),
+    makeDirectory: async (path) => await mkdir(path),
+    copySourceFile: async (source, destination) => (
+      await copyFile(source, destination, filesystemConstants.COPYFILE_EXCL)
+    ),
+    readSourceFile: async (path) => await readFile(path, "utf8"),
+    sourceFileSize: async (path) => (await stat(path)).size
   };
 }
 
 export type ReleaseCandidateLifecycleBlocker = Readonly<{
   code: string;
-  category: "creation" | "inspection" | "removal" | "unsafe-isolation";
+  category: "assembly" | "creation" | "inspection" | "removal" | "unsafe-isolation";
 }>;
 
 export type ReleaseCandidateLifecycleResult<T> =
@@ -110,6 +127,7 @@ export type ReleaseCandidateLifecycleResult<T> =
         ReleaseCandidateInputBlocker
         | ReleaseCandidateInventoryBlocker
         | ReleaseCandidateLifecycleBlocker
+        | ReleaseReadinessFinding
       >;
     };
 
@@ -187,8 +205,11 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
 type BoundCandidateLifecycle = Readonly<{
   lstat: ReleaseCandidateFilesystem["lstat"];
   realpath: ReleaseCandidateFilesystem["realpath"];
+  classifySourceEntry: ReleaseCandidateFilesystem["classifySourceEntry"];
   createCandidateLease: IdentityBoundCandidateLifecycle["createCandidateLease"];
   cleanupCandidateLease: IdentityBoundCandidateLifecycle["cleanupCandidateLease"];
+  makeDirectory: (path: string) => Promise<void>;
+  copySourceFile: (source: string, destination: string) => Promise<void>;
 }>;
 
 export type ReleaseCandidateContinuationResult<T> =
@@ -333,6 +354,27 @@ export async function withAssembledReleaseCandidate<T>(
   if (!inventory.ok) return inventory;
 
   const filesystem = prepared.value[releaseCandidateFilesystemCapability];
+  if (filesystem.readSourceFile === undefined || filesystem.sourceFileSize === undefined) {
+    return lifecycleBlocked("RELEASE_READINESS_CAPABILITY_REQUIRED", "creation");
+  }
+  const readinessBlockers = await releaseReadinessBlockers(
+    prepared.value,
+    inventory.entries,
+    filesystem.readSourceFile.bind(filesystem),
+    filesystem.sourceFileSize.bind(filesystem)
+  );
+  if (readinessBlockers.length > 0) return { ok: false, blockers: readinessBlockers };
+
+  const capability = filesystem.candidateLifecycle;
+  if (
+    capability?.identityBoundCleanup !== true
+    || capability[identityBoundCandidateLifecycleBrand] !== true
+  ) {
+    return lifecycleBlocked("IDENTITY_BOUND_CLEANUP_REQUIRED", "creation");
+  }
+  if (filesystem.makeDirectory === undefined || filesystem.copySourceFile === undefined) {
+    return lifecycleBlocked("CANDIDATE_ASSEMBLY_CAPABILITY_REQUIRED", "creation");
+  }
   const lifecycle = bindIdentityBoundCandidateLifecycle(filesystem);
   if (lifecycle === undefined) {
     return lifecycleBlocked("IDENTITY_BOUND_CLEANUP_REQUIRED", "creation");
@@ -348,7 +390,13 @@ export async function withAssembledReleaseCandidate<T>(
   let outcome: ReleaseCandidateLifecycleResult<T>;
   let cleanupFailure: ReleaseCandidateLifecycleResult<never> | undefined;
   try {
-    outcome = await inspectCandidateLease(created.inspectionRoot, prepared.value, lifecycle, inspect);
+    outcome = await inspectCandidateLease(
+      created.inspectionRoot,
+      prepared.value,
+      inventory.entries,
+      lifecycle,
+      inspect
+    );
   } finally {
     cleanupFailure = await parseCandidateCleanupResult(
       async () => await lifecycle.cleanupCandidateLease(created.lease)
@@ -364,20 +412,26 @@ function bindIdentityBoundCandidateLifecycle(
   if (
     capability?.identityBoundCleanup !== true
     || capability[identityBoundCandidateLifecycleBrand] !== true
+    || filesystem.makeDirectory === undefined
+    || filesystem.copySourceFile === undefined
   ) {
     return undefined;
   }
   return Object.freeze({
     lstat: filesystem.lstat.bind(filesystem),
     realpath: filesystem.realpath.bind(filesystem),
+    classifySourceEntry: filesystem.classifySourceEntry.bind(filesystem),
     createCandidateLease: capability.createCandidateLease.bind(capability),
-    cleanupCandidateLease: capability.cleanupCandidateLease.bind(capability)
+    cleanupCandidateLease: capability.cleanupCandidateLease.bind(capability),
+    makeDirectory: filesystem.makeDirectory.bind(filesystem),
+    copySourceFile: filesystem.copySourceFile.bind(filesystem)
   });
 }
 
 async function inspectCandidateLease<T>(
   inspectionRoot: string,
   input: ValidatedReleaseCandidateInput,
+  inventory: ReleaseCandidateSourceEntry[],
   lifecycle: BoundCandidateLifecycle,
   inspect: (candidateRoot: string) => Promise<T>
 ): Promise<ReleaseCandidateLifecycleResult<T>> {
@@ -401,6 +455,8 @@ async function inspectCandidateLease<T>(
     if (!isCandidateRootIsolated(canonicalRoot, input)) {
       return lifecycleBlocked("CANDIDATE_ROOT_NOT_ISOLATED", "unsafe-isolation");
     }
+    const assemblyFailure = await assembleReleaseCandidate(canonicalRoot, input, inventory, lifecycle);
+    if (assemblyFailure !== undefined) return assemblyFailure;
     try {
       return { ok: true, value: await inspect(canonicalRoot) };
     } catch {
@@ -409,6 +465,195 @@ async function inspectCandidateLease<T>(
   } catch {
     return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
   }
+}
+
+async function assembleReleaseCandidate(
+  candidateRoot: string,
+  input: ValidatedReleaseCandidateInput,
+  inventory: ReleaseCandidateSourceEntry[],
+  filesystem: BoundCandidateLifecycle
+): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+  const fixedDirectories = [
+    { path: "content", sourceRoot: input.contentAddonRoot },
+    { path: "content/dota_addons", sourceRoot: input.contentAddonRoot },
+    { path: `content/dota_addons/${input.addonName}`, sourceRoot: input.contentAddonRoot },
+    { path: "game", sourceRoot: input.gameAddonRoot },
+    { path: "game/dota_addons", sourceRoot: input.gameAddonRoot },
+    { path: `game/dota_addons/${input.addonName}`, sourceRoot: input.gameAddonRoot }
+  ];
+
+  for (const directory of fixedDirectories) {
+    const sourceFailure = await revalidateSourceEntry(
+      directory.sourceRoot,
+      directory.sourceRoot,
+      "directory",
+      filesystem
+    );
+    if (sourceFailure !== undefined) return sourceFailure;
+    const destination = join(candidateRoot, ...directory.path.split("/"));
+    const destinationFailure = await validateDestinationParent(destination, candidateRoot, filesystem);
+    if (destinationFailure !== undefined) return destinationFailure;
+    try {
+      await filesystem.makeDirectory(destination);
+    } catch {
+      return lifecycleBlocked("CANDIDATE_ASSEMBLY_FAILED", "assembly");
+    }
+  }
+
+  for (const entry of inventory) {
+    const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+    const prefix = `${entry.root}/dota_addons/${input.addonName}`;
+    const relativeIdentity = entry.path.slice(prefix.length + 1);
+    const source = join(sourceRoot, ...relativeIdentity.split("/"));
+    const sourceFailure = await revalidateSourceEntry(source, sourceRoot, entry.kind, filesystem);
+    if (sourceFailure !== undefined) return sourceFailure;
+
+    const destination = join(candidateRoot, ...entry.path.split("/"));
+    const destinationFailure = await validateDestinationParent(destination, candidateRoot, filesystem);
+    if (destinationFailure !== undefined) return destinationFailure;
+    try {
+      if (entry.kind === "directory") {
+        await filesystem.makeDirectory(destination);
+      } else {
+        await filesystem.copySourceFile(source, destination);
+      }
+    } catch {
+      return lifecycleBlocked("CANDIDATE_ASSEMBLY_FAILED", "assembly");
+    }
+  }
+  return undefined;
+}
+
+async function revalidateSourceEntry(
+  source: string,
+  sourceRoot: string,
+  expectedKind: "file" | "directory",
+  filesystem: Pick<ReleaseCandidateFilesystem, "classifySourceEntry" | "realpath">
+): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+  try {
+    const kind = normalizeEntryKind(await filesystem.classifySourceEntry(source));
+    if (kind !== expectedKind) {
+      return lifecycleBlocked("SOURCE_ENTRY_CHANGED", "assembly");
+    }
+    const canonicalSource = await filesystem.realpath(source);
+    if (!isPathAtOrInside(canonicalSource, sourceRoot)) {
+      return lifecycleBlocked("SOURCE_ENTRY_CHANGED", "assembly");
+    }
+    return undefined;
+  } catch {
+    return lifecycleBlocked("SOURCE_ENTRY_CHANGED", "assembly");
+  }
+}
+
+async function validateDestinationParent(
+  destination: string,
+  candidateRoot: string,
+  filesystem: Pick<ReleaseCandidateFilesystem, "lstat" | "realpath">
+): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+  if (!isPathInside(destination, candidateRoot)) {
+    return lifecycleBlocked("CANDIDATE_DESTINATION_UNSAFE", "unsafe-isolation");
+  }
+  try {
+    try {
+      await filesystem.lstat(destination);
+      return lifecycleBlocked("CANDIDATE_DESTINATION_UNEXPECTED", "unsafe-isolation");
+    } catch (error) {
+      if (errorCode(error) !== "ENOENT") {
+        return lifecycleBlocked("CANDIDATE_DESTINATION_UNSAFE", "unsafe-isolation");
+      }
+    }
+    const canonicalParent = await filesystem.realpath(resolve(destination, ".."));
+    if (!isPathAtOrInside(canonicalParent, candidateRoot)) {
+      return lifecycleBlocked("CANDIDATE_DESTINATION_UNSAFE", "unsafe-isolation");
+    }
+    return undefined;
+  } catch {
+    return lifecycleBlocked("CANDIDATE_DESTINATION_UNSAFE", "unsafe-isolation");
+  }
+}
+
+async function releaseReadinessBlockers(
+  input: ValidatedReleaseCandidateInput,
+  inventory: ReleaseCandidateSourceEntry[],
+  readSourceFile: (path: string) => Promise<string>,
+  sourceFileSize: (path: string) => Promise<number>
+): Promise<ReleaseReadinessFinding[]> {
+  const observations = await collectReleaseReadinessInput(input, inventory, readSourceFile, sourceFileSize);
+  return evaluateReleaseReadiness(observations).filter((finding) => finding.disposition === "blocker");
+}
+
+async function collectReleaseReadinessInput(
+  input: ValidatedReleaseCandidateInput,
+  inventory: ReleaseCandidateSourceEntry[],
+  readSourceFile: (path: string) => Promise<string>,
+  sourceFileSize: (path: string) => Promise<number>
+): Promise<ReleaseReadinessInput> {
+  const identities = new Set(inventory.map((entry) => entry.path));
+  const gamePrefix = `game/dota_addons/${input.addonName}`;
+  const contentPrefix = `content/dota_addons/${input.addonName}`;
+  const requiredPaths: ReleaseReadinessInput["requiredPaths"] = [
+    { label: "game addon root", present: true },
+    { label: "content addon root", present: true },
+    { label: "addon metadata", present: identities.has(`${gamePrefix}/addoninfo.txt`) },
+    { label: "lua entry", present: identities.has(`${gamePrefix}/scripts/vscripts/addon_game_mode.lua`) },
+    { label: "localization file", present: identities.has(`${gamePrefix}/resource/addon_${input.addonName}_english.txt`) },
+    { label: "content maps directory", present: identities.has(`${contentPrefix}/maps`) },
+    { label: "hero list", present: identities.has(`${gamePrefix}/scripts/npc/herolist.txt`) },
+    { label: "hero data", present: identities.has(`${gamePrefix}/scripts/npc/npc_heroes_custom.txt`) },
+    { label: "unit support file", present: identities.has(`${gamePrefix}/scripts/npc/npc_units_custom.txt`) },
+    { label: "ability support file", present: identities.has(`${gamePrefix}/scripts/npc/npc_abilities_custom.txt`) }
+  ];
+
+  const metadataPath = join(input.gameAddonRoot, "addoninfo.txt");
+  let metadata: ReleaseReadinessInput["metadata"] = { state: "missing" };
+  if (identities.has(`${gamePrefix}/addoninfo.txt`)) {
+    try {
+      metadata = { state: "readable", content: await readSourceFile(metadataPath) };
+    } catch {
+      metadata = { state: "unreadable", path: "addoninfo.txt" };
+    }
+  }
+
+  const requiredText = new Set([
+    "addoninfo.txt",
+    "scripts/vscripts/addon_game_mode.lua",
+    `resource/addon_${input.addonName}_english.txt`,
+    "scripts/npc/herolist.txt",
+    "scripts/npc/npc_heroes_custom.txt",
+    "scripts/npc/npc_units_custom.txt",
+    "scripts/npc/npc_abilities_custom.txt"
+  ]);
+  const scanRoots: ReleaseReadinessInput["scanRoots"] = [];
+  for (const root of ["game", "content"] as const) {
+    const sourceRoot = root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+    const prefix = root === "game" ? gamePrefix : contentPrefix;
+    const files: ReleaseReadinessInput["scanRoots"][number]["files"] = [];
+    for (const entry of inventory.filter((candidate) => candidate.root === root && candidate.kind === "file")) {
+      const relativePath = entry.path.slice(prefix.length + 1);
+      const source = join(sourceRoot, ...relativePath.split("/"));
+      if (!isReleaseTextPath(relativePath)) {
+        files.push({ relativePath, state: "non-text", requiredText: requiredText.has(relativePath) });
+        continue;
+      }
+      try {
+        const size = await sourceFileSize(source);
+        if (size > MAX_SECRET_SCAN_BYTES) {
+          files.push({ relativePath, state: "oversized", requiredText: requiredText.has(relativePath) });
+        } else {
+          files.push({
+            relativePath,
+            state: "text",
+            content: await readSourceFile(source),
+            requiredText: requiredText.has(relativePath)
+          });
+        }
+      } catch {
+        files.push({ relativePath, state: "unreadable", requiredText: requiredText.has(relativePath) });
+      }
+    }
+    scanRoots.push({ root, files });
+  }
+  return { requiredPaths, metadata, scanRoots };
 }
 
 async function parseCandidateCleanupResult(
