@@ -17,7 +17,7 @@ affects: [04-integrity-manifest-and-verified-cleanup, artifact-validation, clean
 
 tech-stack:
   added: []
-patterns: [factory-owned one-shot creation primitive, synchronous in-flight promise registration, opaque registered token, guarded acquisition normalization, one finally cleanup funnel]
+  patterns: [factory-owned one-shot creation primitive, synchronous in-flight promise registration, opaque registered token, guarded acquisition normalization, one finally cleanup funnel]
 
 key-files:
   created: [.planning/phases/04-integrity-manifest-and-verified-cleanup/04-05-SUMMARY.md]
