@@ -68,8 +68,8 @@ export type ReleaseCandidateInventoryResult =
 export type ReleaseCandidateFilesystem = {
   lstat(path: string): Promise<Pick<Stats, "isDirectory">>;
   realpath(path: string): Promise<string>;
-  readDirectory?(path: string): Promise<string[]>;
-  classifySourceEntry?(path: string): Promise<ReleaseCandidateEntryKind>;
+  readDirectory(path: string): Promise<string[]>;
+  classifySourceEntry(path: string): Promise<ReleaseCandidateEntryKind>;
   createCandidateRoot(input: ValidatedReleaseCandidateInput): Promise<string>;
 };
 
@@ -223,7 +223,7 @@ type InventoryDirectoryInput = {
 async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise<void> {
   let names: string[];
   try {
-    names = await readSourceDirectory(input.filesystem, input.sourcePath);
+    names = await input.filesystem.readDirectory(input.sourcePath);
   } catch {
     input.blockers.push({
       code: "SOURCE_ENTRY_UNREADABLE",
@@ -248,7 +248,7 @@ async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise
     const sourcePath = join(input.sourceRoot, ...input.segments, name);
     let kind: ReleaseCandidateEntryKind;
     try {
-      kind = normalizeEntryKind(await classifyWithAdapter(input.filesystem, sourcePath));
+      kind = normalizeEntryKind(await input.filesystem.classifySourceEntry(sourcePath));
     } catch {
       input.blockers.push({
         code: "SOURCE_ENTRY_UNREADABLE",
@@ -291,6 +291,14 @@ async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise
         path: identity,
         category: "case-fold"
       });
+      if (kind === "directory") {
+        await inventorySourceDirectory({
+          ...input,
+          sourcePath,
+          identity,
+          segments: [...input.segments, name]
+        });
+      }
       continue;
     }
     input.identities.set(folded, identity);
@@ -305,19 +313,6 @@ async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise
       });
     }
   }
-}
-
-async function readSourceDirectory(filesystem: ReleaseCandidateFilesystem, path: string): Promise<string[]> {
-  return filesystem.readDirectory === undefined ? await readdir(path) : await filesystem.readDirectory(path);
-}
-
-async function classifyWithAdapter(
-  filesystem: ReleaseCandidateFilesystem,
-  path: string
-): Promise<ReleaseCandidateEntryKind> {
-  return filesystem.classifySourceEntry === undefined
-    ? await classifySourceEntry(path)
-    : await filesystem.classifySourceEntry(path);
 }
 
 async function classifySourceEntry(path: string): Promise<ReleaseCandidateEntryKind> {
