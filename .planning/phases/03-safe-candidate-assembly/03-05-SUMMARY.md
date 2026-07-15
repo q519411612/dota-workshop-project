@@ -33,7 +33,7 @@ patterns-established:
 
 requirements-completed: [RCFS-02]
 
-duration: 29min
+duration: 60min
 completed: 2026-07-15
 status: complete
 ---
@@ -44,7 +44,7 @@ status: complete
 
 ## Performance
 
-- **Duration:** 29 min
+- **Duration:** 60 min
 - **Started:** 2026-07-15T07:19:57Z
 - **Completed:** 2026-07-15T07:40:00Z
 - **Tasks:** 2
@@ -57,6 +57,9 @@ status: complete
 - Evaluated structure, metadata, placeholder, and redacted sensitive-material readiness through `evaluateReleaseReadiness` before candidate creation.
 - Ensured copy and destination failures skip the inspection callback, serialize only stable blockers, and preserve the identity-bound cleanup lifecycle.
 - Proved the leased candidate root is exactly empty before the first assembly write; rogue files, directories, and symbolic links produce deterministic safe-identity blockers while remaining present until lease cleanup.
+- Replaced raw readiness reads and candidate pathname writes with a factory-branded identity-bound assembly capability; incomplete capabilities fail before source reads or candidate creation.
+- Added no-follow, size-first accepted-source observations, lease-bound exclusive materialization, and exact structural reconciliation before callback inspection.
+- Enforced required file/directory kinds and guarded every hostile assembly-capability result behind strict sanitized parsers.
 - Kept source trees read-only and avoided recursive copy, retry, repair, filtering, generation, archive, manifest, hash, MCP, and remote behavior.
 
 ## Task Commits
@@ -66,6 +69,11 @@ status: complete
 3. **Cover shared readiness blocker categories and redaction** - `6705bfb` (test)
 4. **Implement explicit directory and file assembly** - `250228c` (feat)
 5. **Reject non-empty leased candidate roots** - `e2a7730`, `8c64699` (test), `ba52dc6` (fix)
+6. **Require no-follow source observations** - `e4d880d` (test)
+7. **Require lease-bound materialization and reconciliation** - `591269d` (test)
+8. **Exercise strict capability contracts and hostile results** - `df835ce` (test)
+9. **Bind source reads, destination writes, and exact-tree inspection to the opaque lease capability** - `b77c830` (fix)
+10. **Prove incomplete identity-bound assembly capabilities fail before creation** - `b18e105` (test)
 
 ## Files Created/Modified
 
@@ -91,10 +99,45 @@ status: complete
 - **Verification:** RED returned success and invoked inspection with `rogue-file`; GREEN blocks files, directories, and symbolic links before all mkdir/copy calls, preserves each rogue through cleanup entry, calls cleanup exactly once, and exposes stable sorted identities.
 - **Committed in:** `e2a7730`, `8c64699`, `ba52dc6`.
 
+**2. [Rule 1 - Source dereference] Replace stale-path readiness reads with no-follow accepted-source observations**
+- **Found during:** Independent quality review.
+- **Issue:** Separate size and content calls could follow a source file swapped to a symbolic link after inventory.
+- **Fix:** Added one bound `readAcceptedSourceFile` operation that must prove identity, regular-file kind, containment, and size before returning content; malformed or incomplete proof fails closed.
+- **Verification:** RED swapped `addoninfo.txt` to an external sentinel and the legacy path read reached creation; GREEN returns `SOURCE_FILE_IDENTITY_CHANGED`, never invokes the legacy reader, and serializes neither external content nor private paths.
+- **Committed in:** `e4d880d`, `df835ce`, `b77c830`.
+
+**3. [Rule 2 - Size boundary] Gate required metadata size before allocation**
+- **Found during:** Independent quality review.
+- **Issue:** Metadata content was allocated before the scan size gate.
+- **Fix:** The accepted-source operation receives the maximum byte limit and returns a strict oversized state without content; duplicate policy findings are canonicalized.
+- **Verification:** Oversized `addoninfo.txt` produces one existing `REQUIRED_TEXT_OVERSIZED` blocker and the raw reader remains uncalled.
+- **Committed in:** `e4d880d`, `df835ce`, `b77c830`.
+
+**4. [Rule 1 - Destination identity] Replace pathname check/write seams with one lease-bound materialization operation**
+- **Found during:** Independent quality review.
+- **Issue:** Parent validation followed by later `mkdir`/`copyFile` left a replacement window and exposed raw destination write methods to the lifecycle.
+- **Fix:** Candidate materialization now accepts only the opaque lease, validated input, accepted source identity, fixed destination identity, and expected kind; the adapter must atomically validate, create exclusively, and verify containment/kind in one capability result.
+- **Verification:** The old raw writer would create an outside sentinel, while GREEN calls only the bound operation, returns `CANDIDATE_DESTINATION_IDENTITY_MISMATCH`, writes no sentinel, skips callback, and cleans once.
+- **Committed in:** `591269d`, `df835ce`, `b77c830`.
+
+**5. [Rule 2 - Exact candidate structure] Reconcile expected and actual trees before callback**
+- **Found during:** Independent quality review.
+- **Issue:** A rogue entry injected after the initial empty-root check could survive into callback inspection.
+- **Fix:** Build the complete expected structural set from fixed prefixes and inventory, then require a lease-bound deterministic exact-tree reconciliation before callback.
+- **Verification:** Mid-assembly rogue injection returns `CANDIDATE_TREE_UNEXPECTED`; callback remains zero, rogue remains until cleanup entry, and cleanup executes exactly once.
+- **Committed in:** `591269d`, `df835ce`, `b77c830`.
+
+**6. [Rule 2 - Required kind contract] Distinguish required files from directories**
+- **Found during:** Independent quality review.
+- **Issue:** Presence-only readiness accepted a directory at the Lua entry path and a file at the maps directory path.
+- **Fix:** Shared readiness observations now carry actual and expected kinds and emit `REQUIRED_PATH_WRONG_KIND`.
+- **Verification:** Both wrong-kind fixtures block before candidate creation or callback while existing preflight behavior remains unchanged.
+- **Committed in:** `e4d880d`, `df835ce`, `b77c830`.
+
 ---
 
-**Total deviations:** 1 auto-fixed correctness issue.
-**Impact on plan:** The correction closes an RCFS-02 completeness hole without adding manifest, hash, remote, or formal cleanup-evidence scope.
+**Total deviations:** 6 auto-fixed correctness and safety issues.
+**Impact on plan:** Corrections close RCFS-02 source-read, destination-write, and exact-tree gaps without adding hashes, manifests, source-after final mutation semantics, remote behavior, or formal cleanup-evidence scope.
 
 ## TDD Gate Compliance
 
@@ -102,18 +145,19 @@ status: complete
 - RED commit `5cfd11a` precedes implementation commit `250228c`.
 - GREEN proves byte-identical binary copying, all inclusion categories, nested empty directories, shuffled enumeration, cleanup after copy failure, destination escape prevention, and callback-after-completion ordering.
 - Review RED commit `e2a7730` proves a rogue leased-root file previously survived into a successful callback; fix `ba52dc6` requires an empty root before assembly.
+- Capability RED commits `e4d880d` and `591269d` prove stale source reads, raw destination writes, wrong required kinds, and mid-assembly rogue injection before fix `b77c830`.
 
 ## Independent Review
 
 - Reviewed destination containment and overwrite behavior, per-write source reclassification, precreation readiness/redaction, callback ordering, and cleanup ownership independently after implementation.
-- The review found and corrected the non-empty leased-root gap. Re-review found no remaining raw exception, private source path, credential value, unexpected destination write, recursive copy, retry, repair, or source mutation path.
+- The reviews found and corrected the non-empty root plus five identity/capability gaps. Re-review confirmed lifecycle code has no raw source-read or destination-write seam, every strict result is guarded, and no private source path, credential value, recursive copy, retry, repair, or source mutation path remains.
 
 ## Verification Evidence
 
 - Focused complete-layout test: 1/1 passed.
-- Candidate lifecycle suite: 15/15 passed.
+- Candidate lifecycle suite: 21/21 passed.
 - Readiness and preflight regression suites: 19/19 passed.
-- Full repository suite: 175/175 passed across 20 files.
+- Full repository suite: 181/181 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed.
 - `git diff --check`: passed.
