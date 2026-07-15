@@ -317,8 +317,8 @@ describe("release candidate input validation", () => {
       const copySourceFile = vi.fn(async (source: string, destination: string) => (
         await copyFile(source, destination)
       ));
-      const cleanupCandidateLease = vi.fn(async (identity: { root: string; rogue: string }) => {
-        expect(await lstat(identity.rogue)).toBeDefined();
+      const cleanupCandidateLease = vi.fn(async (identity: { root: string; rogues: string[] }) => {
+        for (const rogue of identity.rogues) expect(await lstat(rogue)).toBeDefined();
         await rm(identity.root, { recursive: true, force: false });
         return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
       });
@@ -338,9 +338,15 @@ describe("release candidate input validation", () => {
             candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
             const rogue = join(candidateRoot, `rogue-${kind}`);
             if (kind === "file") await writeFile(rogue, "rogue\n");
-            if (kind === "directory") await mkdir(rogue);
+            const rogues = [rogue];
+            if (kind === "directory") {
+              await mkdir(rogue);
+              const earlierRogue = join(candidateRoot, "alpha-directory");
+              await mkdir(earlierRogue);
+              rogues.push(earlierRogue);
+            }
             if (kind === "symbolic-link") await symlink(fixture.repositoryRoot, rogue);
-            return { inspectionRoot: candidateRoot, identity: { root: candidateRoot, rogue } };
+            return { inspectionRoot: candidateRoot, identity: { root: candidateRoot, rogues } };
           },
           cleanupCandidateLease
         })
@@ -353,13 +359,16 @@ describe("release candidate input validation", () => {
         { repositoryRoot: fixture.repositoryRoot, filesystem }
       );
 
+      const expectedPaths = kind === "directory"
+        ? ["alpha-directory", "rogue-directory"]
+        : [`rogue-${kind}`];
       expect(result, kind).toEqual({
         ok: false,
-        blockers: [{
+        blockers: expectedPaths.map((path) => ({
           code: "CANDIDATE_ROOT_NOT_EMPTY",
           category: "unexpected-entry",
-          path: `rogue-${kind}`
-        }]
+          path
+        }))
       });
       expect(makeDirectory, kind).not.toHaveBeenCalled();
       expect(copySourceFile, kind).not.toHaveBeenCalled();
