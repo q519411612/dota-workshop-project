@@ -3107,6 +3107,59 @@ describe("release candidate input validation", () => {
     }
   });
 
+  test("rejects credential-shaped source identities before manifest evidence", async () => {
+    const fixture = await createFixture();
+    await populateReadyFixture(fixture);
+    const tokenName = `${githubPatFixture()}.bin`;
+    const sensitivePath = join(fixture.contentAddonRoot, "materials", tokenName);
+    await mkdir(join(sensitivePath, ".."), { recursive: true });
+    await writeFile(sensitivePath, Buffer.from([0x00, 0xff, 0x10]));
+    const sourceBefore = await snapshotSourceTrees(fixture);
+    const createCandidateLease = vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+      const root = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+      return { inspectionRoot: root, identity: { root } };
+    });
+    const result = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      async () => "unexpected",
+      {
+        repositoryRoot: fixture.repositoryRoot,
+        filesystem: {
+          lstat,
+          realpath,
+          readDirectory: async (path) => await readdir(path),
+          classifySourceEntry: classifyFixtureEntry,
+          createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+          candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
+            createCandidateLease,
+            cleanupCandidateLease: async (identity) => {
+              await rm(identity.root, { recursive: true, force: false });
+              return {
+                ok: true,
+                removed: true,
+                absent: true,
+                identityMatched: true
+              };
+            }
+          })
+        }
+      }
+    );
+
+    expect(withoutCleanup(result)).toEqual({
+      ok: false,
+      blockers: [{
+        code: "SOURCE_IDENTITY_SENSITIVE",
+        path: "content/dota_addons/fixture_addon/materials/[redacted]",
+        category: "sensitive"
+      }]
+    });
+    expect(createCandidateLease).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain(tokenName);
+    expect(JSON.stringify(result)).not.toContain("manifest");
+    expect(await snapshotSourceTrees(fixture)).toEqual(sourceBefore);
+  });
+
   test("fails on source mutation without writing source trees", async () => {
     type MutationCheckpoint = "lease" | "before-copy" | "after-copy" | "reconcile" | "callback";
     const mutationScenarios: Array<Readonly<{
