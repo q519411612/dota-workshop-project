@@ -36,7 +36,7 @@ patterns-established:
 
 requirements-completed: [RCIN-01]
 
-duration: 52min
+duration: 70min
 completed: 2026-07-15
 status: complete
 ---
@@ -47,10 +47,10 @@ status: complete
 
 ## Performance
 
-- **Duration:** 52 min
+- **Duration:** 70 min
 - **Started:** 2026-07-15T18:42:00+08:00
-- **Completed:** 2026-07-15T19:34:00+08:00
-- **Tasks:** 2 TDD tasks plus three review-remediation TDD cycles
+- **Completed:** 2026-07-15T19:52:00+08:00
+- **Tasks:** 2 TDD tasks plus four review-remediation TDD cycles
 - **Files modified:** 3
 
 ## Accomplishments
@@ -59,6 +59,7 @@ status: complete
 - Added a production `createHash("sha256")` primitive that incrementally consumes only adapter-opened async `Uint8Array` chunks, enforces a 64 KiB chunk ceiling and safe total count, and retains no raw bytes.
 - Wired the controlled macOS fixture through the production primitive for empty, binary, and 256 KiB-plus files across irregular chunk boundaries without passing absolute paths into production code.
 - Removed the obsolete fixture stability observer's whole-file `readFile` and `bytes` property; large-file stability now returns only kind, canonical identity, stat metadata, and identity facts.
+- Closed the augmented-byte-container bypass: `Buffer` and `Uint8Array` stream objects are rejected before iterator lookup even when they define their own async iterator, while bounded yielded byte chunks remain valid.
 - Captured source-before observations before candidate creation, verified a lease-bound candidate before callback use, then freshly reobserved candidate and source after callback success or throw.
 - Made candidate mutation, source mutation, and mutation-before-throw return one stable integrity blocker while withholding callback values and sanitized exception text.
 - Rejected malformed versions, roots, paths, counts, digests, identity facts, missing/duplicate/unexpected observations, getters, proxies, iterators, thenables, and thrown results without retry or repair.
@@ -74,6 +75,8 @@ status: complete
 6. **Keep triple comparison as the final artifact check** - `2fe26e8` (fix)
 7. **Forbid stability byte buffering** - `eba778d` (test)
 8. **Keep fixture stability metadata-only** - `1bae96c` (fix)
+9. **Reject augmented byte-container streams** - `57437e5` (test)
+10. **Reject byte containers at the stream boundary** - `edd0dea` (fix)
 
 ## Files Created/Modified
 
@@ -114,9 +117,16 @@ status: complete
 - **Verification:** RED found `Reflect.has(stability, "bytes") === true`; GREEN returns no byte/content property while streamed integrity reports the exact 1 MiB-plus byte count and SHA-256. Source mutation and final integrity regressions remain green.
 - **Committed in:** `eba778d`, `1bae96c`.
 
+**4. [Rule 1 - Stream object boundary] Reject augmented whole-file byte containers**
+- **Found during:** Adversarial quality re-review.
+- **Issue:** A whole-file `Buffer` or `Uint8Array` with an own `Symbol.asyncIterator` bypassed the async-stream object requirement and could yield bounded chunks from itself.
+- **Fix:** Reject byte-container stream objects immediately after acquisition and before any async-iterator property access; continue accepting them only as bounded yielded chunks.
+- **Verification:** RED returned a successful digest for the augmented whole-file Buffer; GREEN returns `INTEGRITY_STREAM_RESULT_INVALID` for both augmented Buffer and Uint8Array and records zero iterator calls. Existing binary and fixture streams still yield Buffer/Uint8Array chunks successfully.
+- **Committed in:** `57437e5`, `edd0dea`.
+
 ---
 
-**Total deviations:** 3 auto-fixed review gaps.
+**Total deviations:** 4 auto-fixed review gaps.
 **Impact on plan:** These corrections implement explicit RCIN-01 requirements without adding manifest, ledger, coverage, public state, MCP, remote, or persistent artifact scope.
 
 ## TDD Gate Compliance
@@ -126,6 +136,7 @@ status: complete
 - Production-stream RED `b68d687` precedes GREEN helper commit `629978b`.
 - Final-order RED `2a8fd22` precedes ordering fix commit `2fe26e8`.
 - Fixture-honesty RED `eba778d` precedes metadata-only fix commit `1bae96c`.
+- Augmented-container RED `57437e5` precedes stream-boundary fix commit `edd0dea`.
 - GREEN focused tests prove callback success, callback throw, candidate mutation, source mutation, mutation-before-throw, fresh final observations, and cleanup ordering.
 - Hostile-result tests prove malformed final observations fail with stable sanitized evidence, one callback invocation, two intentional candidate observations, no materialization retry, and one cleanup.
 
@@ -153,6 +164,7 @@ status: complete
 - Initial GREEN parsing compared candidate observations positionally against trusted expected files. Self-review identified that strict integrity should accept any complete occurrence order, so parsing was changed to guarded path-based matching before ordinal sorting and duplicate detection.
 - Specification review correctly identified that fixture-only hashing did not satisfy the production primitive requirement and that metadata stability followed the final triple observations; both were reproduced before correction.
 - Specification re-review found one obsolete fixture-only full-file read that production ignored; removing it made the adapter evidence accurately reflect the streaming-only integrity boundary.
+- Adversarial re-review found that async-iterator augmentation could disguise a whole-file byte container as a stream object; the boundary now rejects the container without invoking hostile iterator code.
 
 ## User Setup Required
 
