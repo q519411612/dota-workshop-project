@@ -1,4 +1,4 @@
-import { lstat, mkdtemp, readdir, realpath } from "node:fs/promises";
+import { lstat, mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Stats } from "node:fs";
 import { validateAddonName } from "./addon.js";
@@ -74,6 +74,7 @@ export type ReleaseCandidateFilesystem = {
   readDirectory(path: string): Promise<string[]>;
   classifySourceEntry(path: string): Promise<ReleaseCandidateEntryKind>;
   createCandidateRoot(input: ValidatedReleaseCandidateInput): Promise<string>;
+  removeCandidateRoot?(path: string): Promise<void>;
 };
 
 export type ReleaseCandidateDependencies = {
@@ -90,9 +91,26 @@ function createDefaultFilesystem(platform: NodeJS.Platform): ReleaseCandidateFil
     classifySourceEntry: platform === "win32"
       ? async () => "unknown"
       : classifySourceEntry,
-    createCandidateRoot: async (input) => await mkdtemp(join(input.tempParent, "dota-release-candidate-"))
+    createCandidateRoot: async (input) => await mkdtemp(join(input.tempParent, "dota-release-candidate-")),
+    removeCandidateRoot: async (path) => await rm(path, { recursive: true, force: false })
   };
 }
+
+export type ReleaseCandidateLifecycleBlocker = Readonly<{
+  code: string;
+  category: "creation" | "inspection" | "removal" | "unsafe-isolation";
+}>;
+
+export type ReleaseCandidateLifecycleResult<T> =
+  | { ok: true; value: T }
+  | {
+      ok: false;
+      blockers: Array<
+        ReleaseCandidateInputBlocker
+        | ReleaseCandidateInventoryBlocker
+        | ReleaseCandidateLifecycleBlocker
+      >;
+    };
 
 export type ReleaseCandidateContinuationResult<T> =
   | { ok: true; value: T }
@@ -222,6 +240,71 @@ export async function inventoryReleaseCandidateSources(
 
   entries.sort((left, right) => compareOrdinal(left.path, right.path));
   return { ok: true, entries };
+}
+
+export async function withAssembledReleaseCandidate<T>(
+  input: ReleaseCandidateInput,
+  inspect: (candidateRoot: string) => Promise<T>,
+  dependencies: ReleaseCandidateDependencies = {}
+): Promise<ReleaseCandidateLifecycleResult<T>> {
+  const prepared = await prepareReleaseCandidateInput(input, dependencies);
+  if (!prepared.ok) return prepared;
+
+  const inventory = await inventoryReleaseCandidateSources(prepared.value);
+  if (!inventory.ok) return inventory;
+
+  const filesystem = prepared.value[releaseCandidateFilesystemCapability];
+  if (filesystem.removeCandidateRoot === undefined) {
+    return lifecycleBlocked("CANDIDATE_LIFECYCLE_ADAPTER_REQUIRED", "creation");
+  }
+
+  let candidateRoot: string;
+  try {
+    candidateRoot = resolve(await filesystem.createCandidateRoot(prepared.value));
+  } catch {
+    return lifecycleBlocked("CANDIDATE_CREATION_FAILED", "creation");
+  }
+
+  let outcome: ReleaseCandidateLifecycleResult<T>;
+  try {
+    const canonicalCandidateRoot = await filesystem.realpath(candidateRoot);
+    if (!isCandidateRootIsolated(canonicalCandidateRoot, prepared.value)) {
+      outcome = lifecycleBlocked("CANDIDATE_ROOT_NOT_ISOLATED", "unsafe-isolation");
+    } else {
+      try {
+        outcome = { ok: true, value: await inspect(canonicalCandidateRoot) };
+      } catch {
+        outcome = lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
+      }
+    }
+  } catch {
+    outcome = lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
+  }
+
+  try {
+    await filesystem.removeCandidateRoot(candidateRoot);
+  } catch {
+    return lifecycleBlocked("CANDIDATE_REMOVAL_FAILED", "removal");
+  }
+  return outcome;
+}
+
+function isCandidateRootIsolated(
+  candidateRoot: string,
+  input: ValidatedReleaseCandidateInput
+): boolean {
+  if (!isPathInside(candidateRoot, input.tempParent)) return false;
+  const protectedRoots = [input.dotaRoot, input.gameAddonRoot, input.contentAddonRoot, input.repositoryRoot];
+  return protectedRoots.every((root) => (
+    !isPathAtOrInside(candidateRoot, root) && !isPathAtOrInside(root, candidateRoot)
+  ));
+}
+
+function lifecycleBlocked(
+  code: string,
+  category: ReleaseCandidateLifecycleBlocker["category"]
+): ReleaseCandidateLifecycleResult<never> {
+  return { ok: false, blockers: [{ code, category }] };
 }
 
 type InventoryDirectoryInput = {
