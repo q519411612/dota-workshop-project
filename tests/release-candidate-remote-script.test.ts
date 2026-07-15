@@ -91,6 +91,7 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).toContain("@('game', 'game/dota_addons', 'game/dota_addons/' + $AddonName");
     expect(script).toContain("'content', 'content/dota_addons', 'content/dota_addons/' + $AddonName)");
     expect(script).toContain("ConvertTo-Json -InputObject $rows -Depth 4 -Compress");
+    expect(script).toContain("Get-CanonicalManifestDigest $CanonicalVectorEntries");
     expect(script).toContain("ConvertTo-Json -InputObject $expected -Compress");
     expect(script).toContain("ConvertTo-Json -InputObject $observed -Compress");
   });
