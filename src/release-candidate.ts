@@ -256,6 +256,7 @@ type ReleaseCandidateLifecycleFailure = {
     | ReleaseReadinessFinding
   )[];
 };
+type ReleaseCandidateBlocker = ReleaseCandidateLifecycleFailure["blockers"][number];
 type ReleaseCandidateInspectionOutcome<T> = Readonly<{
   operation: ReleaseCandidateOperationEvidence;
   artifactValidation: ReleaseCandidateArtifactValidation;
@@ -2178,12 +2179,46 @@ function freezePassedArtifact(
   return Object.freeze({ status: "passed", manifest, inclusionLedger, scanCoverage });
 }
 
+function snapshotBlockers(
+  blockers: readonly ReleaseCandidateBlocker[]
+): readonly ReleaseCandidateBlocker[] {
+  const snapshots = blockers.map((blocker) => {
+    let code: ReleaseCandidateBlocker["code"];
+    let field: string | undefined;
+    let category: string | undefined;
+    let path: string | undefined;
+    let count: number | undefined;
+    let disposition: string | undefined;
+    try {
+      ({ code, field, category, path, count, disposition } = blocker as ReleaseCandidateBlocker & {
+        field?: string;
+        category?: string;
+        path?: string;
+        count?: number;
+        disposition?: string;
+      });
+    } catch {
+      throw new TypeError("Release candidate blocker evidence is unreadable");
+    }
+    return Object.freeze({
+      code,
+      ...(field === undefined ? {} : { field }),
+      ...(category === undefined ? {} : { category }),
+      ...(path === undefined ? {} : { path }),
+      ...(count === undefined ? {} : { count }),
+      ...(disposition === undefined ? {} : { disposition })
+    }) as ReleaseCandidateBlocker;
+  });
+  return Object.freeze(snapshots);
+}
+
 function blockedArtifact<T>(
   failure: ReleaseCandidateLifecycleFailure,
   scanCoverage: ReleaseScanCoverage,
   operation: "not-reached" | "completed" | "failed" = "not-reached"
 ): ReleaseCandidateInspectionOutcome<T> {
-  const blockers = Object.freeze([...failure.blockers]);
+  const artifactBlockers = snapshotBlockers(failure.blockers);
+  const outcomeBlockers = snapshotBlockers(failure.blockers);
   return Object.freeze({
     operation: operation === "completed"
       ? operationCompleted()
@@ -2192,11 +2227,11 @@ function blockedArtifact<T>(
         : operationNotReached(),
     artifactValidation: Object.freeze({
       status: "blocked" as const,
-      blockers,
+      blockers: artifactBlockers,
       ...(failure.inclusionLedger === undefined ? {} : { inclusionLedger: failure.inclusionLedger }),
       scanCoverage
     }),
-    blockers
+    blockers: outcomeBlockers
   });
 }
 
@@ -2220,7 +2255,7 @@ function finalizePrecreationFailure(
     cleanup: cleanupNotReachedEvidence(),
     ...(failure.inclusionLedger === undefined ? {} : { inclusionLedger: failure.inclusionLedger }),
     ...(failure.scanCoverage === undefined ? {} : { scanCoverage: failure.scanCoverage }),
-    blockers: Object.freeze([...failure.blockers])
+    blockers: snapshotBlockers(failure.blockers)
   });
 }
 
@@ -2235,7 +2270,7 @@ function finalizeAcquisitionFailure(
     cleanup,
     ...(failure.inclusionLedger === undefined ? {} : { inclusionLedger: failure.inclusionLedger }),
     ...(failure.scanCoverage === undefined ? {} : { scanCoverage: failure.scanCoverage }),
-    blockers: Object.freeze([...failure.blockers])
+    blockers: snapshotBlockers(failure.blockers)
   });
 }
 
@@ -2260,7 +2295,7 @@ function finalizeCandidateLifecycle<T>(
     });
   }
 
-  const blockers = [...outcome.blockers];
+  const blockers: ReleaseCandidateBlocker[] = [...outcome.blockers];
   if (cleanup.status === "failed") {
     blockers.push(Object.freeze({ code: cleanup.code, category: "removal" as const }));
   }
@@ -2272,7 +2307,7 @@ function finalizeCandidateLifecycle<T>(
     ...(artifact.status === "blocked" && artifact.inclusionLedger !== undefined
       ? { inclusionLedger: artifact.inclusionLedger }
       : {}),
-    blockers: Object.freeze(blockers)
+    blockers: snapshotBlockers(blockers)
   });
 }
 
