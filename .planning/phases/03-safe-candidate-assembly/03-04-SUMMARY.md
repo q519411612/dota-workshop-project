@@ -34,7 +34,7 @@ patterns-established:
 
 requirements-completed: [RCFS-01]
 
-duration: 43min
+duration: 49min
 completed: 2026-07-15
 status: complete
 ---
@@ -45,9 +45,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 43 min
+- **Duration:** 49 min
 - **Started:** 2026-07-15T06:27:50Z
-- **Completed:** 2026-07-15T07:10:30Z
+- **Completed:** 2026-07-15T07:16:30Z
 - **Tasks:** 2 plus critical review remediation
 - **Files modified:** 3
 
@@ -77,6 +77,8 @@ status: complete
 9. **Replace pathname cleanup with opaque adapter lease** - `76c556e` (fix)
 10. **Reject private or malformed cleanup failures** - `40c64fb` (test)
 11. **Validate the cleanup result contract at runtime** - `38fce02` (fix)
+12. **Expose exceptional cleanup-result access** - `fa162fa` (test)
+13. **Guard cleanup acquisition and result parsing** - `7ec16ee` (fix)
 
 ## Files Created/Modified
 
@@ -139,9 +141,17 @@ status: complete
 - **Verification:** RED exposed the private injected code in the lifecycle blocker; GREEN returns only the stable invalid-result blocker and serializes neither fixture path nor secret value.
 - **Committed in:** `40c64fb`, `38fce02`.
 
+**6. [Rule 1 - Exceptional result access] Guard acquisition and every cleanup field read**
+- **Found during:** Strict-result re-review.
+- **Issue:** Cleanup acquisition was guarded, but later property reads could invoke a throwing getter or Proxy trap and reject with private exception text.
+- **Fix:** Moved operation acquisition, promise/thenable resolution, object validation, all `Reflect.get` field reads, discriminant checks, and stable failure-code validation into one guarded parser boundary.
+- **Files modified:** `tests/release-candidate.test.ts`, `src/release-candidate.ts`.
+- **Verification:** Throwing `ok` getter and required-field Proxy RED cases exposed synthetic private paths; GREEN maps both to `CANDIDATE_CLEANUP_RESULT_INVALID` without exception text or serialization.
+- **Committed in:** `fa162fa`, `7ec16ee`.
+
 ---
 
-**Total deviations:** 5 critical review corrections (2 bugs, 3 missing critical safety boundaries).
+**Total deviations:** 6 review corrections (3 bugs, 3 missing critical safety boundaries).
 **Impact on plan:** Corrections strengthen RCFS-01 ownership and cleanup safety without adding formal cleanup evidence, manifests, copying, MCP, or remote scope.
 
 ## TDD Gate Compliance
@@ -155,12 +165,13 @@ status: complete
 - Capability RED `45d0893` proved marker-only objects could otherwise reach creation.
 - Adapter-binding RED `74a6734` proved the factory could otherwise reread a mutated cleanup property after callback execution.
 - Result-contract RED `40c64fb` proved malformed runtime cleanup codes could otherwise cross the sanitized blocker boundary before fix `38fce02`.
+- Exceptional-access RED `fa162fa` proved cleanup getters and Proxy traps could reject with private error text before guarded parser fix `7ec16ee`.
 
 ## Verification Evidence
 
 - Focused lifecycle test: 1/1 passed.
-- Candidate validation, inventory, and ownership suite: 12/12 passed.
-- Full repository suite: 172/172 passed across 20 files.
+- Candidate validation, inventory, and ownership suite: 13/13 passed.
+- Full repository suite: 173/173 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed.
 - `git diff --check`: passed.
