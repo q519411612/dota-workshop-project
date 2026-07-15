@@ -1,0 +1,107 @@
+import { describe, expect, test } from "vitest";
+import {
+  REMOTE_RELEASE_CANDIDATE_POLICY,
+  buildRemoteReleaseCandidateScript
+} from "../src/release-candidate-remote-script.js";
+import { MAX_SECRET_SCAN_BYTES, RELEASE_METADATA_KEYS } from "../src/release-readiness.js";
+import { RELEASE_CANDIDATE_BOUNDARIES } from "../src/release-candidate-result.js";
+
+describe("remote release candidate PowerShell lifecycle", () => {
+  const input = {
+    dotaRoot: "C:/Steam/steamapps/common/dota 2 beta",
+    addonName: "demo_addon"
+  } as const;
+
+  test("embeds the shared versioned policy and canonical vectors deterministically", () => {
+    const first = buildRemoteReleaseCandidateScript(input);
+    const second = buildRemoteReleaseCandidateScript(input);
+
+    expect(first).toBe(second);
+    expect(REMOTE_RELEASE_CANDIDATE_POLICY).toEqual({
+      schemaVersion: "1.0",
+      maxSecretScanBytes: MAX_SECRET_SCAN_BYTES,
+      releaseMetadataKeys: RELEASE_METADATA_KEYS,
+      boundaries: RELEASE_CANDIDATE_BOUNDARIES,
+      canonicalVector: {
+        value: [["1.0", "content", "content/dota_addons/demo/maps/demo.vmap", 7, "a".repeat(64)]],
+        sha256: "343e08a22f5855bba04008271e21765ec7a104ff048deb4616c4408ceaa1807a"
+      }
+    });
+    expect(first).toContain(`$SchemaVersion = '1.0'`);
+    expect(first).toContain(`$MaxSecretScanBytes = ${MAX_SECRET_SCAN_BYTES}`);
+    for (const key of RELEASE_METADATA_KEYS) expect(first).toContain(`'${key}'`);
+    for (const [key, value] of Object.entries(RELEASE_CANDIDATE_BOUNDARIES)) {
+      expect(first).toContain(`${key} = $${value ? "true" : "false"}`);
+    }
+    expect(first).toContain(REMOTE_RELEASE_CANDIDATE_POLICY.canonicalVector.sha256);
+  });
+
+  test("generates one complete target-native lifecycle with finally-owned cleanup", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    for (const fragment of [
+      "Assert-SafeSourceTree",
+      "Get-SourceInventory",
+      "Test-ReleaseReadiness",
+      "New-CandidateRoot",
+      "Copy-FileStreamed",
+      "Get-FileSha256",
+      "Assert-SourceStable",
+      "Assert-CandidateLedger",
+      "Assert-CandidateTopology",
+      "Get-CanonicalManifestDigest"
+    ]) expect(script).toContain(fragment);
+    expect(script).toContain("[IO.FileAttributes]::ReparsePoint");
+    expect(script).toContain("[StringComparer]::Ordinal");
+    expect(script).toContain("[StringComparison]::OrdinalIgnoreCase");
+    expect(script).toContain("finally {");
+    expect(script.match(/Remove-Item -LiteralPath \$candidateRoot/g)).toHaveLength(1);
+    expect(script).toContain("$result.cleanup.attempts = 1");
+    expect(script).toContain("$result.cleanup.absent = -not (Test-Path -LiteralPath $candidateRoot)");
+    expect(script).not.toContain("Get-ChildItem -LiteralPath ([IO.Path]::GetTempPath())");
+  });
+
+  test("has one compact JSON stdout path and suppresses incidental cmdlet output", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script.match(/ConvertTo-Json -Depth 20 -Compress/g)).toHaveLength(1);
+    expect(script.match(/\[Console\]::Out\.Write/g)).toHaveLength(1);
+    expect(script).not.toMatch(/Write-(?:Output|Host|Warning|Error|Verbose|Debug)/);
+    expect(script).toContain("| Out-Null");
+    expect(script).not.toContain("$_.Exception.Message");
+    expect(script).not.toContain("$Error[");
+    expect(script).not.toContain("$env:USERNAME");
+    expect(script).not.toContain("$env:COMPUTERNAME");
+  });
+
+  test("keeps files target-local and excludes mutation and release side effects", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).not.toMatch(/\b(?:scp|sftp|rsync|curl|Invoke-WebRequest|Start-BitsTransfer)\b/i);
+    expect(script).not.toMatch(/\b(?:Compress-Archive|Expand-Archive|Start-Process|dota2\.exe)\b/i);
+    expect(script).not.toMatch(/\b(?:New-PSSession|Get-Credential|CredentialManager|SteamCmd|WorkshopItem)\b/i);
+    expect(script).not.toMatch(/\b(?:Set-Content|Add-Content|Out-File|Export-Clixml)\b/i);
+    expect(script).not.toContain("-Credential");
+    expect(script).not.toContain("-AsJob");
+    expect(script).not.toContain("-Persist");
+    expect(script).toContain("[IO.FileStream]::new");
+  });
+
+  test("emits only semantic relative identities and safe failure codes", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).toContain("game/dota_addons/$AddonName");
+    expect(script).toContain("content/dota_addons/$AddonName");
+    expect(script).toContain("REMOTE_RELEASE_CANDIDATE_SCRIPT_FAILED");
+    expect(script).not.toContain("gameAddon = $gameAddonRoot");
+    expect(script).not.toContain("contentAddon = $contentAddonRoot");
+    expect(script).not.toContain("candidateRoot =");
+    expect(script).not.toContain("FullName =");
+  });
+
+  test("rejects invalid host inputs before generating any script", () => {
+    expect(() => buildRemoteReleaseCandidateScript({ ...input, addonName: "../demo" })).toThrow("INVALID_ADDON_NAME");
+    expect(() => buildRemoteReleaseCandidateScript({ ...input, dotaRoot: "" })).toThrow("REMOTE_DOTA_ROOT_REQUIRED");
+    expect(() => buildRemoteReleaseCandidateScript({ ...input, dotaRoot: "C:/bad\0root" })).toThrow("REMOTE_DOTA_ROOT_INVALID");
+  });
+});
