@@ -198,6 +198,34 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).toContain("Test-IsolationLease $IsolationLease");
   });
 
+  test("proves physical disjointness with target-native ancestor identity chains", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).toContain("function Get-WindowsIdentityChain");
+    expect(script).toContain("function Test-IdentityChainsEqual");
+    expect(script).toContain("function Test-IdentityChainsDisjoint");
+    expect(script).toContain("tempChain = Get-WindowsIdentityChain $parent");
+    expect(script).toContain("dotaChain = Get-WindowsIdentityChain $DotaRoot");
+    expect(script).toContain("Test-IdentityChainsDisjoint $tempChain $dotaChain");
+    expect(script).toContain("Test-IdentityChainsDisjoint $tempChain $gameChain");
+    expect(script).toContain("Test-IdentityChainsDisjoint $tempChain $contentChain");
+  });
+
+  test("keeps cleanup lease revalidation side-effect-free", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+    const start = script.indexOf("function Test-IsolationLease");
+    const end = script.indexOf("\nfunction ", start + 1);
+    const functionText = script.slice(start, end);
+
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    expect(functionText).toContain("Get-WindowsIdentityChain");
+    expect(functionText).toContain("return $false");
+    expect(functionText).not.toContain("Stop-ReleaseCandidate");
+    expect(functionText).not.toContain("Add-Blocker");
+    expect(script).toContain("Add-Blocker $result.cleanup.code 'removal'");
+  });
+
   test("has one compact JSON stdout path and suppresses incidental cmdlet output", () => {
     const script = buildRemoteReleaseCandidateScript(input);
 
