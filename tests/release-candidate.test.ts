@@ -1425,7 +1425,7 @@ describe("release candidate input validation", () => {
 
       expect(result, scenario.name).toMatchObject({
         ok: false,
-        operation: { status: "failed", code: "CANDIDATE_INSPECTION_FAILED" },
+        operation: { status: "failed", code: "CANDIDATE_INSPECTION_VALUE_UNSAFE" },
         artifactValidation: { status: "passed" },
         cleanup: { status: "verified", attempts: 1 },
         blockers: [{ code: "CANDIDATE_INSPECTION_VALUE_UNSAFE", category: "inspection" }]
