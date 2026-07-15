@@ -1254,6 +1254,9 @@ async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise
   const occurrenceCounts = new Map<string, number>();
   for (const name of names) occurrenceCounts.set(name, (occurrenceCounts.get(name) ?? 0) + 1);
   for (const [name, count] of [...occurrenceCounts.entries()].sort(([left], [right]) => compareOrdinal(left, right))) {
+    if (invalidSourceNameCategory(name) === undefined) {
+      addIdentity(input.identities, safeChildIdentity(input.identity, name));
+    }
     if (count < 2) continue;
     input.blockers.push({
       code: "SOURCE_IDENTITY_COLLISION",
@@ -1274,7 +1277,6 @@ async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise
       continue;
     }
 
-    addIdentity(input.identities, identity);
     const sourcePath = join(input.sourceRoot, ...input.segments, name);
     let kind: ReleaseCandidateEntryKind;
     try {

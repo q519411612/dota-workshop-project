@@ -2644,6 +2644,21 @@ describe("release candidate input validation", () => {
       blockers: [
         {
           code: "SOURCE_IDENTITY_COLLISION",
+          path: "game/dota_addons/fixture_addon/Alpha.txt",
+          category: "case-fold"
+        },
+        {
+          code: "SOURCE_IDENTITY_COLLISION",
+          path: "game/dota_addons/fixture_addon/Alpha.txt",
+          category: "exact-duplicate"
+        },
+        {
+          code: "SOURCE_IDENTITY_COLLISION",
+          path: "game/dota_addons/fixture_addon/alpha.txt",
+          category: "case-fold"
+        },
+        {
+          code: "SOURCE_IDENTITY_COLLISION",
           path: "game/dota_addons/fixture_addon/nested/repeated.txt",
           category: "exact-duplicate"
         },
@@ -2665,12 +2680,12 @@ describe("release candidate input validation", () => {
       ));
       const filesystem: ReleaseCandidateFilesystem = {
         lstat,
-        realpath: async (path) => path.includes("repeated.txt") || path.endsWith("/nested")
+        realpath: async (path) => path.includes("/dota_addons/fixture_addon/")
           ? path
           : await realpath(path),
         readDirectory: async (path) => {
           const names = path.endsWith("/game/dota_addons/fixture_addon")
-            ? ["repeated.txt", "nested", "repeated.txt"]
+            ? ["repeated.txt", "Alpha.txt", "nested", "Alpha.txt", "alpha.txt", "repeated.txt"]
             : path.endsWith("/game/dota_addons/fixture_addon/nested")
               ? ["repeated.txt", "repeated.txt"]
               : [];
@@ -2694,7 +2709,7 @@ describe("release candidate input validation", () => {
       );
       expect(lifecycleResult).toEqual(expected);
       expect(createCandidateRoot).not.toHaveBeenCalled();
-      expect(classifySourceEntry).toHaveBeenCalledTimes(2);
+      expect(classifySourceEntry).toHaveBeenCalledTimes(4);
     }
   });
 
