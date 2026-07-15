@@ -1,6 +1,6 @@
 ---
 phase: 05-unified-mcp-and-remote-target-parity
-reviewed: 2026-07-15T21:05:47Z
+reviewed: 2026-07-15T21:12:10Z
 depth: deep
 files_reviewed: 28
 files_reviewed_list:
@@ -33,55 +33,52 @@ files_reviewed_list:
   - tests/release-candidate.test.ts
   - tests/result.test.ts
 findings:
-  critical: 2
+  critical: 0
   warning: 0
   info: 0
-  total: 2
-status: issues_found
+  total: 0
+status: clean
 ---
 
 # Phase 5: Code Review Report
 
-**Reviewed:** 2026-07-15T21:05:47Z
+**Reviewed:** 2026-07-15T21:12:10Z
 **Depth:** deep
 **Files Reviewed:** 28
-**Status:** issues_found
+**Status:** clean
 
 ## Summary
 
-The remediation corrects root-path traversal, builds leaf-to-root target-native identity chains, detects same-volume namespace aliases such as `SUBST`, and makes cleanup lease observation side-effect-free. The prior artifact-blocker mutation is closed.
+All reviewed files meet the Phase 5 quality and safety contract. No confirmed issues remain.
 
-Two correctness defects remain. The identity chain treats an NTFS file ID as globally unique even though it is scoped to a volume, so it cannot prove physical equality or disjointness across volume namespaces. Separately, the cleanup lease failure branch emits `CANDIDATE_CLEANUP_RESULT_INVALID` together with identity/removal facts that the strict normalizer explicitly rejects, so the intended cleanup evidence still collapses to a normalization failure.
+The final remediation binds every ancestor identity to a canonical volume GUID plus the target-native file ID. Tuple equality distinguishes identical numeric file IDs on different volumes while drive-letter and volume-path aliases to the same physical object compare equal. The leaf-to-root chain comparison detects either protected root as an ancestor of the temporary root, revalidates the same physical chains before creation and cleanup, preserves filesystem roots without converting `C:\` to `C:`, rejects reparse-bearing ancestry, and fails closed before candidate creation when `mountvol` or file identity acquisition cannot establish the tuple.
 
-Focused release-candidate tests pass 87/87. The complete repository suite passes 302/302, `npm run typecheck` passes, and `git diff --check` passes. The generated-text tests assert helper presence and absence of blocker mutation, but do not exercise cross-volume identities or normalize the exact cleanup lease-failure document.
+Cleanup lease observation is side-effect-free. A failed lease now produces exactly the strict `CANDIDATE_CLEANUP_RESULT_INVALID` cleanup object without `identityMatched`, `removed`, or `absent`, plus only its matching `removal` blocker. The shared normalizer accepts this shape after both passed and blocked artifact states without changing finalized artifact blockers.
 
 ### Prior Finding Disposition
 
-- Previous CR-01 (non-reparse alias isolation): partially closed. Leaf-to-root chains reject same-volume `SUBST` and alternate namespace containment, but the identity tuples omit volume identity. See CR-01 below.
-- Previous CR-02 (cleanup lease side effects): the blocker mutation is closed. `Test-IsolationLease` now returns false without calling `Stop-ReleaseCandidate` or `Add-Blocker`. The resulting cleanup document remains invalid for a separate strict-schema reason described in CR-02 below.
-- Candidate ownership and exact source topology findings from earlier reviews remain closed.
+- Candidate ownership after directory creation: closed.
+- Exact source file and directory topology re-inventory: closed.
+- Reparse and non-reparse Windows namespace alias isolation: closed by volume-scoped ancestor identity tuples.
+- Cleanup-time blocker mutation: closed by side-effect-free lease observation.
+- Cleanup lease-invalid normalization: closed by the exact no-extra-facts cleanup object and passed/blocked normalization regressions.
+
+### Verification Evidence
+
+- Focused release-candidate suites: 8 files, 88 tests passed.
+- Complete repository suite: 28 files, 303 tests passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- Packaged runtime import-closure invocation: passed.
+- Fixture, local adapter, mocked SSH, and mocked PowerShell parity remain contract evidence; no claim of real Windows runtime validation is made or required for v1.14.
+- Existing `.planning/graphs/` user modifications were not changed or included in this review artifact.
 
 ## Narrative Findings (AI reviewer)
 
-## Critical Issues
-
-### CR-01: Ancestor identities omit the volume that scopes each file ID
-
-**Severity:** BLOCKER
-**File:** `/Volumes/移动硬盘/dota-workshop-project/src/release-candidate-remote-script.ts:70,72-76`
-**Impact:** `fsutil file queryFileID` returns a file identifier that is unique only within its volume. Each chain entry stores only that identifier, and both equality and containment comparisons treat it as globally unique. Identical numeric file IDs on different volumes can therefore be mistaken for the same directory. This produces false containment failures for safe cross-volume layouts, and more importantly permits a remapped path to pass lease equality if another volume presents the same file-ID sequence, such as a cloned or deliberately constructed filesystem. The lease therefore does not establish a stable target-native physical identity across drive, volume-GUID, and remapping boundaries as RCFS-01 requires.
-**Fix:** Store a stable volume identity with every file ID, such as the canonical volume GUID or volume serial acquired fail-closed from the same target-native observation. Compare `(volumeIdentity, fileId)` tuples in chain equality and containment checks. Add contract vectors proving same file IDs on different volumes are distinct while two namespace aliases into the same volume/path are equal.
-
-### CR-02: Cleanup lease failure shape is rejected by the strict normalizer
-
-**Severity:** BLOCKER
-**File:** `/Volumes/移动硬盘/dota-workshop-project/src/release-candidate-remote-script.ts:126`
-**Related contract:** `/Volumes/移动硬盘/dota-workshop-project/src/release-candidate-result.ts:707-719`
-**Impact:** The cleanup branch initializes `identityMatched`, `removed`, and `absent` before lease validation. When `Test-IsolationLease` returns false, it changes only `code` to `CANDIDATE_CLEANUP_RESULT_INVALID`, leaving all three facts present and false. `normalizeCleanup` accepts this code only when those fields are absent. The generic failed-cleanup branch also rejects it because `cleanupFailureFactsAgree` does not accept this code with identity facts. Consequently, a cleanup-time alias, identity-chain, or observation failure still normalizes to `RELEASE_CANDIDATE_DETAIL_INVALID` instead of preserving the completed/blocked artifact facts plus one matching removal blocker.
-**Fix:** When lease validation fails, replace the cleanup object with exactly `{ schemaVersion, attempted: true, attempts: 1, status: 'failed', verified: false, code: 'CANDIDATE_CLEANUP_RESULT_INVALID' }`, then add only the matching `removal` blocker. Add strict-normalizer regressions for this exact generated outcome after both passed and blocked artifact states.
+No Critical, Warning, or Info findings.
 
 ---
 
-_Reviewed: 2026-07-15T21:05:47Z_
+_Reviewed: 2026-07-15T21:12:10Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
