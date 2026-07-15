@@ -111,7 +111,7 @@ async function executeInvocation(invocation: RemoteReleaseCandidateInvocation): 
 }
 
 function isSafeDestinationPart(value: string): boolean {
-  return value.length > 0 && value.length <= 255 && /^[A-Za-z0-9._:-]+$/.test(value);
+  return value.length > 0 && value.length <= 255 && /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(value);
 }
 
 function readExitCode(error: unknown): number | undefined {
