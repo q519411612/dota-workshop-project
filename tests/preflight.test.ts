@@ -143,15 +143,7 @@ describe("workshop preflight inspection", () => {
       addonName: "demo_addon"
     });
 
-    expect(result.ok).toBe(true);
-    expect(result.operation).toBe("dry_run_release_report");
-    expect(result.evidence).toContain("dry-run release report generated");
-    expect(result.evidence).toContain("release blockers: 0");
-    expect(result.evidence).toContain("metadata evidence: addonVersion present");
-    expect(result.evidence).toContain("metadata evidence: DefaultMap present");
-    expect(result.evidence).toContain("metadata evidence: maps present");
-    expect(result.warnings).toContain("Steam login is manual and out of scope");
-    expect(result.warnings).toContain("Workshop upload is not performed by dry run");
+    expect(result).toEqual(expectedReleaseResult(root));
   });
 
   test("reports metadata and package blockers without packaging", async () => {
@@ -167,16 +159,19 @@ describe("workshop preflight inspection", () => {
       addonName: "demo_addon"
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.evidence).toContain("release blockers: 6");
-    expect(result.evidence).toContain("metadata blocker: addonSteamAppID missing");
-    expect(result.evidence).toContain("metadata blocker: addontitle missing");
-    expect(result.evidence).toContain("metadata blocker: addonAuthor missing");
-    expect(result.evidence).toContain("metadata blocker: addonDescription missing");
-    expect(result.evidence).toContain("metadata blocker: addonVersion missing");
-    expect(result.evidence).toContain("package blocker: lua entry missing");
-    expect(result.evidence).toContain("no package archive created");
-    expect(result.evidence).toContain("no Workshop upload attempted");
+    expect(result).toEqual(
+      expectedReleaseResult(root, {
+        metadataEvidence: ["metadata evidence: DefaultMap present", "metadata evidence: maps present"],
+        blockers: [
+          "package blocker: lua entry missing",
+          "metadata blocker: addonSteamAppID missing",
+          "metadata blocker: addontitle missing",
+          "metadata blocker: addonAuthor missing",
+          "metadata blocker: addonDescription missing",
+          "metadata blocker: addonVersion missing"
+        ]
+      })
+    );
   });
 
   test("reports placeholder metadata blockers", async () => {
@@ -191,9 +186,12 @@ describe("workshop preflight inspection", () => {
       addonName: "demo_addon"
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.evidence).toContain("metadata blocker: addontitle placeholder");
-    expect(result.evidence).toContain("release blockers: 1");
+    expect(result).toEqual(
+      expectedReleaseResult(root, {
+        metadataEvidence: COMPLETE_METADATA_EVIDENCE.filter((entry) => entry !== "metadata evidence: addontitle present"),
+        blockers: ["metadata blocker: addontitle placeholder"]
+      })
+    );
   });
 
   test("redacts sensitive material findings in dry-run report", async () => {
@@ -214,9 +212,15 @@ describe("workshop preflight inspection", () => {
       addonName: "demo_addon"
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.evidence).toContain("secret blocker: scripts/vscripts/secrets.lua matches password");
-    expect(result.evidence.join("\n")).not.toContain(credentialValue);
+    expect(result).toEqual(
+      expectedReleaseResult(root, {
+        blockers: [
+          "secret blocker: scripts/vscripts/secrets.lua matches steam credential",
+          "secret blocker: scripts/vscripts/secrets.lua matches password"
+        ]
+      })
+    );
+    expect(JSON.stringify(result)).not.toContain(credentialValue);
   });
 
   test("rejects invalid dry-run input before filesystem inspection", async () => {
@@ -229,12 +233,34 @@ describe("workshop preflight inspection", () => {
       addonName: "demo_addon"
     });
 
-    expect(invalidName.ok).toBe(false);
-    expect(invalidName.error?.code).toBe("INVALID_ADDON_NAME");
-    expect(invalidName.evidence).toContain("rejected release report addon name: ../demo");
-    expect(missingRoot.ok).toBe(false);
-    expect(missingRoot.error?.code).toBe("TARGET_ROOT_REQUIRED");
-    expect(missingRoot.evidence).toContain("target did not include a Dota root");
+    expect(invalidName).toEqual({
+      ok: false,
+      target: { kind: "fixture", root },
+      operation: "dry_run_release_report",
+      error: {
+        code: "INVALID_ADDON_NAME",
+        message: "Addon names must start with a lowercase letter and contain only lowercase letters, digits, and underscores."
+      },
+      evidence: ["rejected release report addon name: ../demo"],
+      warnings: [],
+      paths: {},
+      commands: [],
+      logs: []
+    });
+    expect(missingRoot).toEqual({
+      ok: false,
+      target: { kind: "local" },
+      operation: "dry_run_release_report",
+      error: {
+        code: "TARGET_ROOT_REQUIRED",
+        message: "Release dry run requires a fixture root or target Dota root."
+      },
+      evidence: ["target did not include a Dota root"],
+      warnings: [],
+      paths: {},
+      commands: [],
+      logs: []
+    });
   });
 });
 
@@ -248,4 +274,86 @@ async function writeCompleteAddonInfo(root: string, addonName: string, mapName: 
 
 async function writeAddonInfo(root: string, addonName: string, content: string): Promise<void> {
   await writeFile(join(root, "game/dota_addons", addonName, "addoninfo.txt"), content);
+}
+
+const COMPLETE_METADATA_EVIDENCE = [
+  "metadata evidence: addonSteamAppID present",
+  "metadata evidence: addontitle present",
+  "metadata evidence: addonAuthor present",
+  "metadata evidence: addonDescription present",
+  "metadata evidence: addonVersion present",
+  "metadata evidence: DefaultMap present",
+  "metadata evidence: maps present"
+];
+
+function expectedReleaseResult(
+  root: string,
+  overrides: { metadataEvidence?: string[]; blockers?: string[] } = {}
+) {
+  const addonName = "demo_addon";
+  const paths = {
+    gameAddon: join(root, "game/dota_addons", addonName),
+    contentAddon: join(root, "content/dota_addons", addonName),
+    addonInfo: join(root, "game/dota_addons", addonName, "addoninfo.txt"),
+    luaEntry: join(root, "game/dota_addons", addonName, "scripts/vscripts/addon_game_mode.lua"),
+    localization: join(root, "game/dota_addons", addonName, `resource/addon_${addonName}_english.txt`),
+    heroList: join(root, "game/dota_addons", addonName, "scripts/npc/herolist.txt"),
+    heroData: join(root, "game/dota_addons", addonName, "scripts/npc/npc_heroes_custom.txt"),
+    unitData: join(root, "game/dota_addons", addonName, "scripts/npc/npc_units_custom.txt"),
+    abilityData: join(root, "game/dota_addons", addonName, "scripts/npc/npc_abilities_custom.txt"),
+    contentMaps: join(root, "content/dota_addons", addonName, "maps"),
+    panoramaSource: join(root, "content/dota_addons", addonName, "panorama"),
+    panoramaRuntime: join(root, "game/dota_addons", addonName, "panorama"),
+    packageJson: join(root, "content/dota_addons", addonName, "package.json")
+  };
+  const blockers = overrides.blockers ?? [];
+  const missingPackageLabels = new Set(
+    blockers.filter((entry) => entry.startsWith("package blocker: ")).map((entry) => entry.slice(17, -8))
+  );
+  const packageEvidence = [
+    "game addon root",
+    "content addon root",
+    "addon metadata",
+    "lua entry",
+    "localization file",
+    "content maps directory",
+    "hero list",
+    "hero data",
+    "unit support file",
+    "ability support file"
+  ]
+    .filter((label) => !missingPackageLabels.has(label))
+    .map((label) => `package evidence: ${label} exists`);
+
+  return {
+    ok: blockers.length === 0,
+    target: { kind: "fixture", root },
+    operation: "dry_run_release_report",
+    ...(blockers.length > 0
+      ? { error: { code: "RELEASE_PREFLIGHT_BLOCKED", message: "Release dry run found blockers." } }
+      : {}),
+    evidence: [
+      ...packageEvidence,
+      ...(overrides.metadataEvidence ?? COMPLETE_METADATA_EVIDENCE),
+      `secret scan completed: ${paths.gameAddon}`,
+      `secret scan completed: ${paths.contentAddon}`,
+      `release blockers: ${blockers.length}`,
+      "release warnings: 4",
+      "dry-run release report generated",
+      "no package archive created",
+      "no content encryption performed",
+      "no Workshop upload attempted",
+      "release dry run is not runtime validation",
+      ...blockers
+    ],
+    warnings: [
+      "Steam login is manual and out of scope",
+      "content encryption is manual and out of scope",
+      "Workshop upload is not performed by dry run",
+      "dry run does not prove runtime validation"
+    ],
+    paths,
+    commands: [],
+    logs: []
+  };
 }
