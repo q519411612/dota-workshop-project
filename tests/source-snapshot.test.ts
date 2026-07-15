@@ -202,6 +202,30 @@ describe("source snapshot manifest dry run", () => {
     expect(paths.some((path) => path.includes("v1.13"))).toBe(false);
   });
 
+  test("blocks the latest archived requirements path when its type is invalid", async () => {
+    await rm(join(root, ".planning/REQUIREMENTS.md"));
+    await mkdir(join(root, ".planning/milestones/v1.14-phases"), { recursive: true });
+    await writeFile(join(root, ".planning/milestones/v1.14-REQUIREMENTS.md"), "# Older Requirements\n");
+    await writeFile(join(root, ".planning/milestones/v1.14-ROADMAP.md"), "# Older Roadmap\n");
+    await writeFile(join(root, ".planning/milestones/v1.14-MILESTONE-AUDIT.md"), "# Older Audit\n");
+    await mkdir(join(root, ".planning/milestones/v1.15-REQUIREMENTS.md"));
+
+    const result = await generateSourceSnapshotManifest({
+      root,
+      generatedAt: FIXED_TIME,
+      commit: FIXED_COMMIT
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.manifest.blockers).toContainEqual({
+      code: "REQUIRED_SOURCE_PATH_INVALID",
+      path: ".planning/milestones/v1.15-REQUIREMENTS.md",
+      field: "files",
+      category: "source coverage"
+    });
+    expect(result.manifest.files.some((file) => file.path.includes("v1.14"))).toBe(false);
+  });
+
   test("blocks sensitive material without including the sensitive value", async () => {
     const sensitiveValue = ["steam", "password", "plain", "text"].join("_");
     await writeFile(join(root, "docs/secret.md"), `credential=${sensitiveValue}\n`);
