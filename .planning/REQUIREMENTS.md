@@ -8,10 +8,10 @@
 
 ### MCP Contract and Boundaries
 
-- [ ] **RCOP-01**: An AI agent can invoke a dedicated `preflight_release_candidate` MCP operation with a validated addon name through fixture, local Windows, SSH Windows, or PowerShell Remoting targets without changing `dry_run_release_report` behavior.
+- [x] **RCOP-01**: An AI agent can invoke a dedicated `preflight_release_candidate` MCP operation with a validated addon name through fixture, local Windows, SSH Windows, or PowerShell Remoting targets without changing `dry_run_release_report` behavior.
 - [x] **RCOP-02**: An AI agent receives explicit input and source-root blockers before any temporary candidate directory is created when the addon name, target root, game addon root, or content addon root is invalid or missing.
-- [ ] **RCOP-03**: An AI agent receives versioned machine-readable manifest, validation, blocker, path, command, log, warning, and cleanup details in the common MCP result envelope.
-- [ ] **RCOP-04**: An AI agent receives explicit evidence that candidate preflight performed no Steam login, Workshop item creation or mutation, upload, archive creation, signing, encryption, game launch, or runtime validation, and the operation schema exposes no credential fields.
+- [x] **RCOP-03**: An AI agent receives versioned machine-readable manifest, validation, blocker, path, command, log, warning, and cleanup details in the common MCP result envelope.
+- [x] **RCOP-04**: An AI agent receives explicit evidence that candidate preflight performed no Steam login, Workshop item creation or mutation, upload, archive creation, signing, encryption, game launch, or runtime validation, and the operation schema exposes no credential fields.
 
 ### Candidate Assembly and Filesystem Safety
 
@@ -33,9 +33,9 @@
 
 - [x] **RCCL-01**: An AI agent receives cleanup evidence after every outcome following candidate creation, including validation blockers, copy errors, hashing errors, and successful artifact validation.
 - [x] **RCCL-02**: An AI agent receives `ok: false` whenever candidate removal fails, cleanup is unverified, or post-cleanup absence cannot be proven, while artifact-validation state remains separately observable.
-- [ ] **RCCL-03**: An AI agent can preflight a remote candidate entirely on its Windows target and receives only sanitized structured evidence rather than a downloaded or retained candidate artifact.
-- [ ] **RCCL-04**: An AI agent receives an explicit remote failure for malformed or incomplete versioned JSON, missing required evidence, transport uncertainty, or zero-exit commands that do not satisfy success invariants, with no local fallback.
-- [ ] **RCCL-05**: An AI agent can verify on macOS fixtures that fixture, local Windows, SSH Windows, and PowerShell Remoting contracts normalize to equivalent manifest, blocker, cleanup, and boundary semantics without claiming real Windows runtime proof.
+- [x] **RCCL-03**: An AI agent can preflight a remote candidate entirely on its Windows target and receives only sanitized structured evidence rather than a downloaded or retained candidate artifact.
+- [x] **RCCL-04**: An AI agent receives an explicit remote failure for malformed or incomplete versioned JSON, missing required evidence, transport uncertainty, or zero-exit commands that do not satisfy success invariants, with no local fallback.
+- [x] **RCCL-05**: An AI agent can verify on macOS fixtures that fixture, local Windows, SSH Windows, and PowerShell Remoting contracts normalize to equivalent manifest, blocker, cleanup, and boundary semantics without claiming real Windows runtime proof.
 
 ## Future Requirements
 
@@ -93,4 +93,4 @@ Traceability is populated during roadmap creation. Each v1.14 requirement must m
 
 ---
 *Requirements defined: 2026-07-15*
-*Last updated: 2026-07-15 after v1.14 roadmap creation*
+*Last updated: 2026-07-16 after Phase 5 final review remediation*
