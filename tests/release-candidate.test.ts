@@ -2940,7 +2940,10 @@ describe("release candidate input validation", () => {
       {
         name: "accepted inventory entry",
         names: [credentialName],
-        expected: { ok: true, entries: [{ root: "game", path: redactedPath, kind: "file" }] }
+        expected: {
+          ok: false,
+          blockers: [{ code: "SOURCE_IDENTITY_SENSITIVE", path: redactedPath, category: "sensitive" }]
+        }
       },
       {
         name: "unsafe entry kind",

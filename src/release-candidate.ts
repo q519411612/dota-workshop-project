@@ -999,6 +999,20 @@ async function inventoryReleaseCandidateSourcesInternal(
 
   appendCollisionBlockers(identities, blockers);
 
+  if (blockers.length === 0) {
+    for (const entry of entries) {
+      if (
+        sanitizeRelativeEvidenceIdentity(entry.path)
+        === entry.path.replaceAll("\\", "/")
+      ) continue;
+      blockers.push({
+        code: "SOURCE_IDENTITY_SENSITIVE",
+        path: entry.path,
+        category: "sensitive"
+      });
+    }
+  }
+
   if (blockers.length > 0) {
     const sanitizedBlockers = blockers.map((blocker) => ({
       ...blocker,
