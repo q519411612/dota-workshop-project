@@ -886,14 +886,20 @@ async function inspectCandidateLease<T>(
     }
     const finalStability = await verifySourceStability(input, inventory, observations, lifecycle);
     const candidateAfter = await captureCandidateIntegrity(lease, expected, inventory, sourceBefore, lifecycle);
-    if (!candidateAfter.ok) return candidateAfter;
     const sourceAfter = await captureSourceIntegrity(input, inventory, lifecycle);
-    if (!sourceAfter.ok) return sourceAfter;
+    const finalReconciliation = await reconcileReleaseCandidate(lease, input, inventory, lifecycle);
     if (
-      !sameIntegritySets(sourceBefore, candidateAfter.value.observations)
-      || !sameIntegritySets(sourceBefore, sourceAfter.value)
+      candidateAfter.ok
+      && sourceAfter.ok
+      && (
+        !sameIntegritySets(sourceBefore, candidateAfter.value.observations)
+        || !sameIntegritySets(sourceBefore, sourceAfter.value)
+      )
     ) return integrityMismatch();
     if (finalStability !== undefined) return finalStability;
+    if (finalReconciliation !== undefined) return finalReconciliation;
+    if (!sourceAfter.ok) return sourceAfter;
+    if (!candidateAfter.ok) return candidateAfter;
     if (inspectionFailed) return lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
     const manifest = projectReleaseCandidateManifest(inventory, candidateAfter.value.observations);
     if (manifest === undefined) {
