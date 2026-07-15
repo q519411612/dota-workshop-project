@@ -7,6 +7,7 @@ import {
   readFile,
   readdir,
   realpath,
+  rename,
   rm,
   symlink,
   utimes,
@@ -45,6 +46,33 @@ type Fixture = {
 };
 
 const fixtureRoots: string[] = [];
+
+type SourceTreeSnapshotEntry = Readonly<{
+  path: string;
+  kind: "directory" | "file" | "symbolic-link" | "special";
+  bytes?: string;
+}>;
+
+async function snapshotSourceTrees(fixture: Fixture): Promise<SourceTreeSnapshotEntry[]> {
+  const snapshot: SourceTreeSnapshotEntry[] = [];
+  const walk = async (root: string, label: "game" | "content", directory: string): Promise<void> => {
+    for (const name of (await readdir(directory)).sort()) {
+      const path = join(directory, name);
+      const info = await lstat(path);
+      const identity = `${label}/${relative(root, path).replaceAll("\\", "/")}`;
+      if (info.isSymbolicLink()) snapshot.push({ path: identity, kind: "symbolic-link" });
+      else if (info.isDirectory()) {
+        snapshot.push({ path: identity, kind: "directory" });
+        await walk(root, label, path);
+      } else if (info.isFile()) {
+        snapshot.push({ path: identity, kind: "file", bytes: (await readFile(path)).toString("base64") });
+      } else snapshot.push({ path: identity, kind: "special" });
+    }
+  };
+  await walk(fixture.gameAddonRoot, "game", fixture.gameAddonRoot);
+  await walk(fixture.contentAddonRoot, "content", fixture.contentAddonRoot);
+  return snapshot;
+}
 
 async function classifyFixtureEntry(path: string): Promise<ReleaseCandidateEntryKind> {
   const stats = await lstat(path);
@@ -162,6 +190,12 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
   ): Promise<CandidateMaterializationResult> => {
     const root = identityRoot(identity);
     const identityRecord = identity as Record<string, unknown>;
+    if (typeof identityRecord.beforeMaterialize === "function") {
+      await (identityRecord.beforeMaterialize as (operation: CandidateMaterializationOperation) => Promise<void>)(operation);
+    }
+    if (Array.isArray(identityRecord.materializedDestinations)) {
+      identityRecord.materializedDestinations.push(join(root, ...operation.destination.split("/")));
+    }
     if (
       identityRecord.failCopy === true
       && operation.kind === "file"
@@ -207,6 +241,9 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
       if (created.isSymbolicLink() || (operation.kind === "file" ? !created.isFile() : !created.isDirectory())) {
         return { ok: false, code: "CANDIDATE_DESTINATION_IDENTITY_MISMATCH" };
       }
+      if (typeof identityRecord.afterMaterialize === "function") {
+        await (identityRecord.afterMaterialize as (operation: CandidateMaterializationOperation) => Promise<void>)(operation);
+      }
       return { ok: true, created: true, identityMatched: true, kindMatched: true, contained: true };
     } catch {
       return { ok: false, code: "CANDIDATE_MATERIALIZATION_FAILED" };
@@ -216,6 +253,10 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
     identity: TIdentity,
     expected: CandidateExpectedEntry[]
   ): Promise<CandidateTreeReconciliationResult> => {
+    const identityRecord = identity as Record<string, unknown>;
+    if (typeof identityRecord.beforeReconcile === "function") {
+      await (identityRecord.beforeReconcile as () => Promise<void>)();
+    }
     const root = identityRoot(identity);
     const actual: CandidateExpectedEntry[] = [];
     const walk = async (directory: string): Promise<void> => {
@@ -2392,6 +2433,135 @@ describe("release candidate input validation", () => {
       if (!prepared.ok) throw new Error("collision fixture input was rejected");
 
       expect(await inventoryReleaseCandidateSources(prepared.value)).toEqual(expected);
+    }
+  });
+
+  test("fails on source mutation without writing source trees", async () => {
+    type MutationCheckpoint = "lease" | "before-copy" | "after-copy" | "reconcile" | "callback";
+    const mutationScenarios: Array<Readonly<{
+      name: string;
+      checkpoint: MutationCheckpoint;
+      mutate(path: string, fixture: Fixture): Promise<void>;
+      callbackInvoked: boolean;
+    }>> = [
+      { name: "add before revalidation", checkpoint: "lease", mutate: async (_path, fixture) => await writeFile(join(fixture.contentAddonRoot, "maps", "added.bin"), "added"), callbackInvoked: false },
+      { name: "remove immediately before copy", checkpoint: "before-copy", mutate: async (path) => await rm(path), callbackInvoked: false },
+      { name: "rename immediately before copy", checkpoint: "before-copy", mutate: async (path) => await rename(path, join(path, "..", "renamed.bin")), callbackInvoked: false },
+      { name: "retype immediately before copy", checkpoint: "before-copy", mutate: async (path) => { await rm(path); await mkdir(path); }, callbackInvoked: false },
+      { name: "replace with link after copy", checkpoint: "after-copy", mutate: async (path, fixture) => { await rm(path); await symlink(join(fixture.gameAddonRoot, "addoninfo.txt"), path); }, callbackInvoked: false },
+      { name: "truncate before reconciliation", checkpoint: "reconcile", mutate: async (path) => await writeFile(path, Buffer.from([0x01])), callbackInvoked: false },
+      { name: "change same-length bytes during callback", checkpoint: "callback", mutate: async (path) => await writeFile(path, Buffer.from([0x90, 0x80, 0x70, 0x60])), callbackInvoked: true }
+    ];
+
+    for (const scenario of mutationScenarios) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      const mutablePath = join(fixture.contentAddonRoot, "maps", "mutable.bin");
+      await writeFile(mutablePath, Buffer.from([0x10, 0x20, 0x30, 0x40]));
+      let mutated = false;
+      const mutateOnce = async (): Promise<void> => {
+        if (mutated) return;
+        mutated = true;
+        await scenario.mutate(mutablePath, fixture);
+      };
+      let candidateRoot: string | undefined;
+      const cleanupCandidateLease = vi.fn(async (identity: { root: string }) => {
+        await rm(identity.root, { recursive: true, force: false });
+        return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
+      });
+      const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+        createCandidateLease: async (validated) => {
+          if (scenario.checkpoint === "lease") await mutateOnce();
+          candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return {
+            inspectionRoot: candidateRoot,
+            identity: {
+              root: candidateRoot,
+              beforeMaterialize: async (operation: CandidateMaterializationOperation) => {
+                if (scenario.checkpoint === "before-copy" && operation.source.path.endsWith("/mutable.bin")) await mutateOnce();
+              },
+              afterMaterialize: async (operation: CandidateMaterializationOperation) => {
+                if (scenario.checkpoint === "after-copy" && operation.source.path.endsWith("/mutable.bin")) await mutateOnce();
+              },
+              beforeReconcile: async () => {
+                if (scenario.checkpoint === "reconcile") await mutateOnce();
+              }
+            }
+          };
+        },
+        cleanupCandidateLease
+      });
+      const inspect = vi.fn(async () => {
+        if (scenario.checkpoint === "callback") await mutateOnce();
+        return "must not escape source mutation";
+      });
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        inspect,
+        {
+          repositoryRoot: fixture.repositoryRoot,
+          filesystem: {
+            lstat,
+            realpath,
+            readDirectory: async (path) => await readdir(path),
+            classifySourceEntry: classifyFixtureEntry,
+            createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+            candidateLifecycle: lifecycle
+          }
+        }
+      );
+
+      expect(result, scenario.name).toEqual({ ok: false, blockers: [{ code: "SOURCE_CHANGED_DURING_ASSEMBLY", category: "assembly" }] });
+      expect(mutated, scenario.name).toBe(true);
+      expect(inspect, scenario.name).toHaveBeenCalledTimes(scenario.callbackInvoked ? 1 : 0);
+      expect(cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
+      if (candidateRoot !== undefined) await expect(lstat(candidateRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    }
+
+    for (const outcome of ["success", "copy-failure", "callback-failure", "removal-failure"] as const) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      await mkdir(join(fixture.contentAddonRoot, "materials"), { recursive: true });
+      await writeFile(join(fixture.contentAddonRoot, "materials", "texture.bin"), Buffer.from([0x00, 0xff]));
+      const before = await snapshotSourceTrees(fixture);
+      const materializedDestinations: string[] = [];
+      const cleanupCandidateLease = vi.fn(async (identity: { root: string }) => {
+        await rm(identity.root, { recursive: true, force: false });
+        return outcome === "removal-failure"
+          ? { ok: false as const, removed: true, absent: true, identityMatched: true, code: "CANDIDATE_REMOVAL_FAILED" as const }
+          : { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
+      });
+      const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+        createCandidateLease: async (validated) => {
+          const root = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return { inspectionRoot: root, identity: { root, failCopy: outcome === "copy-failure", materializedDestinations } };
+        },
+        cleanupCandidateLease
+      });
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        async () => {
+          if (outcome === "callback-failure") throw new Error("private callback failure");
+          return "inspected";
+        },
+        {
+          repositoryRoot: fixture.repositoryRoot,
+          filesystem: {
+            lstat,
+            realpath,
+            readDirectory: async (path) => await readdir(path),
+            classifySourceEntry: classifyFixtureEntry,
+            createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+            candidateLifecycle: lifecycle
+          }
+        }
+      );
+
+      expect(await snapshotSourceTrees(fixture), outcome).toEqual(before);
+      expect(materializedDestinations.every((path) => !path.startsWith(`${fixture.gameAddonRoot}/`) && !path.startsWith(`${fixture.contentAddonRoot}/`)), outcome).toBe(true);
+      expect(cleanupCandidateLease, outcome).toHaveBeenCalledTimes(1);
+      if (outcome === "success") expect(result).toEqual({ ok: true, value: "inspected" });
+      else expect(result.ok, outcome).toBe(false);
     }
   });
 
