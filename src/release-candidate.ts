@@ -919,7 +919,12 @@ async function parseAcceptedSourceRead(
       return { ok: true, value: { ok: true, state, size, identityMatched, kindMatched, contained } };
     }
     const content = Reflect.get(result, "content");
-    if (state === "readable" && size <= MAX_SECRET_SCAN_BYTES && typeof content === "string") {
+    if (
+      state === "readable"
+      && size <= MAX_SECRET_SCAN_BYTES
+      && typeof content === "string"
+      && Buffer.byteLength(content, "utf8") === size
+    ) {
       return { ok: true, value: { ok: true, state, size, content, identityMatched, kindMatched, contained } };
     }
   } catch {
