@@ -35,7 +35,7 @@ patterns-established:
 
 requirements-completed: [RCIN-05]
 
-duration: 18min
+duration: 32min
 completed: 2026-07-15
 status: complete
 ---
@@ -46,9 +46,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 18 min
+- **Duration:** 32 min
 - **Started:** 2026-07-15T14:48:24Z
-- **Completed:** 2026-07-15T15:06:09Z
+- **Completed:** 2026-07-15T15:20:28Z
 - **Tasks:** 2
 - **Files modified:** 6
 
@@ -62,6 +62,8 @@ status: complete
 - Blocked required unreadable, invalid-UTF-8, and oversized text before candidate creation while retaining complete sanitized coverage.
 - Proved matched sensitive values, private absolute roots, and raw adapter exceptions do not enter serialized scan evidence.
 - Proved both source trees remain byte-for-byte unchanged across scan success and readiness-blocked outcomes.
+- Added one guarded coverage normalization boundary that snapshots hostile roots, file collections, relative paths, and states exactly once.
+- Converted getter, proxy, and iterator exceptions into stable sanitized `POLICY_INPUT_INVALID` evidence instead of allowing private values or raw errors to escape.
 
 ## TDD Evidence
 
@@ -69,6 +71,8 @@ status: complete
 - GREEN: The same focused command passed 3/3 after adding the versioned bounded scan contract, fatal decoder, strict state parser, and coverage projection.
 - Regression alignment updated controlled adapters to the new versioned bytes/binary grammar; production continued to reject legacy, malformed, size-inconsistent, proxy, and exceptional results.
 - Final focused evidence includes arbitrary binary bytes, optional unreadable text, optional invalid UTF-8, optional oversized text, required unreadable/invalid/oversized text, sensitive text, exact manifest inclusion, no binary decode, redaction, cleanup, and source immutability.
+- Review RED: `npm test -- tests/release-readiness.test.ts -t "release candidate scan coverage"` failed 3/3 because coverage returned no explicit result union, reread mutable getters, and allowed private getter/proxy exceptions to escape.
+- Review GREEN: the same command passed 3/3 after guarded exactly-once snapshots and a stable sanitized failure union were added.
 
 ## Task Commits
 
@@ -80,6 +84,9 @@ status: complete
 6. **Report candidate scan coverage** - `a0eb52a` (`feat`, GREEN)
 7. **Sync scan coverage build** - `084d849` (`chore`)
 8. **Prove scan source immutability** - `2af3f4f` (`test`)
+9. **Expose hostile coverage observations** - `bc94c03` (`test`, review RED)
+10. **Guard scan coverage observations** - `e255a7b` (`fix`, review GREEN)
+11. **Sync guarded coverage build** - `81da4b9` (`chore`)
 
 ## Files Created/Modified
 
@@ -98,6 +105,7 @@ status: complete
 - Coverage path identity is `<root>/<addon-root-relative-path>` so identical paths in game and content cannot collapse.
 - Existing `non-text` readiness inputs remain compatible with prior policy callers, while the candidate lifecycle emits the clearer `binary` state.
 - Coverage is attached to artifact success and readiness-blocked results; cleanup precedence remains owned by the following cleanup plans.
+- The coverage policy now returns an explicit success/failure union; invalid or exceptional observations never produce partial counts or silently skipped files.
 
 ## Deviations from Plan
 
@@ -107,16 +115,25 @@ None - plan executed exactly as written.
 
 - Several controlled tests still returned the prior string-content observation shape. They were migrated to versioned bounded bytes or binary states so strict production parsing could remain fail-closed without a compatibility fallback.
 - The initial coverage sort used configured root order. The focused pure test exposed that the contract requires full raw root/path ordinal ordering before sanitization; the implementation was corrected before the production commit.
+- Independent review found that coverage validation reread `scanRoot.root`, `scanRoot.files`, and file identities after validation, allowing mutable getters to substitute private values or throw raw errors. Focused RED tests reproduced the leak and exceptional paths before the guarded normalization fix.
+
+## Review Remediation
+
+- Root identity, file collection, relative path, and state are each acquired once through guarded `Reflect.get` calls and retained as immutable local snapshots.
+- Every snapshot is validated before it enters ordering or evidence projection; later getter values cannot replace validated facts.
+- Getter, proxy, and iterator exceptions return one stable `POLICY_INPUT_INVALID` blocker in the `scan-coverage-observation` category.
+- Invalid observations fail closed rather than being omitted from counts, preventing partial coverage from masquerading as exhaustive evidence.
+- Tests construct private paths and matched token-like values at runtime and prove neither appears in serialized success or failure evidence.
 
 ## Verification Evidence
 
-- Focused scan-coverage matrix: 3/3 passed.
+- Focused scan-coverage and hostile-observation matrix: 3/3 passed.
 - Required readiness/candidate/preflight/source-snapshot regression set: 66/66 passed.
 - Complete release-candidate suite: 42/42 passed.
-- Full repository suite: 203/203 passed across 20 files.
+- Full repository suite: 205/205 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed.
-- `npm run verify:rc`: passed with zero warnings and zero blockers; its nested full suite also passed 203/203.
+- `npm run verify:rc`: passed with zero warnings and zero blockers; its nested full suite also passed 205/205.
 - `git diff --check`: passed.
 - Generated untracked `dist/release-candidate.js` was removed after each build verification.
 - Existing `.planning/graphs/` user modifications remained untouched and unstaged.
@@ -127,6 +144,7 @@ None - plan executed exactly as written.
 - Confirmed invalid UTF-8 cannot be accepted through replacement decoding.
 - Confirmed oversized content is never returned in scan observations and no manifest or coverage evidence is truncated.
 - Confirmed adapter getters, proxies, thenables, malformed versions/states/counts, and raw exceptions fail through stable sanitized blockers.
+- Confirmed coverage getters and iterators cannot escape raw exceptions or substitute a private second-read value after validation.
 - Confirmed matched sensitive values and private absolute roots do not enter coverage or blocker serialization.
 - Confirmed scan classification never removes files from integrity hashing, inclusion reconciliation, or manifest projection.
 - Confirmed no fallback, retry, repair, source write, archive, signing, encryption, upload, credential, compile, remote, MCP, game launch, or runtime-validation behavior was added.
@@ -144,7 +162,7 @@ None - no external service configuration required.
 ## Self-Check: PASSED
 
 - All source, test, tracked build, and summary files exist.
-- RED commit `20473f5` precedes GREEN commit `a0eb52a`.
+- RED commit `20473f5` precedes GREEN commit `a0eb52a`; review RED `bc94c03` precedes review GREEN `e255a7b`.
 - Focused, regression, full-suite, typecheck, build, RC, diff, generated-artifact, source-immutability, and graph-exclusion checks passed.
 - RCIN-05 has unique plan traceability and complete implementation/test evidence.
 
