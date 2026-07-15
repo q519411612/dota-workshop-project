@@ -3469,7 +3469,9 @@ describe("release candidate input validation", () => {
     ] as const;
     const expectedCanonical = "[\"1.0\",[[\"content\",\"content/dota_addons/fixture_addon/materials/alpha|beta.bin\",3,\"0000000000000000000000000000000000000000000000000000000000000000\"],[\"content\",\"content/dota_addons/fixture_addon/materials/quote\\\"\\n.bin\",5,\"1111111111111111111111111111111111111111111111111111111111111111\"],[\"content\",\"content/dota_addons/fixture_addon/materials/控制-é.bin\",7,\"2222222222222222222222222222222222222222222222222222222222222222\"],[\"game\",\"game/dota_addons/fixture_addon/addoninfo.txt\",11,\"3333333333333333333333333333333333333333333333333333333333333333\"],[\"game\",\"game/dota_addons/fixture_addon/resource/addon_fixture_addon_english.txt\",13,\"4444444444444444444444444444444444444444444444444444444444444444\"],[\"game\",\"game/dota_addons/fixture_addon/scripts/npc/herolist.txt\",17,\"5555555555555555555555555555555555555555555555555555555555555555\"],[\"game\",\"game/dota_addons/fixture_addon/scripts/npc/npc_abilities_custom.txt\",19,\"6666666666666666666666666666666666666666666666666666666666666666\"],[\"game\",\"game/dota_addons/fixture_addon/scripts/npc/npc_heroes_custom.txt\",23,\"7777777777777777777777777777777777777777777777777777777777777777\"],[\"game\",\"game/dota_addons/fixture_addon/scripts/npc/npc_units_custom.txt\",29,\"8888888888888888888888888888888888888888888888888888888888888888\"],[\"game\",\"game/dota_addons/fixture_addon/scripts/vscripts/addon_game_mode.lua\",31,\"9999999999999999999999999999999999999999999999999999999999999999\"]]]";
     const expectedCombinedSha256 = "f5598e2fc3b94b81e821d4230e7e8f727781c43f0bb4bf9c197aacb7fc9ee0da";
-    const facts = new Map(manifestEntries.map((entry) => [entry.path, entry]));
+    const facts = new Map<string, (typeof manifestEntries)[number]>(
+      manifestEntries.map((entry) => [entry.path, entry])
+    );
 
     const run = async (reverse: boolean) => {
       const fixture = await createFixture();
