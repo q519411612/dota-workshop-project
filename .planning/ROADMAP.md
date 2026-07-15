@@ -79,7 +79,16 @@ Plans:
   4. An agent receives cleanup evidence after successful validation and every failure following candidate creation.
   5. An agent receives `ok: false` while still seeing the separate artifact-validation state whenever removal or post-cleanup absence cannot be proven.
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+
+- [ ] 04-01: Stream identity-bound file observations and require source-before/candidate/source-after equality.
+- [ ] 04-02: Produce the versioned ordinal manifest and host-independent canonical digest.
+- [ ] 04-03: Reconcile exact candidate occurrences before constructing manifest lookups.
+- [ ] 04-04: Report exhaustive text, binary, unreadable, and oversized scan coverage.
+- [ ] 04-05: Guarantee exactly one cleanup attempt after every stateful candidate creation outcome.
+- [ ] 04-06: Preserve artifact-validation truth while enforcing verified-cleanup precedence.
 
 ### Phase 5: Unified MCP and Remote Target Parity
 
@@ -101,5 +110,5 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 3. Safe Candidate Assembly | 6/6 | Complete    | 2026-07-15 |
-| 4. Integrity Manifest and Verified Cleanup | 0/TBD | Not started | - |
+| 4. Integrity Manifest and Verified Cleanup | 0/6 | Planned | - |
 | 5. Unified MCP and Remote Target Parity | 0/TBD | Not started | - |
