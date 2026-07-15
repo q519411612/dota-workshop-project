@@ -830,6 +830,7 @@ async function inspectCandidateLease<T>(
     } catch {
       inspectionFailed = true;
     }
+    const finalStability = await verifySourceStability(input, inventory, observations, lifecycle);
     const candidateAfter = await captureCandidateIntegrity(lease, expected, sourceBefore, lifecycle);
     if (!candidateAfter.ok) return candidateAfter;
     const sourceAfter = await captureSourceIntegrity(input, inventory, lifecycle);
@@ -838,7 +839,6 @@ async function inspectCandidateLease<T>(
       !sameIntegritySets(sourceBefore, candidateAfter.value)
       || !sameIntegritySets(sourceBefore, sourceAfter.value)
     ) return integrityMismatch();
-    const finalStability = await verifySourceStability(input, inventory, observations, lifecycle);
     if (finalStability !== undefined) return finalStability;
     if (inspectionFailed) return lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
     return { ok: true, value: value as T };
