@@ -4673,6 +4673,7 @@ describe("release candidate input validation", () => {
       await mkdir(join(path, ".."), { recursive: true });
       await writeFile(path, content);
     }
+    const sourceBefore = await snapshotSourceTrees(fixture);
 
     const openedForText: string[] = [];
     let candidateRoot: string | undefined;
@@ -4752,6 +4753,7 @@ describe("release candidate input validation", () => {
     ]));
     expect(openedForText).not.toContain("content/dota_addons/fixture_addon/materials/arbitrary.bin");
     expect(scanAcceptedSourceFile).toHaveBeenCalledTimes(12);
+    expect(await snapshotSourceTrees(fixture)).toEqual(sourceBefore);
     if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
     await expect(lstat(candidateRoot)).rejects.toMatchObject({ code: "ENOENT" });
   });
@@ -4760,7 +4762,8 @@ describe("release candidate input validation", () => {
     const scenarios = [
       { name: "unreadable", path: "scripts/vscripts/addon_game_mode.lua", state: "unreadable", code: "REQUIRED_TEXT_UNREADABLE" },
       { name: "invalid utf8", path: "scripts/npc/herolist.txt", state: "invalid", code: "REQUIRED_TEXT_UNREADABLE" },
-      { name: "oversized", path: "scripts/npc/npc_units_custom.txt", state: "oversized", code: "REQUIRED_TEXT_OVERSIZED" }
+      { name: "oversized", path: "scripts/npc/npc_units_custom.txt", state: "oversized", code: "REQUIRED_TEXT_OVERSIZED" },
+      { name: "sensitive", path: "scripts/vscripts/optional-sensitive.lua", state: "sensitive", code: "SENSITIVE_MATERIAL" }
     ] as const;
 
     for (const scenario of scenarios) {
@@ -4772,6 +4775,12 @@ describe("release candidate input validation", () => {
       if (scenario.state === "oversized") {
         await writeFile(join(fixture.gameAddonRoot, ...scenario.path.split("/")), Buffer.alloc(MAX_SECRET_SCAN_BYTES + 1, 0x61));
       }
+      if (scenario.state === "sensitive") {
+        const path = join(fixture.gameAddonRoot, ...scenario.path.split("/"));
+        await mkdir(join(path, ".."), { recursive: true });
+        await writeFile(path, `${compactAssignment("password", "synthetic-private-value")}\n`);
+      }
+      const sourceBefore = await snapshotSourceTrees(fixture);
       const createCandidateLease = vi.fn(async () => {
         throw new Error("required scan blockers must precede candidate creation");
       });
@@ -4823,14 +4832,16 @@ describe("release candidate input validation", () => {
         ok: false,
         scanCoverage: {
           schemaVersion: "1.0",
-          totalFileCount: 7,
-          unreadable: { count: scenario.state === "oversized" ? 0 : 1 },
+          totalFileCount: scenario.state === "sensitive" ? 8 : 7,
+          unreadable: { count: scenario.state === "unreadable" || scenario.state === "invalid" ? 1 : 0 },
           oversized: { count: scenario.state === "oversized" ? 1 : 0 }
         },
         blockers: [{ code: scenario.code, disposition: "blocker", path: scenario.path }]
       });
       expect(createCandidateLease, scenario.name).not.toHaveBeenCalled();
       expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
+      expect(JSON.stringify(result), scenario.name).not.toContain("synthetic-private-value");
+      expect(await snapshotSourceTrees(fixture), scenario.name).toEqual(sourceBefore);
     }
   });
 });
