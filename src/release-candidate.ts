@@ -219,7 +219,9 @@ export type ReleaseCandidateArtifactValidation =
       scanCoverage: ReleaseScanCoverage;
     }>;
 
-export type ReleaseCandidateLifecycleResult<T> =
+export type ReleaseCandidateLifecycleResult<
+  T extends ReleaseCandidateInspectionValue = ReleaseCandidateInspectionValue
+> =
   | {
       ok: true;
       value: T;
@@ -263,17 +265,27 @@ type ReleaseCandidateInspectionOutcome<T> = Readonly<{
   blockers: ReleaseCandidateLifecycleFailure["blockers"];
   value?: T;
 }>;
-type ReleaseCandidateInspectionValue =
+export type ReleaseCandidateInspectionValue =
   | null
   | boolean
   | number
   | string
   | ReleaseCandidateInspectionArray
   | ReleaseCandidateInspectionObject;
-interface ReleaseCandidateInspectionArray extends ReadonlyArray<ReleaseCandidateInspectionValue> {}
-interface ReleaseCandidateInspectionObject {
+export interface ReleaseCandidateInspectionArray extends ReadonlyArray<ReleaseCandidateInspectionValue> {}
+export interface ReleaseCandidateInspectionObject {
   readonly [key: string]: ReleaseCandidateInspectionValue;
 }
+export type NormalizedReleaseCandidateInspectionValue<T extends ReleaseCandidateInspectionValue> =
+  T extends null | boolean | number | string
+    ? T
+    : T extends readonly (infer TItem extends ReleaseCandidateInspectionValue)[]
+      ? readonly NormalizedReleaseCandidateInspectionValue<TItem>[]
+      : T extends ReleaseCandidateInspectionObject
+        ? Readonly<{
+            [TKey in keyof T]: NormalizedReleaseCandidateInspectionValue<T[TKey]>;
+          }>
+        : never;
 type AcceptedSourceObservation = Extract<AcceptedSourceObservationResult, { ok: true }>;
 type AcceptedSourceObservations = ReadonlyMap<string, AcceptedSourceObservation>;
 type FileIntegrityObservations = ReadonlyMap<string, FileIntegrityObservation>;
@@ -1026,11 +1038,11 @@ async function inventoryReleaseCandidateSourcesInternal(
   return { ok: true, entries };
 }
 
-export async function withAssembledReleaseCandidate<T>(
+export async function withAssembledReleaseCandidate<T extends ReleaseCandidateInspectionValue>(
   input: ReleaseCandidateInput,
   inspect: (candidateRoot: string) => Promise<T>,
   dependencies: ReleaseCandidateDependencies = {}
-): Promise<ReleaseCandidateLifecycleResult<T>> {
+): Promise<ReleaseCandidateLifecycleResult<NormalizedReleaseCandidateInspectionValue<T>>> {
   const prepared = await prepareReleaseCandidateInput(input, dependencies);
   if (!prepared.ok) return finalizePrecreationFailure(prepared);
 
@@ -1087,7 +1099,7 @@ export async function withAssembledReleaseCandidate<T>(
     return finalizeAcquisitionFailure(failure, acquisition.cleanup);
   }
 
-  let outcome: ReleaseCandidateInspectionOutcome<T>;
+  let outcome: ReleaseCandidateInspectionOutcome<NormalizedReleaseCandidateInspectionValue<T>>;
   let cleanup: ReleaseCandidateCleanupEvidence;
   try {
     outcome = await inspectCandidateLease(
@@ -1135,7 +1147,7 @@ function bindIdentityBoundCandidateLifecycle(
   });
 }
 
-async function inspectCandidateLease<T>(
+async function inspectCandidateLease<T extends ReleaseCandidateInspectionValue>(
   inspectionRoot: string,
   lease: ReleaseCandidateLease,
   input: ValidatedReleaseCandidateInput,
@@ -1145,7 +1157,7 @@ async function inspectCandidateLease<T>(
   scanCoverage: ReleaseScanCoverage,
   lifecycle: BoundCandidateLifecycle,
   inspect: (candidateRoot: string) => Promise<T>
-): Promise<ReleaseCandidateInspectionOutcome<T>> {
+): Promise<ReleaseCandidateInspectionOutcome<NormalizedReleaseCandidateInspectionValue<T>>> {
   let root: string;
   try {
     root = resolve(inspectionRoot);
@@ -1257,7 +1269,7 @@ async function inspectCandidateLease<T>(
       operation: operationCompleted(),
       artifactValidation,
       blockers: [],
-      value: value as T
+      value: value as NormalizedReleaseCandidateInspectionValue<T>
     });
   } catch {
     return blockedArtifact(lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation"), scanCoverage);
@@ -2418,7 +2430,7 @@ function finalizeAcquisitionFailure(
   });
 }
 
-function finalizeCandidateLifecycle<T>(
+function finalizeCandidateLifecycle<T extends ReleaseCandidateInspectionValue>(
   outcome: ReleaseCandidateInspectionOutcome<T>,
   cleanup: ReleaseCandidateCleanupEvidence
 ): ReleaseCandidateLifecycleResult<T> {
