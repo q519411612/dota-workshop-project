@@ -16,7 +16,7 @@ affects: [04-integrity-manifest-and-verified-cleanup, manifest, inclusion-ledger
 
 tech-stack:
   added: []
-  patterns: [bounded-chunk SHA-256 fixture observations, guarded hostile-result normalization, final triple-integrity comparison]
+  patterns: [production bounded-chunk SHA-256 primitive, guarded hostile-result normalization, final triple-integrity comparison]
 
 key-files:
   created: [.planning/phases/04-integrity-manifest-and-verified-cleanup/04-01-SUMMARY.md]
@@ -27,6 +27,7 @@ key-decisions:
   - "Validate candidate integrity once before callback inspection and freshly again after callback settlement, then obtain fresh source-after observations before cleanup."
   - "Give final integrity failure precedence over callback return or throw so mutation-before-throw cannot be misreported as only an inspection failure."
   - "Retain Phase 3 metadata/topology checks while removing whole-file byte retention from source stability observations."
+  - "Consume only adapter-opened async byte iterables in the production hashing primitive; reject pathname APIs, whole-file buffers, oversized chunks, and hostile iterator results."
 
 patterns-established:
   - "Every integrity fact uses schema version 1.0, exact root/path identity, safe byte count, lowercase SHA-256, and literal identity/kind/containment proof."
@@ -35,7 +36,7 @@ patterns-established:
 
 requirements-completed: [RCIN-01]
 
-duration: 17min
+duration: 37min
 completed: 2026-07-15
 status: complete
 ---
@@ -46,16 +47,17 @@ status: complete
 
 ## Performance
 
-- **Duration:** 17 min
+- **Duration:** 37 min
 - **Started:** 2026-07-15T18:42:00+08:00
-- **Completed:** 2026-07-15T18:58:51+08:00
-- **Tasks:** 2 TDD tasks plus independent self-review
+- **Completed:** 2026-07-15T19:18:54+08:00
+- **Tasks:** 2 TDD tasks plus two review-remediation TDD cycles
 - **Files modified:** 3
 
 ## Accomplishments
 
 - Replaced Phase 3 whole-file stability bytes with strict versioned integrity observations containing only safe root/path, byte count, lowercase SHA-256, and identity proof.
-- Added bounded-chunk macOS fixture hashing for empty, binary, and 256 KiB-plus files across irregular chunk boundaries without returning raw file bytes.
+- Added a production `createHash("sha256")` primitive that incrementally consumes only adapter-opened async `Uint8Array` chunks, enforces a 64 KiB chunk ceiling and safe total count, and retains no raw bytes.
+- Wired the controlled macOS fixture through the production primitive for empty, binary, and 256 KiB-plus files across irregular chunk boundaries without passing absolute paths into production code.
 - Captured source-before observations before candidate creation, verified a lease-bound candidate before callback use, then freshly reobserved candidate and source after callback success or throw.
 - Made candidate mutation, source mutation, and mutation-before-throw return one stable integrity blocker while withholding callback values and sanitized exception text.
 - Rejected malformed versions, roots, paths, counts, digests, identity facts, missing/duplicate/unexpected observations, getters, proxies, iterators, thenables, and thrown results without retry or repair.
@@ -65,6 +67,10 @@ status: complete
 
 1. **Specify identity-bound streamed triple observations** - `fb69267` (test)
 2. **Implement strict streaming integrity validation** - `0ccd073` (feat)
+3. **Require production stream hashing** - `b68d687` (test)
+4. **Stream identity-bound hashes in production** - `629978b` (feat)
+5. **Require final integrity boundary ordering** - `2a8fd22` (test)
+6. **Keep triple comparison as the final artifact check** - `2fe26e8` (fix)
 
 ## Files Created/Modified
 
@@ -75,18 +81,40 @@ status: complete
 ## Decisions Made
 
 - Candidate observation receives the opaque lease and trusted expected tree; the factory resolves the hidden candidate identity through its `WeakMap` and never exposes a candidate path to orchestration.
+- The production streaming primitive accepts only a safe candidate-relative identity plus a zero-argument adapter closure returning an async byte iterable. It cannot open or hash a raw path and rejects a Buffer returned as the whole stream.
 - Candidate observation order is not trusted. Each occurrence is matched by exact trusted path, normalized independently, sorted ordinally, duplicate-checked, and only then inserted into a lookup map.
 - Callback failure remains `CANDIDATE_INSPECTION_FAILED` only when final bytes are still valid. Any final source or candidate mismatch takes integrity precedence.
 - Formal manifest entries, combined digest, occurrence-ledger evidence, scan coverage, public artifact-validation state, MCP routing, and remote target behavior remain owned by later plans.
 
 ## Deviations from Plan
 
-None - the implementation remained within RCIN-01 and the planned source/test files.
+### Auto-fixed Issues
+
+**1. [Rule 2 - Production integrity primitive] Move incremental SHA-256 into production code**
+- **Found during:** Independent specification review.
+- **Issue:** The controlled fixture streamed chunks through `createHash`, but production exposed only precomputed observation seams and therefore did not itself enforce bounded incremental hashing.
+- **Fix:** Added a guarded production primitive over adapter-opened async byte iterables and wired the fixture through it; raw paths and whole-file Buffer results remain outside the API.
+- **Verification:** RED reported the production helper export as `undefined`; GREEN covers binary multi-chunk, empty, oversized chunk, invalid chunk, whole-file Buffer, iterator throw, getter, thenable, and absolute-identity cases.
+- **Committed in:** `b68d687`, `629978b`.
+
+**2. [Rule 1 - Final validation ordering] Make triple integrity the last artifact-validation boundary**
+- **Found during:** Independent specification review.
+- **Issue:** Final metadata stability ran after fresh candidate/source integrity observations, leaving the triple comparison short of the immediate pre-cleanup artifact boundary.
+- **Fix:** Capture final stability first, then freshly observe candidate and source-after and perform triple equality last; deferred stability failure is returned only after a successful triple comparison.
+- **Verification:** RED recorded `candidate-after -> source-after -> stability`; GREEN records `stability -> candidate-after -> source-after -> cleanup` for callback success and throw paths.
+- **Committed in:** `2a8fd22`, `2fe26e8`.
+
+---
+
+**Total deviations:** 2 auto-fixed review gaps.
+**Impact on plan:** Both corrections implement explicit RCIN-01 requirements without adding manifest, ledger, coverage, public state, MCP, remote, or persistent artifact scope.
 
 ## TDD Gate Compliance
 
 - RED command failed because candidate integrity was never observed (`candidateCalls` was `0`, expected `2`).
 - Test commit `fb69267` precedes GREEN implementation commit `0ccd073`.
+- Production-stream RED `b68d687` precedes GREEN helper commit `629978b`.
+- Final-order RED `2a8fd22` precedes ordering fix commit `2fe26e8`.
 - GREEN focused tests prove callback success, callback throw, candidate mutation, source mutation, mutation-before-throw, fresh final observations, and cleanup ordering.
 - Hostile-result tests prove malformed final observations fail with stable sanitized evidence, one callback invocation, two intentional candidate observations, no materialization retry, and one cleanup.
 
@@ -94,14 +122,15 @@ None - the implementation remained within RCIN-01 and the planned source/test fi
 
 - Reviewed opaque lease binding, guarded property access, foreign array handling, duplicate accounting, callback/integrity precedence, source immutability, and cleanup ownership.
 - Corrected an order-dependent candidate parser found during self-review: trusted paths now select the expected identity before normalization, so adapter enumeration order cannot affect integrity validity while duplicates remain explicit failures.
+- Specification review found and corrected the missing production hashing primitive and the final-boundary ordering gap through separate observed RED/green cycles.
 - Re-review found no raw-path hashing in orchestration, callback value leakage, retry, recopy, source write, compilation, manifest, public MCP, remote, archive, signing, encryption, upload, or credential behavior.
 
 ## Verification Evidence
 
 - Focused final triple-integrity test: 1/1 passed.
 - Focused malformed-observation test: 1/1 passed.
-- Candidate/readiness/preflight regression suites: 49/49 passed.
-- Full repository suite: 190/190 passed across 20 files.
+- Candidate/readiness/preflight regression suites: 50/50 passed.
+- Full repository suite: 191/191 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed; generated `dist/release-candidate.js` was removed from the untracked workspace after verification.
 - `npm run verify:rc`: passed all plugin, example, typecheck, test, build, and repository scan gates.
@@ -111,6 +140,7 @@ None - the implementation remained within RCIN-01 and the planned source/test fi
 ## Issues Encountered
 
 - Initial GREEN parsing compared candidate observations positionally against trusted expected files. Self-review identified that strict integrity should accept any complete occurrence order, so parsing was changed to guarded path-based matching before ordinal sorting and duplicate detection.
+- Specification review correctly identified that fixture-only hashing did not satisfy the production primitive requirement and that metadata stability followed the final triple observations; both were reproduced before correction.
 
 ## User Setup Required
 
@@ -124,7 +154,7 @@ None.
 ## Self-Check: PASSED
 
 - RED and GREEN commits exist in order and contain only scoped test/source changes.
-- RCIN-01 is exercised across empty, binary, large, mismatched, malformed, callback mutation, and callback throw fixtures.
+- RCIN-01 is exercised across production empty/binary/multi-chunk streams, large fixture files, mismatches, malformed iterators/chunks/results, callback mutation, and callback throw fixtures.
 - Graph modifications remain unstaged; no generated build output, archive, credential, MCP, remote, manifest, signing, encryption, upload, source repair, or fallback behavior was committed.
 
 ---
