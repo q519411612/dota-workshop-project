@@ -35,6 +35,8 @@ import {
   type IdentityBoundCandidateLifecycle,
   type ReleaseCandidateEntryKind,
   type ReleaseCandidateFilesystem,
+  type ReleaseCandidateInspectionValue,
+  type ReleaseCandidateLifecycleResult,
   type RegisteredCandidateCreation,
   type ValidatedReleaseCandidateInput
 } from "../src/release-candidate.js";
@@ -490,6 +492,30 @@ afterEach(async () => {
 });
 
 describe("release candidate input validation", () => {
+  test("constrains inspection callbacks to safe evidence types", () => {
+    const input = { addonName: "fixture_addon", dotaRoot: "/dota", tempParent: "/temp" };
+    const accepted = withAssembledReleaseCandidate(
+      input,
+      async () => ({ status: "ready", nested: [1, true, null] })
+    );
+    expectTypeOf(accepted).toMatchTypeOf<Promise<
+      ReleaseCandidateLifecycleResult<ReleaseCandidateInspectionValue>
+    >>();
+
+    if (false) {
+      // @ts-expect-error void 不是可序列化的检查证据
+      void withAssembledReleaseCandidate(input, async () => undefined);
+      // @ts-expect-error 函数能力不能作为检查证据返回
+      void withAssembledReleaseCandidate(input, async () => (() => "live"));
+      // @ts-expect-error 实例句柄不能作为检查证据返回
+      void withAssembledReleaseCandidate(input, async () => new Date());
+      // @ts-expect-error bigint 不属于受支持的证据标量
+      void withAssembledReleaseCandidate(input, async () => 1n);
+      // @ts-expect-error symbol 不属于受支持的证据标量
+      void withAssembledReleaseCandidate(input, async () => Symbol("live"));
+    }
+  });
+
   test("assembles the complete fixed two-root layout", async () => {
     const fixture = await createFixture();
     const addonInfo = `
