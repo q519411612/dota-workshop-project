@@ -80,6 +80,9 @@ export async function prepareReleaseCandidateInput(
   const gameAddonRootPath = join(dotaRoot.path, "game", "dota_addons", input.addonName);
   const gameAddonRoot = await validateDirectory(gameAddonRootPath, "gameAddonRoot", "GAME_ADDON_ROOT", filesystem);
   if (!gameAddonRoot.ok) return gameAddonRoot.result;
+  if (!isPathInside(gameAddonRoot.path, dotaRoot.path)) {
+    return blocked("GAME_ADDON_ROOT_OUTSIDE_DOTA_ROOT", "gameAddonRoot", "unsafe-isolation");
+  }
 
   const contentAddonRootPath = join(dotaRoot.path, "content", "dota_addons", input.addonName);
   const contentAddonRoot = await validateDirectory(
@@ -89,6 +92,9 @@ export async function prepareReleaseCandidateInput(
     filesystem
   );
   if (!contentAddonRoot.ok) return contentAddonRoot.result;
+  if (!isPathInside(contentAddonRoot.path, dotaRoot.path)) {
+    return blocked("CONTENT_ADDON_ROOT_OUTSIDE_DOTA_ROOT", "contentAddonRoot", "unsafe-isolation");
+  }
 
   const protectedRoots = [dotaRoot.path, repositoryRoot.path, gameAddonRoot.path, contentAddonRoot.path];
   if (protectedRoots.some((root) => isPathAtOrInside(tempParent.path, root))) {
@@ -158,6 +164,10 @@ function errorCode(error: unknown): string | undefined {
 
 function isPathAtOrInside(child: string, parent: string): boolean {
   if (child === parent) return true;
+  return isPathInside(child, parent);
+}
+
+function isPathInside(child: string, parent: string): boolean {
   const path = relative(parent, child);
   return path !== "" && path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
 }
