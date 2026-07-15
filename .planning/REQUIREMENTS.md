@@ -65,10 +65,10 @@ Traceability is populated during roadmap creation. Each v1.14 requirement must m
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RCOP-01 | Phase 5 | Pending |
+| RCOP-01 | Phase 5 | Complete |
 | RCOP-02 | Phase 3 | Complete |
-| RCOP-03 | Phase 5 | Pending |
-| RCOP-04 | Phase 5 | Pending |
+| RCOP-03 | Phase 5 | Complete |
+| RCOP-04 | Phase 5 | Complete |
 | RCFS-01 | Phase 3 | Complete |
 | RCFS-02 | Phase 3 | Complete |
 | RCFS-03 | Phase 3 | Complete |
@@ -81,9 +81,9 @@ Traceability is populated during roadmap creation. Each v1.14 requirement must m
 | RCIN-05 | Phase 4 | Complete |
 | RCCL-01 | Phase 4 | Complete |
 | RCCL-02 | Phase 4 | Complete |
-| RCCL-03 | Phase 5 | Pending |
-| RCCL-04 | Phase 5 | Pending |
-| RCCL-05 | Phase 5 | Pending |
+| RCCL-03 | Phase 5 | Complete |
+| RCCL-04 | Phase 5 | Complete |
+| RCCL-05 | Phase 5 | Complete |
 
 **Coverage:**
 

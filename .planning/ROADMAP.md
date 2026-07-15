@@ -38,7 +38,7 @@ Execution history: `.planning/milestones/v1.13-phases/`
 
 - [x] **Phase 3: Safe Candidate Assembly** - Users can assemble an exact, isolated two-root candidate without unsafe entries or source mutation. (completed 2026-07-15)
 - [x] **Phase 4: Integrity Manifest and Verified Cleanup** - Users receive deterministic byte-integrity evidence and proof that every temporary candidate was removed. (completed 2026-07-15)
-- [ ] **Phase 5: Unified MCP and Remote Target Parity** - Users can run the preflight through every supported target contract with strict remote evidence and no fallback.
+- [x] **Phase 5: Unified MCP and Remote Target Parity** - Users can run the preflight through every supported target contract with strict remote evidence and no fallback. (completed 2026-07-16)
 
 ## Phase Details
 
@@ -109,28 +109,28 @@ Plans:
 
 **Wave 1**
 
-- [ ] 05-02: Define the versioned release-candidate detail and shared invariant authority.
+- [x] 05-02: Define the versioned release-candidate detail and shared invariant authority.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 05-03: Implement the production fixture/local adapter and mandatory release boundaries.
-- [ ] 05-04: Build the target-native PowerShell lifecycle and bind both remote transports.
+- [x] 05-03: Implement the production fixture/local adapter and mandatory release boundaries.
+- [x] 05-04: Build the target-native PowerShell lifecycle and bind both remote transports.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 05-05: Reject hostile, uncertain, or invariant-violating remote results with no fallback.
+- [x] 05-05: Reject hostile, uncertain, or invariant-violating remote results with no fallback.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 05-01: Register and route the additive MCP operation without changing dry-run behavior.
+- [x] 05-01: Register and route the additive MCP operation without changing dry-run behavior.
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 05-07: Prove and package the minimal executable runtime import closure.
+- [x] 05-07: Prove and package the minimal executable runtime import closure.
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 05-06: Verify golden cross-target parity, documentation, and the complete quality gate.
+- [x] 05-06: Verify golden cross-target parity, documentation, and the complete quality gate.
 
 Cross-cutting constraints:
 
@@ -144,4 +144,4 @@ Cross-cutting constraints:
 |-------|----------------|--------|-----------|
 | 3. Safe Candidate Assembly | 6/6 | Complete    | 2026-07-15 |
 | 4. Integrity Manifest and Verified Cleanup | 6/6 | Complete    | 2026-07-15 |
-| 5. Unified MCP and Remote Target Parity | 0/7 | Planned | - |
+| 5. Unified MCP and Remote Target Parity | 7/7 | Complete | 2026-07-16 |

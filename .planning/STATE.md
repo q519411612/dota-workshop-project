@@ -4,16 +4,16 @@ milestone: v1.14
 milestone_name: Workshop Addon Release Candidate Preflight
 current_phase: 5
 current_phase_name: Unified MCP and Remote Target Parity
-status: planned
-last_updated: "2026-07-16T02:56:48+08:00"
+status: phase_complete
+last_updated: "2026-07-16T05:14:30+08:00"
 last_activity: 2026-07-16
-last_activity_desc: Phase 5 planned with 7 verified plans in 6 waves
+last_activity_desc: Phase 5 verified complete with clean independent review and 19/19 unique requirement ownership
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 19
-  completed_plans: 12
-  percent: 63
+  completed_plans: 19
+  percent: 100
 ---
 
 # Project State: Dota Workshop Project
@@ -36,19 +36,19 @@ See: `.planning/PROJECT.md` (updated 2026-07-15)
 ## Current Position
 
 Phase: 5 of 5 (Unified MCP and Remote Target Parity)
-Plan: 0 of 7
-Status: Ready to execute
-Progress: [█████████████░░░░░░░] 12/19 plans (63%)
-Last activity: 2026-07-16 — Phase 5 planned with 7 verified plans in 6 waves
+Plan: 7 of 7
+Status: Verified complete; ready for milestone audit
+Progress: [████████████████████] 19/19 plans (100%)
+Last activity: 2026-07-16 — Phase 5 passed verification with a clean independent review
 
 ## Performance Metrics
 
 | Metric | Value |
 |---|---|
 | Milestone phases | 3 |
-| Completed phases | 2 |
+| Completed phases | 3 |
 | Requirements mapped | 19/19 |
-| Plans completed | 12/19 |
+| Plans completed | 19/19 |
 
 ## Accumulated Context
 
@@ -99,11 +99,12 @@ Last activity: 2026-07-16 — Phase 5 planned with 7 verified plans in 6 waves
 - v1.14 must not perform Steam login, Workshop mutation or upload, archive creation, signing, encryption, credential handling, game launch, or runtime validation.
 - Remote failures must remain explicit; local fallback is prohibited.
 - Phase 3 and Phase 4 are verified complete with 13/13 owned requirements, clean independent review, source immutability, and cleanup absence evidence.
+- Phase 5 is verified complete with 6/6 owned requirements, four-target contract parity, tracked runtime closure, and a clean independent review.
 
 ### Todos
 
-- Execute Phase 5 in six dependency waves with atomic RED/GREEN commits and independent review.
-- Preserve exact one-phase traceability while wiring fixture, local Windows, SSH Windows, and PowerShell Remoting to one result contract.
+- Run the v1.14 milestone audit against all 19 uniquely owned requirements and the three phase verification artifacts.
+- Complete and clean up the milestone only if audit, integration, end-to-end, and cleanup evidence all pass.
 
 ### Blockers
 
@@ -111,9 +112,9 @@ Last activity: 2026-07-16 — Phase 5 planned with 7 verified plans in 6 waves
 
 ## Session Continuity
 
-**Last completed action:** Planned Phase 5 with 7 plans, 6 waves, and a clean independent plan check.
-**Next action:** Execute Wave 1 Plan 05-02 after creating the immutable Phase 5 graph baseline and start marker.
-**Resume context:** Execute 05-02 → (05-03, 05-04) → 05-05 → 05-01 → 05-07 → 05-06. Keep fixture/local/SSH/PowerShell behind one strict result authority.
+**Last completed action:** Verified Phase 5 with 202 focused tests, 303 complete tests, 19/19 unique requirement owners, and a clean deep review.
+**Next action:** Run the v1.14 milestone audit; do not archive until it passes.
+**Resume context:** Audit Phases 3-5 and the complete v1.14 boundary, then complete and clean up the milestone only on a passing result.
 
 ---
-*Last updated: 2026-07-16 after Phase 5 planning*
+*Last updated: 2026-07-16 after Phase 5 verification*
