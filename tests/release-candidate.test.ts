@@ -247,7 +247,6 @@ function createAcceptedSourceObserver() {
         mtimeMs: info.mtimeMs,
         ctimeMs: info.ctimeMs,
         mode: info.mode,
-        ...(kind === "file" ? { bytes: await readFile(sourcePath) } : {}),
         identityMatched: true as const,
         contained: true as const
       };
