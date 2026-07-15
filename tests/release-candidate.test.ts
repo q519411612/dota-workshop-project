@@ -149,6 +149,8 @@ describe("release candidate input validation", () => {
     });
     expect(JSON.stringify(callbackResult)).not.toContain(callbackFixture.root);
     expect(JSON.stringify(callbackResult)).not.toContain("private-value");
+    expect(callbackLifecycle.createCandidateRoot).toHaveBeenCalledTimes(1);
+    expect(callbackLifecycle.removeCandidateRoot).toHaveBeenCalledTimes(1);
     const callbackRoot = callbackLifecycle.candidateRoot();
     if (callbackRoot === undefined) throw new Error("callback candidate root was not recorded");
     await expect(lstat(callbackRoot)).rejects.toMatchObject({ code: "ENOENT" });
@@ -200,6 +202,136 @@ describe("release candidate input validation", () => {
     const residualRoot = removalLifecycle.candidateRoot();
     if (residualRoot === undefined) throw new Error("residual candidate root was not recorded");
     expect((await lstat(residualRoot)).isDirectory()).toBe(true);
+  });
+
+  test("refuses unowned roots and revalidates cleanup leases", async () => {
+    const unownedCases: Array<{
+      name: string;
+      target: (fixture: Fixture) => Promise<string>;
+    }> = [
+      { name: "repository root", target: async (fixture) => fixture.repositoryRoot },
+      { name: "game source root", target: async (fixture) => fixture.gameAddonRoot },
+      { name: "content source root", target: async (fixture) => fixture.contentAddonRoot },
+      { name: "temporary parent itself", target: async (fixture) => fixture.tempParent },
+      {
+        name: "outside temporary parent",
+        target: async (fixture) => {
+          const path = join(fixture.root, "unowned-outside");
+          await mkdir(path);
+          return path;
+        }
+      }
+    ];
+
+    for (const scenario of unownedCases) {
+      const fixture = await createFixture();
+      const target = await scenario.target(fixture);
+      const sentinel = join(target, "ownership-sentinel.txt");
+      await writeFile(sentinel, "survives\n");
+      const removeCandidateRoot = vi.fn(async () => undefined);
+      const filesystem = {
+        lstat,
+        realpath,
+        readDirectory: async (path: string) => await readdir(path),
+        classifySourceEntry: classifyFixtureEntry,
+        createCandidateRoot: vi.fn(async () => target),
+        removeCandidateRoot
+      };
+
+      const result = await withAssembledReleaseCandidate(
+        {
+          addonName: "fixture_addon",
+          dotaRoot: fixture.dotaRoot,
+          tempParent: fixture.tempParent
+        },
+        async () => "unexpected",
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+
+      expect(removeCandidateRoot, scenario.name).not.toHaveBeenCalled();
+      expect(result, scenario.name).toEqual({
+        ok: false,
+        blockers: [{ code: "CANDIDATE_ROOT_NOT_OWNED", category: "unsafe-isolation" }]
+      });
+      expect(await lstat(sentinel), scenario.name).toBeDefined();
+      expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
+    }
+
+    const swappedFixture = await createFixture();
+    await writeFile(join(swappedFixture.repositoryRoot, "repository-sentinel.txt"), "survives\n");
+    let swappedRoot: string | undefined;
+    const swappedRemoval = vi.fn(async (path: string) => {
+      await rm(path, { recursive: true, force: false });
+    });
+    const swappedFilesystem = {
+      lstat,
+      realpath,
+      readDirectory: async (path: string) => await readdir(path),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot: vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+        swappedRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+        return swappedRoot;
+      }),
+      removeCandidateRoot: swappedRemoval
+    };
+
+    const swappedResult = await withAssembledReleaseCandidate(
+      {
+        addonName: "fixture_addon",
+        dotaRoot: swappedFixture.dotaRoot,
+        tempParent: swappedFixture.tempParent
+      },
+      async (candidateRoot) => {
+        await rm(candidateRoot, { recursive: true, force: false });
+        await symlink(swappedFixture.repositoryRoot, candidateRoot);
+        return "must not escape";
+      },
+      { repositoryRoot: swappedFixture.repositoryRoot, filesystem: swappedFilesystem }
+    );
+
+    expect(swappedResult).toEqual({
+      ok: false,
+      blockers: [{ code: "CANDIDATE_REMOVAL_UNVERIFIED", category: "removal" }]
+    });
+    expect(swappedRemoval).not.toHaveBeenCalled();
+    expect(await lstat(join(swappedFixture.repositoryRoot, "repository-sentinel.txt"))).toBeDefined();
+    if (swappedRoot === undefined) throw new Error("swapped candidate root was not recorded");
+    expect((await lstat(swappedRoot)).isSymbolicLink()).toBe(true);
+
+    const mutableFixture = await createFixture();
+    let mutableRoot: string | undefined;
+    const capturedRemoval = vi.fn(async (path: string) => {
+      await rm(path, { recursive: true, force: false });
+    });
+    const mutableFilesystem = {
+      lstat,
+      realpath,
+      readDirectory: async (path: string) => await readdir(path),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot: vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+        mutableRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+        return mutableRoot;
+      }),
+      removeCandidateRoot: capturedRemoval
+    };
+
+    const mutableResult = await withAssembledReleaseCandidate(
+      {
+        addonName: "fixture_addon",
+        dotaRoot: mutableFixture.dotaRoot,
+        tempParent: mutableFixture.tempParent
+      },
+      async () => {
+        mutableFilesystem.removeCandidateRoot = vi.fn(async () => undefined);
+        return "inspected";
+      },
+      { repositoryRoot: mutableFixture.repositoryRoot, filesystem: mutableFilesystem }
+    );
+
+    expect(mutableResult).toEqual({ ok: true, value: "inspected" });
+    expect(capturedRemoval).toHaveBeenCalledTimes(1);
+    if (mutableRoot === undefined) throw new Error("mutable candidate root was not recorded");
+    await expect(lstat(mutableRoot)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   test("blocks invalid inputs before candidate creation", async () => {
