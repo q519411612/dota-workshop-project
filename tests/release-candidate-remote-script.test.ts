@@ -80,6 +80,8 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).toContain("function Assert-SafeSourceRoot");
     expect(script).toContain("function Assert-SafeSourceFile");
     expect(script.match(/Assert-SafeSourceFile \$file/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(script).toContain("Assert-SafeSourceFile $metadataFile; $metadataText");
+    expect(script).toContain("SOURCE_IDENTITY_SENSITIVE");
     expect(script).toContain("host|username");
   });
 
