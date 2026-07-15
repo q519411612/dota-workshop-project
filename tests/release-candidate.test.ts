@@ -245,4 +245,64 @@ describe("release candidate input validation", () => {
       expect(JSON.stringify(result), scenario.name).not.toContain("private-value");
     }
   });
+
+  test("blocks canonical root escapes before candidate creation", async () => {
+    const cases: Array<{
+      name: string;
+      canonicalAlias: (fixture: Fixture) => { source: string; target: string };
+      expected: { code: string; field: string; category: string };
+    }> = [
+      {
+        name: "game addon root escapes the canonical Dota root",
+        canonicalAlias: (fixture) => ({ source: fixture.gameAddonRoot, target: fixture.repositoryRoot }),
+        expected: {
+          code: "GAME_ADDON_ROOT_OUTSIDE_DOTA_ROOT",
+          field: "gameAddonRoot",
+          category: "unsafe-isolation"
+        }
+      },
+      {
+        name: "content addon root escapes the canonical Dota root",
+        canonicalAlias: (fixture) => ({ source: fixture.contentAddonRoot, target: fixture.repositoryRoot }),
+        expected: {
+          code: "CONTENT_ADDON_ROOT_OUTSIDE_DOTA_ROOT",
+          field: "contentAddonRoot",
+          category: "unsafe-isolation"
+        }
+      },
+      {
+        name: "temporary parent aliases the canonical game addon root",
+        canonicalAlias: (fixture) => ({ source: fixture.tempParent, target: fixture.gameAddonRoot }),
+        expected: { code: "TEMP_PARENT_NOT_ISOLATED", field: "tempParent", category: "unsafe-isolation" }
+      }
+    ];
+
+    for (const scenario of cases) {
+      const fixture = await createFixture();
+      const alias = scenario.canonicalAlias(fixture);
+      const aliasSource = await realpath(alias.source);
+      const aliasTarget = await realpath(alias.target);
+      const createCandidateRoot = vi.fn(async () => join(fixture.tempParent, "candidate"));
+      const filesystem = {
+        lstat,
+        realpath: vi.fn(async (path: string) => (
+          path === alias.source || path === aliasSource ? aliasTarget : await realpath(path)
+        )),
+        createCandidateRoot
+      };
+
+      const result = await prepareReleaseCandidateInput(
+        {
+          addonName: "fixture_addon",
+          dotaRoot: fixture.dotaRoot,
+          tempParent: fixture.tempParent
+        },
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+
+      expect(result, scenario.name).toEqual({ ok: false, blockers: [scenario.expected] });
+      expect(createCandidateRoot, scenario.name).not.toHaveBeenCalled();
+      expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
+    }
+  });
 });
