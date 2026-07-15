@@ -265,7 +265,10 @@ function createAcceptedSourceObserver() {
 }
 
 function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(operations: {
-  createCandidateLease(input: ValidatedReleaseCandidateInput): Promise<{ inspectionRoot: string; identity: TIdentity }>;
+  createCandidateLease(
+    input: ValidatedReleaseCandidateInput,
+    recordCreated: (created: { inspectionRoot: string; identity: TIdentity }) => void
+  ): Promise<{ inspectionRoot: string; identity: TIdentity }>;
   cleanupCandidateLease(identity: TIdentity): Promise<CandidateLeaseCleanupResult>;
   readAcceptedSourceFile?(input: ValidatedReleaseCandidateInput, entry: Parameters<ReturnType<typeof createNoFollowSourceReader>>[1], maxBytes: number): Promise<AcceptedSourceReadResult>;
   inspectCandidateRoot?(identity: TIdentity): Promise<CandidateRootInspectionResult>;
@@ -438,6 +441,7 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
         );
       }))
   });
+  const { createCandidateLease, ...overrides } = operations;
   return createIdentityBoundCandidateLifecycle({
     readAcceptedSourceFile: createNoFollowSourceReader(),
     observeAcceptedSourceEntry: createAcceptedSourceObserver(),
@@ -446,7 +450,17 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
     reconcileCandidateTree: defaultReconcile,
     observeAcceptedSource: defaultObserveAcceptedSource,
     observeCandidate: defaultObserveCandidate,
-    ...operations
+    ...overrides,
+    createCandidateLease: async (input, recordCreated) => {
+      let registered = false;
+      const register = (created: { inspectionRoot: string; identity: TIdentity }): void => {
+        registered = true;
+        recordCreated(created);
+      };
+      const created = await createCandidateLease(input, register);
+      if (!registered) register(created);
+      return created;
+    }
   });
 }
 

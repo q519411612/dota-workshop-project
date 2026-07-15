@@ -164,7 +164,10 @@ export type ReleaseCandidateCleanupEvidence =
       attempted: true;
       attempts: 1;
       status: "failed";
-      code: CandidateLeaseCleanupFailureCode | "CANDIDATE_CLEANUP_RESULT_INVALID";
+      code:
+        | CandidateLeaseCleanupFailureCode
+        | "CANDIDATE_CLEANUP_RESULT_INVALID"
+        | "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE";
       identityMatched?: boolean;
       removed?: boolean;
       absent?: boolean;
@@ -505,7 +508,7 @@ export type IdentityBoundCandidateLifecycle = Readonly<{
 export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(operations: {
   createCandidateLease(
     input: ValidatedReleaseCandidateInput,
-    recordCreated?: (created: Readonly<{ inspectionRoot: string; identity: TIdentity }>) => void
+    recordCreated: (created: Readonly<{ inspectionRoot: string; identity: TIdentity }>) => void
   ): Promise<unknown>;
   cleanupCandidateLease(identity: TIdentity): Promise<CandidateLeaseCleanupResult>;
   readAcceptedSourceFile?(
@@ -556,13 +559,15 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
     identityBoundCleanup: true as const,
     identityBoundAssembly,
     createCandidateLease: async (input) => {
+      let creationSignaled = false;
       let recorded: Readonly<{ inspectionRoot: string; identity: TIdentity }> | undefined;
       let registrationInvalid = false;
       const recordCreated = (created: Readonly<{ inspectionRoot: string; identity: TIdentity }>): void => {
-        if (recorded !== undefined || registrationInvalid) {
+        if (creationSignaled) {
           registrationInvalid = true;
           return;
         }
+        creationSignaled = true;
         const parsed = parseCreatedCandidateIdentity<TIdentity>(created);
         if (parsed === undefined) {
           registrationInvalid = true;
@@ -575,26 +580,33 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
       try {
         returned = await createCandidateLease(input, recordCreated);
       } catch {
+        if (!creationSignaled) return notCreatedAcquisitionFailure("CANDIDATE_CREATION_FAILED");
         return recorded === undefined
-          ? notCreatedAcquisitionFailure("CANDIDATE_CREATION_FAILED")
+          ? createdFailureWithoutCleanupIdentity()
           : await cleanupFailedAcquisition(recorded.identity, cleanupCandidateLease);
       }
 
       const parsed = parseCreatedCandidateIdentity<TIdentity>(returned);
+      if (!creationSignaled) {
+        return parsed === undefined
+          ? notCreatedAcquisitionFailure("CANDIDATE_ACQUISITION_RESULT_INVALID")
+          : await cleanupFailedAcquisition(parsed.identity, cleanupCandidateLease);
+      }
       if (
         registrationInvalid
+        || recorded === undefined
         || parsed === undefined
-        || (recorded !== undefined && (
+        || (
           recorded.inspectionRoot !== parsed.inspectionRoot
           || recorded.identity !== parsed.identity
-        ))
+        )
       ) {
         return recorded === undefined
-          ? notCreatedAcquisitionFailure("CANDIDATE_ACQUISITION_RESULT_INVALID")
+          ? createdFailureWithoutCleanupIdentity()
           : await cleanupFailedAcquisition(recorded.identity, cleanupCandidateLease);
       }
 
-      const created = recorded ?? parsed;
+      const created = recorded;
       const lease = Object.freeze({ [releaseCandidateLeaseBrand]: true as const });
       identities.set(lease, created.identity);
       return Object.freeze({
@@ -697,6 +709,19 @@ async function cleanupFailedAcquisition<TIdentity extends object>(
     state: "created-failure",
     code: "CANDIDATE_ACQUISITION_RESULT_INVALID",
     cleanup: evidence
+  });
+}
+
+function createdFailureWithoutCleanupIdentity(): Extract<
+  CandidateLeaseAcquisitionResult,
+  { state: "created-failure" }
+> {
+  return Object.freeze({
+    ok: false,
+    schemaVersion: "1.0",
+    state: "created-failure",
+    code: "CANDIDATE_ACQUISITION_RESULT_INVALID",
+    cleanup: failedCleanupEvidence("CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE")
   });
 }
 
