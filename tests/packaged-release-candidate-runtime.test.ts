@@ -52,6 +52,22 @@ describe("packaged release-candidate runtime", () => {
     }
 
     await execFileAsync("git", ["checkout-index", "--all", `--prefix=${exportRoot}${sep}`], { cwd: root });
+    const childScript = `
+      const serverModule = await import(${JSON.stringify(pathToFileURL(join(exportRoot, "dist/server.js")).href)});
+      const toolsModule = await import(${JSON.stringify(pathToFileURL(join(exportRoot, "dist/tools.js")).href)});
+      const registered = serverModule.createServer()._registeredTools;
+      const expected = { ok: false, target: { kind: "fixture", root: "[redacted]" }, operation: "preflight_release_candidate", error: { code: "INDEX_RUNTIME_INVOKED", message: "index runtime invoked" }, evidence: ["index runtime invoked"], warnings: [], paths: {}, commands: [], logs: [] };
+      let nodeCalls = 0;
+      let remoteCalls = 0;
+      const result = await toolsModule.handleTool("preflight_release_candidate", { target: { kind: "fixture", root: "/fixture" }, addonName: "demo" }, { preflightNodeReleaseCandidate: async () => { nodeCalls += 1; return expected; }, preflightRemoteReleaseCandidate: async () => { remoteCalls += 1; return expected; } });
+      process.stdout.write(JSON.stringify({ registered: Object.keys(registered), result, nodeCalls, remoteCalls }));
+    `;
+    const child = await execFileAsync(process.execPath, ["--input-type=module", "--eval", childScript], { cwd: exportRoot });
+    expect(JSON.parse(child.stdout)).toMatchObject({
+      registered: expect.arrayContaining(["preflight_release_candidate"]),
+      nodeCalls: 1,
+      remoteCalls: 0
+    });
     const serverModule = await import(pathToFileURL(join(exportRoot, "dist/server.js")).href);
     const toolsModule = await import(pathToFileURL(join(exportRoot, "dist/tools.js")).href);
     const server = serverModule.createServer();
