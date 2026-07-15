@@ -112,8 +112,22 @@ export type ReleaseCandidateLifecycleBlocker = Readonly<{
   path?: string;
 }>;
 
+export type ReleaseCandidateManifestEntry = Readonly<{
+  schemaVersion: "1.0";
+  root: ReleaseCandidateSourceRoot;
+  path: string;
+  bytes: number;
+  sha256: string;
+}>;
+
+export type ReleaseCandidateManifest = Readonly<{
+  schemaVersion: "1.0";
+  entries: readonly ReleaseCandidateManifestEntry[];
+  combinedSha256: string;
+}>;
+
 export type ReleaseCandidateLifecycleResult<T> =
-  | { ok: true; value: T }
+  | { ok: true; value: T; manifest: ReleaseCandidateManifest }
   | {
       ok: false;
       blockers: Array<
@@ -842,7 +856,11 @@ async function inspectCandidateLease<T>(
     ) return integrityMismatch();
     if (finalStability !== undefined) return finalStability;
     if (inspectionFailed) return lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
-    return { ok: true, value: value as T };
+    const manifest = projectReleaseCandidateManifest(inventory, candidateAfter.value);
+    if (manifest === undefined) {
+      return lifecycleBlocked("CANDIDATE_MANIFEST_PROJECTION_FAILED", "integrity");
+    }
+    return { ok: true, value: value as T, manifest };
   } catch {
     return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
   }
@@ -1157,6 +1175,45 @@ function sameIntegritySets(
     ) return false;
   }
   return true;
+}
+
+function projectReleaseCandidateManifest(
+  inventory: ReleaseCandidateSourceEntry[],
+  finalCandidate: FileIntegrityObservations
+): ReleaseCandidateManifest | undefined {
+  const entries: ReleaseCandidateManifestEntry[] = [];
+  for (const accepted of inventory) {
+    if (accepted.kind !== "file") continue;
+    const observed = finalCandidate.get(accepted.path);
+    if (
+      observed === undefined
+      || observed.root !== accepted.root
+      || observed.path !== accepted.path
+    ) return undefined;
+    entries.push(Object.freeze({
+      schemaVersion: "1.0",
+      root: accepted.root,
+      path: accepted.path,
+      bytes: observed.bytes,
+      sha256: observed.sha256
+    }));
+  }
+  if (entries.length !== finalCandidate.size) return undefined;
+  entries.sort((left, right) => (
+    compareOrdinal(left.root, right.root) || compareOrdinal(left.path, right.path)
+  ));
+  const canonical = [
+    "1.0",
+    entries.map((entry) => [entry.root, entry.path, entry.bytes, entry.sha256])
+  ];
+  const combinedSha256 = createHash("sha256")
+    .update(Buffer.from(JSON.stringify(canonical), "utf8"))
+    .digest("hex");
+  return Object.freeze({
+    schemaVersion: "1.0",
+    entries: Object.freeze(entries),
+    combinedSha256
+  });
 }
 
 function integrityMismatch(): ReleaseCandidateLifecycleFailure {
