@@ -1,6 +1,6 @@
 ---
 phase: 05-unified-mcp-and-remote-target-parity
-reviewed: 2026-07-15T20:49:26Z
+reviewed: 2026-07-15T20:59:27Z
 depth: deep
 files_reviewed: 28
 files_reviewed_list:
@@ -33,64 +33,54 @@ files_reviewed_list:
   - tests/release-candidate.test.ts
   - tests/result.test.ts
 findings:
-  critical: 3
+  critical: 2
   warning: 0
   info: 0
-  total: 3
+  total: 2
 status: issues_found
 ---
 
 # Phase 5: Code Review Report
 
-**Reviewed:** 2026-07-15T20:49:26Z
+**Reviewed:** 2026-07-15T20:59:27Z
 **Depth:** deep
 **Files Reviewed:** 28
 **Status:** issues_found
 
 ## Summary
 
-The remediation closes the previous digest-shape, exact blocker preservation, addon binding, structured pre-invocation evidence, and strict unknown-key findings. Source ancestor checks and candidate file-ID checks are now fail-closed without dynamic type compilation. Focused Phase 5 tests pass 82/82 and typecheck passes.
+The latest remediation closes two of the three findings from the preceding review. Candidate ownership is now registered immediately after directory creation, so failed identity acquisition produces truthful residue evidence instead of `not-reached` cleanup. The source inventory now includes root and nested directory identities and performs an exact final file/directory topology re-inventory before success.
 
-Three remote filesystem lifecycle defects remain. They occur in state transitions that the current generated-script substring tests do not execute: ownership can still be lost immediately after directory creation, source topology is never re-walked after assembly, and temporary/source disjointness remains lexical rather than canonical.
+Canonical temporary/source isolation remains incomplete because the lease stabilizes lexical aliases independently without proving that their target-native locations are disjoint. A second blocker appears in the cleanup call chain: lease revalidation uses the normal lifecycle abort helper inside `finally`, which mutates blockers after artifact evidence has been finalized and makes the emitted payload fail strict normalization.
+
+Focused release-candidate tests pass 85/85. The complete repository suite passes 300/300, `npm run typecheck` passes, and `git diff --check` passes. These gates do not execute the generated PowerShell lifecycle and therefore do not exercise either failing state transition.
 
 ### Prior Finding Disposition
 
-- Previous CR-01: closed; PowerShell now hashes `["1.0", [[root,path,bytes,sha256], ...]]` and checks the shared vector.
-- Previous CR-02: closed; recognized lifecycle failures add exact stable blocker codes and safe relative identities before aborting.
-- Previous CR-03: substantially closed for file reads; source ancestors and file IDs are revalidated before use. The separate topology-mutation issue below remains.
-- Previous CR-04: closed for the broad replacement window; cleanup rechecks target-native candidate identity before removal.
-- Previous CR-05: partially closed; bidirectional comparisons exist, but they do not use canonical filesystem identities. See CR-03 below.
-- Previous CR-06: closed; paths, manifest entries, coverage, and requested addon identity must agree.
-- Previous CR-07: closed; known pre-invocation failures now return valid operation, artifact, cleanup, execution, path, blocker, and boundary evidence.
-- Previous WR-01: closed; exact own-key allowlists cover the detail and nested evidence domains.
+- Previous CR-01 (candidate ownership after creation): closed. `$script:candidateRoot` and `$script:candidateCreated` are assigned before required identity acquisition, and the identity-unavailable cleanup shape is accepted by the strict normalizer.
+- Previous CR-02 (source directory topology): closed. Both source roots and all nested directories carry target-native identities; exact final inventories detect additions, removals, kind changes, and identity replacement.
+- Previous CR-03 (canonical temporary/source isolation): remains open as CR-01 below. Reparse rejection closes junction-based aliases, but lexical paths plus independently stable file IDs do not close non-reparse Windows namespace aliases.
 
 ## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: Candidate ownership is lost when identity acquisition fails after creation
+### CR-01: Isolation lease does not prove canonical locations are disjoint
 
 **Severity:** BLOCKER
-**File:** `/Volumes/移动硬盘/dota-workshop-project/src/release-candidate-remote-script.ts:79,88-89,102,115`
-**Impact:** `New-CandidateRoot` creates the directory and only then calls required `fsutil` identity acquisition inside its return value. If `fsutil` fails, returns an unexpected format, or becomes unavailable for that new directory, `Stop-ReleaseCandidate` throws before `$created`, `$candidateRoot`, or `$candidateIdentity` are assigned by the caller. The `finally` guard then sees no owned candidate, leaves cleanup as `not-reached`, and leaks the created directory. This violates synchronous cleanup ownership, fail-closed identity behavior, and cleanup evidence after every post-creation outcome.
-**Fix:** Prove the target-native identity capability before creating any candidate, then register the created path in script-owned lifecycle state immediately after `CreateDirectory` and before any later operation can throw. If identity capture still fails, return truthful `CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE` or equivalent residue evidence and overall failure; never report cleanup `not-reached` after directory creation.
+**File:** `/Volumes/移动硬盘/dota-workshop-project/src/release-candidate-remote-script.ts:71-73`
+**Impact:** `Assert-NoReparseAncestry` rejects junctions and other reparse-bearing ancestors, but `New-IsolationLease` still records `Path.GetFullPath` strings and one file ID per named path. `Test-IsolationLease` compares the strings lexically and only verifies that each path retains its own previous identity; it never proves that the temp and protected paths refer to disjoint target-native locations. Windows namespace aliases that do not appear as filesystem reparse points, such as a `SUBST` drive or an alternate volume path, can name the same directory tree with different lexical prefixes. For example, a temp path under a substituted drive that maps into the Dota tree passes the no-reparse and lexical-disjoint checks while the candidate is physically created inside the protected source boundary. This violates RCFS-01 canonical isolation and leaves candidate cleanup containment based on the same alias.
+**Fix:** Acquire target-native canonical volume/path observations that resolve drive and volume aliases, or construct and compare ancestor identity chains. Require the temp parent and candidate chain to be physically disjoint from the Dota, game, and content chains before creation and again before cleanup. Reject the operation when canonical resolution or identity-chain proof is unavailable.
 
-### CR-02: Remote source mutation checks omit directory topology
-
-**Severity:** BLOCKER
-**File:** `/Volumes/移动硬盘/dota-workshop-project/src/release-candidate-remote-script.ts:74-76,83,100-106`
-**Impact:** The initial inventory records files and directories, but `Assert-SourceStable` rechecks only files. The lifecycle never re-walks the two source roots after materialization. A file or empty directory can be added or removed after inventory, or an empty directory can be replaced, without changing any recorded file observation. The operation can then report a passed artifact and stable source even though the source topology changed and the candidate no longer represents the final source tree.
-**Fix:** Capture stable directory identities as well as file identities, and perform an exact final re-inventory of both roots before artifact success. Compare the ordinal `(root, relative path, kind, identity)` occurrence set against the accepted inventory and emit `SOURCE_CHANGED_DURING_ASSEMBLY` for additions, removals, kind changes, or directory replacement.
-
-### CR-03: Temporary/source isolation compares lexical aliases instead of canonical locations
+### CR-02: Cleanup lease failure makes the final payload internally inconsistent
 
 **Severity:** BLOCKER
-**File:** `/Volumes/移动硬盘/dota-workshop-project/src/release-candidate-remote-script.ts:64-65,79-82`
-**Impact:** `Test-PathsDisjoint` uses only `Path.GetFullPath`, which normalizes syntax but does not resolve junctions or other reparse aliases. The temporary parent is not checked for reparse ancestry or resolved to a canonical provider location. A runtime TEMP path that is a junction into the Dota tree can therefore appear lexically disjoint while the candidate is physically created inside the protected Dota/source boundary. Candidate ownership checks repeat the same lexical containment assumption.
-**Fix:** Resolve the temp parent, Dota root, addon roots, and candidate through reparse-aware canonical filesystem observations before comparison. Reject any ambiguous or reparse-bearing temp ancestry, and require bidirectional disjointness between the canonical locations before creation and again before cleanup.
+**File:** `/Volumes/移动硬盘/dota-workshop-project/src/release-candidate-remote-script.ts:73,123`
+**Impact:** Cleanup calls `Test-IsolationLease` inside `finally` and catches its exception to set `$leaseValid = $false`. However, `Test-IsolationLease` fails through `Stop-ReleaseCandidate`, which first appends `TEMP_PARENT_NOT_ISOLATED` or `SOURCE_ENTRY_UNSAFE` to the shared blocker list. Artifact evidence was finalized before entering `finally`. On a previously passed artifact, the strict normalizer rejects the new non-removal blocker because passed artifacts permit only removal, transport, or matching inspection blockers. On a previously blocked artifact, the new blocker is absent from the frozen `artifactValidation.blockers` list, so exact blocked-domain consistency also fails. The script then adds `CANDIDATE_CLEANUP_RESULT_INVALID`, but the emitted document normalizes to `RELEASE_CANDIDATE_DETAIL_INVALID`, losing the intended lifecycle and cleanup evidence precisely when isolation changes during cleanup.
+**Fix:** Make cleanup lease validation non-throwing and side-effect-free, returning a typed observation without calling `Add-Blocker` or `Stop-ReleaseCandidate`. In `finally`, translate a failed observation only into the cleanup failure code and matching `removal` blocker, preserving the already-finalized artifact domain. Add strict-normalizer regression cases for lease failure after both passed and blocked artifact outcomes.
 
 ---
 
-_Reviewed: 2026-07-15T20:49:26Z_
+_Reviewed: 2026-07-15T20:59:27Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
