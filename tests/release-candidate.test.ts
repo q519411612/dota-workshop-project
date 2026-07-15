@@ -31,6 +31,7 @@ import {
   type CandidateRootInspectionResult,
   type CandidateTreeReconciliationResult,
   type AcceptedSourceReadResult,
+  type AcceptedSourceObservationResult,
   type IdentityBoundCandidateLifecycle,
   type ReleaseCandidateEntryKind,
   type ReleaseCandidateFilesystem,
@@ -267,6 +268,10 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
     input: ValidatedReleaseCandidateInput,
     entry: Parameters<ReturnType<typeof createNoFollowSourceReader>>[1]
   ): Promise<unknown>;
+  observeAcceptedSourceEntry?(
+    input: ValidatedReleaseCandidateInput,
+    entry: Parameters<ReturnType<typeof createNoFollowSourceReader>>[1]
+  ): Promise<AcceptedSourceObservationResult>;
   observeCandidate?(identity: TIdentity, expected: CandidateExpectedEntry[]): Promise<unknown>;
 }) {
   const identityRoot = (identity: TIdentity): string => {
@@ -3262,11 +3267,15 @@ describe("release candidate input validation", () => {
       let sourceCalls = 0;
       let candidateCalls = 0;
       let candidateRoot: string | undefined;
+      let callbackSettled = false;
+      let finalStabilityRecorded = false;
+      const observeSourceEntry = createAcceptedSourceObserver();
       const observeSource = async (
         input: ValidatedReleaseCandidateInput,
         entry: Parameters<ReturnType<typeof createNoFollowSourceReader>>[1]
       ): Promise<unknown> => {
         sourceCalls += 1;
+        if (callbackSettled && sourceCalls === 11) events.push("source-after-integrity");
         const prefix = `${entry.root}/dota_addons/${input.addonName}/`;
         const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
         return await streamFixtureIntegrity(
@@ -3307,6 +3316,13 @@ describe("release candidate input validation", () => {
           return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
         },
         cleanupCandidateLease,
+        observeAcceptedSourceEntry: async (input, entry) => {
+          if (callbackSettled && !finalStabilityRecorded) {
+            finalStabilityRecorded = true;
+            events.push("source-stability-after-callback");
+          }
+          return await observeSourceEntry(input, entry);
+        },
         observeAcceptedSource: observeSource,
         observeCandidate
       });
@@ -3320,6 +3336,7 @@ describe("release candidate input validation", () => {
           if (scenario.mutation === "source") {
             await writeFile(binaryPath, Buffer.from([0x00, 0xff, 0x10, 0x80, 0x43]));
           }
+          callbackSettled = true;
           if (scenario.callbackThrows) throw new Error(`private callback failure ${fixture.root}`);
           return "validated";
         },
@@ -3341,7 +3358,9 @@ describe("release candidate input validation", () => {
       expect(events, scenario.name).toEqual([
         "candidate-before-callback",
         "callback",
+        "source-stability-after-callback",
         "candidate-after-callback",
+        "source-after-integrity",
         "cleanup"
       ]);
       expect(cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
