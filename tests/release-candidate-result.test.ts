@@ -240,6 +240,45 @@ describe("release candidate public detail", () => {
     });
   });
 
+  test("accepts exact lease-invalid cleanup evidence after passed and blocked artifacts", () => {
+    for (const artifactStatus of ["passed", "blocked"] as const) {
+      const value = validSuccess();
+      const cleanupBlocker = { code: "CANDIDATE_CLEANUP_RESULT_INVALID", category: "removal" };
+      value.cleanup = {
+        schemaVersion: "1.0",
+        attempted: true,
+        attempts: 1,
+        status: "failed",
+        verified: false,
+        code: "CANDIDATE_CLEANUP_RESULT_INVALID"
+      };
+      value.blockers = [cleanupBlocker];
+      if (artifactStatus === "blocked") {
+        const artifactBlocker = {
+          code: "REQUIRED_PATH_MISSING",
+          category: "required-structure",
+          disposition: "blocker",
+          field: "addon game mode script"
+        };
+        value.artifactValidation = {
+          status: "blocked",
+          blockers: [artifactBlocker],
+          inclusionLedger: value.inclusionLedger,
+          scanCoverage: value.scanCoverage
+        };
+        delete value.manifest;
+        value.blockers = [artifactBlocker, cleanupBlocker];
+      }
+
+      expect(normalizeReleaseCandidateDetail(value)).toMatchObject({
+        ok: false,
+        normalization: { status: "valid" },
+        artifactValidation: { status: artifactStatus },
+        cleanup: { status: "failed", code: "CANDIDATE_CLEANUP_RESULT_INVALID" }
+      });
+    }
+  });
+
   test("deeply clones and freezes every returned domain", () => {
     const input = validSuccess();
     const normalized = normalizeReleaseCandidateDetail(input);

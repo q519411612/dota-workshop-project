@@ -201,9 +201,14 @@ describe("remote release candidate PowerShell lifecycle", () => {
   test("proves physical disjointness with target-native ancestor identity chains", () => {
     const script = buildRemoteReleaseCandidateScript(input);
 
+    expect(script).toContain("function Get-WindowsVolumeIdentity");
+    expect(script).toContain("mountvol.exe $root /L");
     expect(script).toContain("function Get-WindowsIdentityChain");
     expect(script).toContain("function Test-IdentityChainsEqual");
     expect(script).toContain("function Test-IdentityChainsDisjoint");
+    expect(script).toContain("volumeIdentity = $volumeIdentity; fileIdentity = $fileIdentity");
+    expect(script).toContain(".volumeIdentity.Equals(");
+    expect(script).toContain(".fileIdentity.Equals(");
     expect(script).toContain("tempChain = Get-WindowsIdentityChain $parent");
     expect(script).toContain("dotaChain = Get-WindowsIdentityChain $DotaRoot");
     expect(script).toContain("Test-IdentityChainsDisjoint $tempChain $dotaChain");
@@ -223,6 +228,7 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(functionText).toContain("return $false");
     expect(functionText).not.toContain("Stop-ReleaseCandidate");
     expect(functionText).not.toContain("Add-Blocker");
+    expect(script).toContain("else { $result.cleanup = [ordered]@{ schemaVersion = $SchemaVersion; attempted = $true; attempts = 1; status = 'failed'; verified = $false; code = 'CANDIDATE_CLEANUP_RESULT_INVALID' } }");
     expect(script).toContain("Add-Blocker $result.cleanup.code 'removal'");
   });
 
