@@ -122,7 +122,7 @@ function appendMetadataFindings(findings: ReleaseReadinessFinding[], metadata: R
       code: metadata.state === "oversized" ? "REQUIRED_TEXT_OVERSIZED" : "REQUIRED_TEXT_UNREADABLE",
       category: `${metadata.state}-required-text`,
       disposition: "blocker",
-      path: metadata.path
+      ...findingPath(metadata.path)
     });
     return;
   }
@@ -151,7 +151,7 @@ function appendScanFindings(
           code: "SENSITIVE_MATERIAL",
           category: secret.category,
           disposition: "blocker",
-          path: file.relativePath
+          ...findingPath(file.relativePath)
         });
       }
     }
@@ -159,7 +159,12 @@ function appendScanFindings(
   }
 
   if (file.state === "non-text") {
-    findings.push({ code: "NON_TEXT_INCLUDED", category: "non-text", disposition: "warning", path: file.relativePath });
+    findings.push({
+      code: "NON_TEXT_INCLUDED",
+      category: "non-text",
+      disposition: "warning",
+      ...findingPath(file.relativePath)
+    });
     return;
   }
 
@@ -175,8 +180,18 @@ function appendScanFindings(
           : "TEXT_UNREADABLE",
     category: required ? `${file.state}-required-text` : file.state,
     disposition: required ? "blocker" : "warning",
-    path: file.relativePath
+    ...findingPath(file.relativePath)
   });
+}
+
+function findingPath(path: string): { path: string } | Record<string, never> {
+  if (path.length === 0 || path.startsWith("/") || path.startsWith("\\") || /^[A-Za-z]:[\\/]/.test(path)) {
+    return {};
+  }
+  if (path.includes("\\") || path.split("/").some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
+    return {};
+  }
+  return { path };
 }
 
 function parseAddonInfo(content: string): Map<string, string> {

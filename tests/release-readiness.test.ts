@@ -42,18 +42,20 @@ describe("release readiness policy", () => {
             { relativePath: "scripts/secret.lua", state: "text", content: `steam_password = '${secretValue}'` },
             { relativePath: "maps/demo.vmap", state: "non-text" },
             { relativePath: "addoninfo.txt", state: "oversized", requiredText: true },
-            { relativePath: "resource/addon_demo_english.txt", state: "unreadable", requiredText: true }
+            { relativePath: "resource/addon_demo_english.txt", state: "unreadable", requiredText: true },
+            { relativePath: `${privateRoot}/credential.lua`, state: "text", content: "token = 'redacted'" }
           ]
         }
       ]
     });
 
-    expect(findings.slice(-6)).toEqual([
+    expect(findings.slice(-7)).toEqual([
       { code: "SENSITIVE_MATERIAL", category: "steam credential", disposition: "blocker", path: "scripts/secret.lua" },
       { code: "SENSITIVE_MATERIAL", category: "password", disposition: "blocker", path: "scripts/secret.lua" },
       { code: "NON_TEXT_INCLUDED", category: "non-text", disposition: "warning", path: "maps/demo.vmap" },
       { code: "REQUIRED_TEXT_OVERSIZED", category: "oversized-required-text", disposition: "blocker", path: "addoninfo.txt" },
       { code: "REQUIRED_TEXT_UNREADABLE", category: "unreadable-required-text", disposition: "blocker", path: "resource/addon_demo_english.txt" },
+      { code: "SENSITIVE_MATERIAL", category: "token", disposition: "blocker" },
       { code: "SECRET_SCAN_COMPLETED", category: "sensitive-material", disposition: "evidence", field: "game" }
     ]);
     expect(JSON.stringify(findings)).not.toContain(secretValue);
