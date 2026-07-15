@@ -65,6 +65,39 @@ async function createFixture(): Promise<Fixture> {
   return { root, dotaRoot, repositoryRoot, tempParent, gameAddonRoot, contentAddonRoot };
 }
 
+async function populateReadyFixture(fixture: Fixture): Promise<void> {
+  const files: Array<[string, string]> = [
+    [join(fixture.gameAddonRoot, "addoninfo.txt"), `
+"AddonInfo"
+{
+  "addonSteamAppID" "570"
+  "addontitle" "Fixture"
+  "addonAuthor" "Author"
+  "addonDescription" "Ready"
+  "addonVersion" "1"
+  "DefaultMap" "fixture_map"
+  "maps" "fixture_map"
+}
+`],
+    [join(fixture.gameAddonRoot, "scripts/vscripts/addon_game_mode.lua"), "function Activate() end\n"],
+    [join(fixture.gameAddonRoot, "resource/addon_fixture_addon_english.txt"), "localization\n"],
+    [join(fixture.gameAddonRoot, "scripts/npc/herolist.txt"), "heroes\n"],
+    [join(fixture.gameAddonRoot, "scripts/npc/npc_heroes_custom.txt"), "heroes\n"],
+    [join(fixture.gameAddonRoot, "scripts/npc/npc_units_custom.txt"), "units\n"],
+    [join(fixture.gameAddonRoot, "scripts/npc/npc_abilities_custom.txt"), "abilities\n"]
+  ];
+  for (const [path, content] of files) {
+    await mkdir(join(path, ".."), { recursive: true });
+    await writeFile(path, content);
+  }
+  await mkdir(join(fixture.contentAddonRoot, "maps"), { recursive: true });
+}
+
+const assemblyOperations = {
+  makeDirectory: async (path: string) => await mkdir(path),
+  copySourceFile: async (source: string, destination: string) => await copyFile(source, destination)
+};
+
 afterEach(async () => {
   vi.restoreAllMocks();
   await Promise.all(fixtureRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -220,10 +253,25 @@ describe("release candidate input validation", () => {
       blockers: [{ code: "CANDIDATE_DESTINATION_UNSAFE", category: "unsafe-isolation" }]
     });
     expect(aliasInspect).not.toHaveBeenCalled();
-    expect(copiedDestinations).toEqual([]);
-    expect(await readdir(fixture.repositoryRoot)).toEqual([]);
     if (candidateRoot === undefined) throw new Error("aliased candidate root was not recorded");
+    expect(copiedDestinations.every((path) => path.startsWith(`${candidateRoot}/`))).toBe(true);
+    expect(await readdir(fixture.repositoryRoot)).toEqual([]);
     await expect(lstat(candidateRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    await rm(join(fixture.gameAddonRoot, "scripts", "vscripts", "addon_game_mode.lua"));
+    candidateRoot = undefined;
+    const blockedInspect = vi.fn(async () => "unexpected");
+    const readinessBlocked = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      blockedInspect,
+      { repositoryRoot: fixture.repositoryRoot, filesystem: createFilesystem() }
+    );
+    expect(readinessBlocked).toMatchObject({
+      ok: false,
+      blockers: [{ code: "REQUIRED_PATH_MISSING", disposition: "blocker", field: "lua entry" }]
+    });
+    expect(blockedInspect).not.toHaveBeenCalled();
+    expect(candidateRoot).toBeUndefined();
   });
 
   test("keeps the candidate canonically isolated and callback scoped", async () => {
@@ -258,6 +306,7 @@ describe("release candidate input validation", () => {
         };
       });
       const filesystem = {
+        ...assemblyOperations,
         lstat,
         realpath: vi.fn(async (path: string) => (
           candidateRoot !== undefined
@@ -286,6 +335,7 @@ describe("release candidate input validation", () => {
     };
 
     const successfulFixture = await createFixture();
+    await populateReadyFixture(successfulFixture);
     const successfulLifecycle = createLifecycleFilesystem(successfulFixture);
     const inspectSuccess = vi.fn(async (candidateRoot: string) => {
       expect((await lstat(candidateRoot)).isDirectory()).toBe(true);
@@ -316,6 +366,7 @@ describe("release candidate input validation", () => {
     await expect(lstat(successfulRoot)).rejects.toMatchObject({ code: "ENOENT" });
 
     const callbackFixture = await createFixture();
+    await populateReadyFixture(callbackFixture);
     const callbackLifecycle = createLifecycleFilesystem(callbackFixture);
     const privateFailure = join(callbackFixture.root, "credential_password=private-value");
     const callbackResult = await withAssembledReleaseCandidate(
@@ -343,6 +394,7 @@ describe("release candidate input validation", () => {
     await expect(lstat(callbackRoot)).rejects.toMatchObject({ code: "ENOENT" });
 
     const aliasFixture = await createFixture();
+    await populateReadyFixture(aliasFixture);
     const aliasLifecycle = createLifecycleFilesystem(aliasFixture, {
       aliasCreatedRootTo: aliasFixture.gameAddonRoot
     });
@@ -369,6 +421,7 @@ describe("release candidate input validation", () => {
     await expect(lstat(aliasRoot)).rejects.toMatchObject({ code: "ENOENT" });
 
     const removalFixture = await createFixture();
+    await populateReadyFixture(removalFixture);
     const removalLifecycle = createLifecycleFilesystem(removalFixture, { failRemoval: true });
     const removalResult = await withAssembledReleaseCandidate(
       {
@@ -412,6 +465,7 @@ describe("release candidate input validation", () => {
 
     for (const scenario of unownedCases) {
       const fixture = await createFixture();
+      await populateReadyFixture(fixture);
       const target = await scenario.target(fixture);
       const sentinel = join(target, "ownership-sentinel.txt");
       await writeFile(sentinel, "survives\n");
@@ -424,6 +478,7 @@ describe("release candidate input validation", () => {
         code: "CANDIDATE_IDENTITY_MISMATCH" as const
       }));
       const filesystem = {
+        ...assemblyOperations,
         lstat,
         realpath,
         readDirectory: async (path: string) => await readdir(path),
@@ -459,6 +514,7 @@ describe("release candidate input validation", () => {
     }
 
     const swappedFixture = await createFixture();
+    await populateReadyFixture(swappedFixture);
     await writeFile(join(swappedFixture.repositoryRoot, "repository-sentinel.txt"), "survives\n");
     let swappedRoot: string | undefined;
     const swappedRemoval = vi.fn(async (path: string) => await rm(path, { recursive: true, force: false }));
@@ -482,6 +538,7 @@ describe("release candidate input validation", () => {
       };
     });
     const swappedFilesystem = {
+      ...assemblyOperations,
       lstat,
       realpath,
       readDirectory: async (path: string) => await readdir(path),
@@ -526,6 +583,7 @@ describe("release candidate input validation", () => {
     expect((await lstat(swappedRoot)).isSymbolicLink()).toBe(true);
 
     const mutableFixture = await createFixture();
+    await populateReadyFixture(mutableFixture);
     let mutableRoot: string | undefined;
     const capturedCleanup = vi.fn(async (identity: { root: string }) => {
       await rm(identity.root, { recursive: true, force: false });
@@ -551,6 +609,7 @@ describe("release candidate input validation", () => {
     };
     const originalLifecycle = createIdentityBoundCandidateLifecycle(mutableOperations);
     const mutableFilesystem = {
+      ...assemblyOperations,
       lstat,
       realpath,
       readDirectory: async (path: string) => await readdir(path),
@@ -598,6 +657,7 @@ describe("release candidate input validation", () => {
     await expect(lstat(mutableRoot)).rejects.toMatchObject({ code: "ENOENT" });
 
     const unmarkedFixture = await createFixture();
+    await populateReadyFixture(unmarkedFixture);
     const unmarkedCreate = vi.fn(async (validated: ValidatedReleaseCandidateInput) => (
       await mkdtemp(join(validated.tempParent, "dota-release-candidate-"))
     ));
@@ -659,9 +719,11 @@ describe("release candidate input validation", () => {
 
   test("rejects malformed identity-bound cleanup results", async () => {
     const fixture = await createFixture();
+    await populateReadyFixture(fixture);
     let candidateRoot: string | undefined;
     const privateCode = `PRIVATE_${fixture.root}_credential_password=private-value`;
     const filesystem: ReleaseCandidateFilesystem = {
+      ...assemblyOperations,
       lstat,
       realpath,
       readDirectory: async (path) => await readdir(path),
@@ -735,8 +797,10 @@ describe("release candidate input validation", () => {
 
     for (const scenario of scenarios) {
       const fixture = await createFixture();
+      await populateReadyFixture(fixture);
       const privateFailure = `${fixture.root}/credential_password=synthetic-private-value`;
       const filesystem: ReleaseCandidateFilesystem = {
+        ...assemblyOperations,
         lstat,
         realpath,
         readDirectory: async (path) => await readdir(path),
