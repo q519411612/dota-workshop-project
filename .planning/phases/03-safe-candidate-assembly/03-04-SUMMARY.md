@@ -25,8 +25,8 @@ key-decisions:
   - "Require the validated filesystem capability to own both creation and removal; lifecycle execution fails before creation when removal ownership is absent."
   - "Return callback values only after successful candidate removal, so no usable candidate path can escape the owned lifetime."
   - "Treat candidate canonicalization, isolation, inspection, and removal errors as sanitized stable blockers without exposing target paths or exception text."
-  - "Never recursively remove a create result until raw and canonical ownership checks produce a private immutable lease."
-  - "Revalidate lease type, canonical identity, and containment immediately before removal; callback-driven replacement produces explicit cleanup uncertainty without deletion."
+  - "Require a factory-branded identity-bound lifecycle capability before creation; the default Node validation/inventory adapter deliberately does not claim cleanup safety."
+  - "Keep deletion identity inside an adapter-owned opaque lease and accept cleanup success only from one bound operation returning complete identity, removal, and absence facts."
 
 patterns-established:
   - "Candidate creation follows successful opaque input validation and complete safe inventory exactly once."
@@ -34,7 +34,7 @@ patterns-established:
 
 requirements-completed: [RCFS-01]
 
-duration: 22min
+duration: 43min
 completed: 2026-07-15
 status: complete
 ---
@@ -45,9 +45,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 22 min
+- **Duration:** 43 min
 - **Started:** 2026-07-15T06:27:50Z
-- **Completed:** 2026-07-15T06:49:30Z
+- **Completed:** 2026-07-15T07:10:30Z
 - **Tasks:** 2 plus critical review remediation
 - **Files modified:** 3
 
@@ -58,9 +58,11 @@ status: complete
 - Canonicalized the created child and proved strict temporary-parent containment plus disjointness from the Dota root, both addon roots, and repository before invoking inspection.
 - Mapped creation, canonicalization, isolation, callback, and removal failures to stable sanitized blockers without exception text, private paths, fallback, or retained success values.
 - Preserved the fail-closed Windows adapter boundary; no lifecycle can create through an adapter that lacks removal ownership.
-- Replaced raw-path cleanup with a private frozen candidate lease created only after lexical strict-child, directory, canonical identity, and protected-root disjointness checks pass.
-- Bound lifecycle adapter methods before creation, revalidated the lease immediately before cleanup, and verified post-removal absence.
-- Proved repository, source, temporary-parent, and outside paths are never passed to recursive removal, while callback alias swaps preserve repository sentinels and return cleanup uncertainty.
+- Replaced the raw removal seam with a factory-branded identity-bound lifecycle capability whose opaque lease stores deletion identity only in an adapter-private `WeakMap`.
+- Bound lifecycle and underlying adapter operations before creation so callback mutation cannot substitute either cleanup layer.
+- Delegated identity validation, removal, and absence determination to one adapter operation and recomputed success only from complete `identityMatched`, `removed`, and `absent` facts.
+- Proved repository, source, temporary-parent, and outside paths never become lifecycle deletion targets, while callback alias swaps preserve repository sentinels and return identity mismatch.
+- Kept the default Node adapter honest by rejecting lifecycle creation with `IDENTITY_BOUND_CLEANUP_REQUIRED`; controlled macOS fixture adapters prove contract composition, not hostile external race safety.
 
 ## Task Commits
 
@@ -69,6 +71,12 @@ status: complete
 3. **Expose unsafe cleanup ownership** - `772f65a` (test)
 4. **Forbid cleanup before ownership proof** - `ceb2b49` (test)
 5. **Bind cleanup ownership to an immutable lease** - `6904991` (fix)
+6. **Require identity-bound cleanup contract** - `1ed8b02` (test)
+7. **Reject forged cleanup markers** - `45d0893` (test)
+8. **Bind adapter cleanup operation** - `74a6734` (test)
+9. **Replace pathname cleanup with opaque adapter lease** - `76c556e` (fix)
+10. **Reject private or malformed cleanup failures** - `40c64fb` (test)
+11. **Validate the cleanup result contract at runtime** - `38fce02` (fix)
 
 ## Files Created/Modified
 
@@ -78,44 +86,62 @@ status: complete
 
 ## Decisions Made
 
-- Kept removal as an adapter-owned optional capability for validation/inventory compatibility, but made it mandatory at runtime before lifecycle creation; there is no host-filesystem fallback for supplied adapters.
+- Removed `removeCandidateRoot(path)` from the lifecycle adapter API. Validation and inventory retain their existing filesystem operations, while candidate lifecycle requires a separate factory-branded identity-bound capability.
 - Returned only the inspection callback's value after removal succeeds. If removal is uncertain, the result contains only the explicit removal blocker and does not claim absence or expose the callback value.
-- Captured `lstat`, `realpath`, creation, and removal methods before creation so callback mutation of the filesystem adapter cannot change ownership behavior.
-- Refused cleanup entirely until both lexical and canonical ownership proof succeeds; a protected or outside create result is treated as unowned even if an adapter claims it created that path.
-- Accepted the ordinary external filesystem race between immediate pre-removal revalidation and Node removal as a documented TOCTOU limit; callback-driven path replacement is revalidated deterministically and fails closed before deletion.
+- Captured inspection operations plus branded lease creation and cleanup before creation; the factory also captures its underlying adapter operations when the capability is constructed.
+- Made leases publicly opaque and non-constructible: deletion identity lives only in the factory's private lease-to-identity map, and unknown or reused leases return `CANDIDATE_LEASE_INVALID`.
+- Required one adapter cleanup operation to validate identity, remove, and determine absence internally. The lifecycle never passes a path to cleanup and never infers absence with a separate post-cleanup `lstat`.
+- Recomputed cleanup success from the strict complete result rather than trusting an `ok` claim in isolation.
+- Recorded that controlled fixture adapters validate the contract and callback-driven swap behavior only; they do not establish safety against hostile external filesystem races. The default Node adapter fails closed instead of making that claim.
 - Deferred fixed-layout writes, byte copying, manifests, hashes, versioned cleanup evidence, precedence rules, MCP integration, and remote execution to their owning plans and phases.
 
 ## Deviations from Plan
 
 ### Auto-fixed Issues
 
-**1. [Rule 1 - Unsafe cleanup ownership] Prevent recursive removal of untrusted create results**
+**1. [Rule 1 - Unsafe cleanup ownership] Remove lifecycle pathname deletion authority**
 - **Found during:** Critical independent review after initial plan completion.
 - **Issue:** Isolation checked the canonical create result, but cleanup received the untrusted lexical result and could recursively remove the repository, a source root, the temporary parent, or another outside path.
-- **Fix:** Added raw strict-child validation and canonical isolation before creating a private immutable lease; unowned results never reach cleanup.
+- **Fix:** Replaced raw removal with an opaque adapter-owned lease; the lifecycle receives no deletion target and invokes only the bound lease cleanup operation.
 - **Files modified:** `tests/release-candidate.test.ts`, `src/release-candidate.ts`.
-- **Verification:** RED recorded `removeCandidateRoot(repositoryRoot)`; GREEN proves repository/source/outside/parent variants receive zero removal calls and retain sentinels.
-- **Committed in:** `772f65a`, `ceb2b49`, `6904991`.
+- **Verification:** Initial RED recorded `removeCandidateRoot(repositoryRoot)`; architectural RED then required the raw remover to disappear. GREEN proves repository/source/outside/parent sentinels survive and only opaque lease cleanup is invoked.
+- **Committed in:** `772f65a`, `ceb2b49`, `6904991`, `1ed8b02`, `76c556e`.
 
 **2. [Rule 1 - Mutable cleanup capability] Bind adapter ownership before callback execution**
 - **Found during:** Critical independent review after initial plan completion.
 - **Issue:** Cleanup reread `filesystem.removeCandidateRoot` after awaiting inspection, allowing callback code to replace it with a no-op.
-- **Fix:** Captured and bound all lifecycle methods before creation and stored a no-argument removal closure in the private frozen lease.
+- **Fix:** Captured the branded capability methods before creation and captured the factory's underlying create/cleanup operations at capability construction.
 - **Files modified:** `tests/release-candidate.test.ts`, `src/release-candidate.ts`.
 - **Verification:** Callback mutation cannot replace the captured removal; the original is called exactly once and candidate absence is proven.
-- **Committed in:** `772f65a`, `6904991`.
+- **Committed in:** `772f65a`, `74a6734`, `76c556e`.
 
-**3. [Rule 2 - Cleanup revalidation] Detect callback-driven alias replacement before removal**
+**3. [Rule 2 - Identity-bound cleanup] Move replacement detection inside the adapter boundary**
 - **Found during:** Critical independent review after initial plan completion.
 - **Issue:** The callback could replace the candidate path with an alias to a protected root before cleanup.
-- **Fix:** Revalidate entry type, exact canonical identity, containment, and protected-root disjointness immediately before invoking the lease remover; verify absence afterward.
+- **Fix:** Made one adapter-owned lease operation responsible for identity validation, removal, and absence determination; the lifecycle consumes only its strict structured outcome.
 - **Files modified:** `tests/release-candidate.test.ts`, `src/release-candidate.ts`.
-- **Verification:** A real fixture symlink swap to the repository returns `CANDIDATE_REMOVAL_UNVERIFIED`, never calls removal, preserves the repository sentinel, and leaves residue without claiming absence.
-- **Committed in:** `772f65a`, `6904991`.
+- **Verification:** A real fixture symlink swap to the repository returns `CANDIDATE_IDENTITY_MISMATCH`, never reaches the adapter's raw deletion step, preserves the sentinel, and returns no callback value.
+- **Committed in:** `1ed8b02`, `76c556e`.
+
+**4. [Rule 2 - Capability authenticity] Reject default and forged cleanup markers before creation**
+- **Found during:** Architectural re-review of the identity-bound contract.
+- **Issue:** A marker-only object could claim identity-bound behavior without using the lease factory, and the default Node adapter could not honestly provide atomic identity-bound cleanup.
+- **Fix:** Added a private capability brand produced only by `createIdentityBoundCandidateLifecycle`; unmarked, default, or forged objects return `IDENTITY_BOUND_CLEANUP_REQUIRED` before any create or cleanup call.
+- **Files modified:** `tests/release-candidate.test.ts`, `src/release-candidate.ts`.
+- **Verification:** Default and forged adapters record zero creation and cleanup calls; factory-created controlled adapters pass the same lifecycle contract.
+- **Committed in:** `45d0893`, `76c556e`.
+
+**5. [Rule 2 - Result contract validation] Sanitize malformed adapter cleanup outcomes**
+- **Found during:** Architectural self-review after the identity-bound refactor.
+- **Issue:** TypeScript constrained stable failure codes, but a malformed runtime adapter could return a private path or secret-bearing value as its cleanup code.
+- **Fix:** Validate all cleanup booleans and allow only the closed stable failure-code set; normalize every malformed payload or thrown cleanup operation to `CANDIDATE_CLEANUP_RESULT_INVALID`.
+- **Files modified:** `tests/release-candidate.test.ts`, `src/release-candidate.ts`.
+- **Verification:** RED exposed the private injected code in the lifecycle blocker; GREEN returns only the stable invalid-result blocker and serializes neither fixture path nor secret value.
+- **Committed in:** `40c64fb`, `38fce02`.
 
 ---
 
-**Total deviations:** 3 critical review corrections (2 bugs, 1 missing critical safety check).
+**Total deviations:** 5 critical review corrections (2 bugs, 3 missing critical safety boundaries).
 **Impact on plan:** Corrections strengthen RCFS-01 ownership and cleanup safety without adding formal cleanup evidence, manifests, copying, MCP, or remote scope.
 
 ## TDD Gate Compliance
@@ -125,22 +151,26 @@ status: complete
 - GREEN passed the focused lifecycle test before typecheck, build, and the full repository gate.
 - Review RED `772f65a` reproduced recursive removal of an unowned repository path and mutable cleanup capability behavior before fix `6904991`.
 - Review RED refinement `ceb2b49` proved canonical isolation failure must not invoke cleanup before lease ownership exists.
+- Architectural RED `1ed8b02` removed the raw cleanup contract and required complete identity/removal/absence outcomes.
+- Capability RED `45d0893` proved marker-only objects could otherwise reach creation.
+- Adapter-binding RED `74a6734` proved the factory could otherwise reread a mutated cleanup property after callback execution.
+- Result-contract RED `40c64fb` proved malformed runtime cleanup codes could otherwise cross the sanitized blocker boundary before fix `38fce02`.
 
 ## Verification Evidence
 
 - Focused lifecycle test: 1/1 passed.
-- Candidate validation, inventory, and ownership suite: 11/11 passed.
-- Full repository suite: 171/171 passed across 20 files.
+- Candidate validation, inventory, and ownership suite: 12/12 passed.
+- Full repository suite: 172/172 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed.
 - `git diff --check`: passed.
-- Critical review: all confirmed lexical cleanup, mutable capability, and callback replacement findings were reproduced and corrected; no confirmed issue remained after re-review.
+- Critical re-review: the unsafe pathname check-plus-remove architecture was removed; no raw deletion seam remains in lifecycle composition.
 - Build produced only the already-untracked `dist/release-candidate.js`; no untracked distribution artifact was staged.
 - User-owned `.planning/graphs/` changes remained unstaged and were not modified by this plan.
 
 ## Issues Encountered
 
-- Initial review exposed that canonical inspection safety did not establish lexical cleanup ownership. The unsafe call was reproduced directly, then corrected at the ownership boundary rather than patched at individual protected paths.
+- Initial review exposed that canonical inspection safety did not establish cleanup ownership. Re-review then proved pathname precheck plus pathname deletion remained fundamentally unsafe, so the architecture was replaced with an opaque adapter-owned identity-bound cleanup contract.
 
 ## User Setup Required
 
