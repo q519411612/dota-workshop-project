@@ -192,4 +192,23 @@ describe("release readiness policy", () => {
 
     expect(evaluateReleaseReadiness(shuffled)).toEqual(evaluateReleaseReadiness(ordered));
   });
+
+  test("orders distinct paths deterministically when redaction collapses their identities", () => {
+    const firstCredential = ["ghp", "12345678901234567890a"].join("_");
+    const secondCredential = ["ghp", "12345678901234567890b"].join("_");
+    const first = { relativePath: `scripts/${firstCredential}.lua`, state: "text" as const, content: "password = 'redacted'" };
+    const second = { relativePath: `scripts/${secondCredential}.lua`, state: "text" as const, content: "token = 'redacted'" };
+    const input = (files: [typeof first, typeof second] | [typeof second, typeof first]): ReleaseReadinessInput => ({
+      requiredPaths: [],
+      metadata: { state: "missing" },
+      scanRoots: [{ root: "game", files }]
+    });
+
+    const ordered = evaluateReleaseReadiness(input([first, second]));
+    const reversed = evaluateReleaseReadiness(input([second, first]));
+
+    expect(reversed).toEqual(ordered);
+    expect(JSON.stringify(ordered)).not.toContain(firstCredential);
+    expect(JSON.stringify(ordered)).not.toContain(secondCredential);
+  });
 });
