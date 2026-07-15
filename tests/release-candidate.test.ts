@@ -8,6 +8,7 @@ import {
   inventoryReleaseCandidateSources,
   prepareReleaseCandidateInput,
   withAssembledReleaseCandidate,
+  type CandidateLeaseCleanupResult,
   type IdentityBoundCandidateLifecycle,
   type ReleaseCandidateEntryKind,
   type ReleaseCandidateFilesystem,
@@ -368,13 +369,20 @@ describe("release candidate input validation", () => {
         identityMatched: true as const
       };
     });
-    const originalLifecycle = createIdentityBoundCandidateLifecycle({
+    const mutableOperations: {
+      createCandidateLease(validated: ValidatedReleaseCandidateInput): Promise<{
+        inspectionRoot: string;
+        identity: { root: string };
+      }>;
+      cleanupCandidateLease(identity: { root: string }): Promise<CandidateLeaseCleanupResult>;
+    } = {
       createCandidateLease: vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
         mutableRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
         return { inspectionRoot: mutableRoot, identity: { root: mutableRoot } };
       }),
       cleanupCandidateLease: capturedCleanup
-    });
+    };
+    const originalLifecycle = createIdentityBoundCandidateLifecycle(mutableOperations);
     const mutableFilesystem = {
       lstat,
       realpath,
@@ -393,6 +401,13 @@ describe("release candidate input validation", () => {
         tempParent: mutableFixture.tempParent
       },
       async () => {
+        mutableOperations.cleanupCandidateLease = vi.fn(async () => ({
+          ok: false,
+          removed: false,
+          absent: false,
+          identityMatched: false,
+          code: "CANDIDATE_IDENTITY_MISMATCH"
+        }));
         mutableFilesystem.candidateLifecycle = createIdentityBoundCandidateLifecycle({
           createCandidateLease: vi.fn(async () => {
             throw new Error("replacement create must not run");
