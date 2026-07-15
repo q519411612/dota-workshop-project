@@ -25,6 +25,8 @@ key-decisions:
   - "Treat directory enumeration as untrusted names and require the filesystem adapter to classify every joined entry without dereferencing it."
   - "Normalize and collision-check one fixed-prefix identity space across both roots before any candidate creation seam is reachable."
   - "Continue inventory beneath a colliding directory so nested unsafe entries are still reported without accepting the colliding identity."
+  - "Reject built-in Windows preparation unless the caller supplies an adapter explicitly marked reparse-point aware."
+  - "Bind the exact validated filesystem capability into the opaque handle consumed by inventory."
 
 patterns-established:
   - "Rejected source entries serialize only stable codes, safe root-qualified identities, and categories."
@@ -33,7 +35,7 @@ patterns-established:
 
 requirements-completed: [RCFS-03]
 
-duration: 17min
+duration: 33min
 completed: 2026-07-15
 status: complete
 ---
@@ -44,9 +46,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 17 min
+- **Duration:** 33 min
 - **Started:** 2026-07-15T05:44:02Z
-- **Completed:** 2026-07-15T06:01:30Z
+- **Completed:** 2026-07-15T06:17:30Z
 - **Tasks:** 2 plus independent review remediation
 - **Files modified:** 2
 
@@ -59,6 +61,9 @@ status: complete
 - Preserved full unsafe-entry reporting beneath colliding directories while keeping the colliding identities rejected.
 - Proved case-varied names in different fixed roots retain distinct provenance and one stable global ordinal order across enumeration permutations.
 - Recorded adapter traces proving reparse, special, and unknown entries receive exactly one classification with no canonicalization, descendant traversal, or retry.
+- Made Windows source validation explicitly fail closed unless a supplied adapter declares exact reparse-point awareness; the built-in Node classifier makes no unsupported Windows claim.
+- Bound inventory to the exact filesystem capability that produced the opaque validated handle, preventing host/default adapter substitution.
+- Emit one deterministic blocker for every member of two- and three-member case-fold collision groups under shuffled enumeration.
 
 ## Task Commits
 
@@ -67,6 +72,8 @@ status: complete
 3. **Expose nested unsafe entries beneath colliding directories** - `c5110af` (test)
 4. **Inventory colliding directories through the required adapter** - `7842e4a` (fix)
 5. **Prove cross-root provenance and unsafe-kind operation boundaries** - `29c068a` (test)
+6. **Expose Windows, capability-binding, and collision-group gaps** - `336cb58` (test)
+7. **Bind safe inventory capability and complete collision groups** - `808ceac` (fix)
 
 ## Files Created/Modified
 
@@ -80,6 +87,8 @@ status: complete
 - Case-colliding directories remain rejected but are traversed for blocker discovery, so a nested link or reparse point cannot disappear from the complete unsafe-entry report.
 - Candidate layout creation, copying, source-mutation revalidation, manifests, cleanup evidence, MCP registration, and remote execution remain outside this plan.
 - Cross-root case variants do not collide because the fixed `game/...` and `content/...` prefixes remain part of every fold key; within-root ordering still uses the same ordinal comparator.
+- A Windows custom adapter must declare `reparsePointAware: true`; otherwise preparation returns `WINDOWS_REPARSE_CLASSIFIER_REQUIRED` before accepting any root or child entry.
+- Collision blockers are derived after traversal from complete folded-identity sets, not emitted only when later members happen to be encountered.
 
 ## Deviations from Plan
 
@@ -101,10 +110,34 @@ status: complete
 - **Verification:** Injected non-host entries pass through adapter classification; typecheck enforces the complete contract.
 - **Committed in:** `c5110af`, `7842e4a`
 
+**3. [Rule 2 - Windows reparse safety] Require an explicit reparse-aware Windows adapter**
+- **Found during:** Independent quality review
+- **Issue:** Node `Stats.isSymbolicLink()` cannot prove that an arbitrary Windows file or directory lacks every reparse-point attribute.
+- **Fix:** Added an explicit `reparsePointAware: true` capability marker and reject built-in or unmarked Windows adapters before filesystem acceptance.
+- **Files modified:** `tests/release-candidate.test.ts`, `src/release-candidate.ts`
+- **Verification:** Injected `win32` tests reject both the built-in path and an unmarked custom adapter, while a marked adapter reports a reparse blocker and accepts only the regular entry classification.
+- **Committed in:** `336cb58`, `808ceac`
+
+**4. [Rule 2 - Capability integrity] Bind inventory to the validated adapter**
+- **Found during:** Independent quality review
+- **Issue:** Calling inventory without an adapter selected the module default even when input validation used a custom capability.
+- **Fix:** Stored the exact filesystem capability behind a module-private symbol on the opaque frozen validated handle and removed the inventory adapter parameter.
+- **Files modified:** `tests/release-candidate.test.ts`, `src/release-candidate.ts`
+- **Verification:** A virtual entry observable only through the custom adapter is inventoried successfully, with recorded enumeration, classification, and canonicalization calls and no host fallback.
+- **Committed in:** `336cb58`, `808ceac`
+
+**5. [Rule 2 - Collision completeness] Report every member of collision groups**
+- **Found during:** Independent quality review
+- **Issue:** Immediate collision reporting emitted blockers only for later-seen identities, omitting the first member of each group.
+- **Fix:** Collected complete identity sets by invariant fold key and emitted exactly one blocker for every member after both roots were traversed.
+- **Files modified:** `tests/release-candidate.test.ts`, `src/release-candidate.ts`
+- **Verification:** Adapter-driven two- and three-member groups produce the same complete ordinal blocker set under forward and reversed enumeration.
+- **Committed in:** `336cb58`, `808ceac`
+
 ---
 
-**Total deviations:** 2 auto-fixed missing-critical contract issues.
-**Impact on plan:** Both corrections strengthen RCFS-03 completeness and fixture/local adapter isolation without adding candidate creation, copying, cleanup, manifest, MCP, or remote scope.
+**Total deviations:** 5 auto-fixed missing-critical contract issues.
+**Impact on plan:** The corrections strengthen RCFS-03 completeness, Windows honesty, and adapter isolation without adding candidate creation, copying, cleanup, manifest, MCP, command routing, or remote scope.
 
 ## TDD Gate Compliance
 
@@ -113,22 +146,24 @@ status: complete
 - Review RED `c5110af` reproduced the missing nested unsafe blocker before fix commit `7842e4a`.
 - Every GREEN transition was followed by the focused test, typecheck, and build checks.
 - Spec-review evidence commit `29c068a` was characterization GREEN: no implementation correction was necessary.
+- Quality-review RED `336cb58` reproduced Windows capability, adapter-binding, and incomplete collision-group behavior before fix commit `808ceac`.
 
 ## Verification Evidence
 
 - Focused source-identity test: 1/1 passed.
-- Candidate input and inventory suite: 5/5 passed.
-- Full repository suite: 165/165 passed across 20 files.
+- Candidate input and inventory suite: 8/8 passed.
+- Full repository suite: 168/168 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed; generated untracked `dist/release-candidate.js` was removed because this module is not yet a tracked package artifact.
 - `git diff --check`: passed.
 - Independent re-review: both confirmed warnings resolved; no remaining blocker or warning.
 - Spec-review follow-up: cross-root provenance and exact unsafe-kind adapter operation boundaries are now directly asserted.
+- Quality re-review: all three important findings resolved with no remaining blocker or warning.
 - Staged-path checks contained only the intended task file for every code commit; `.planning/graphs/` remained unstaged and unchanged by this plan.
 
 ## Issues Encountered
 
-The first implementation passed the planned focused tests but independent review identified incomplete nested blocker discovery and an optional adapter fallback. Both were reproduced, corrected with a second RED/GREEN cycle, and re-reviewed successfully. A later spec review found two evidence gaps; both new tests passed immediately as characterization evidence.
+The first implementation passed the planned focused tests but independent review identified incomplete nested blocker discovery and an optional adapter fallback. Both were reproduced, corrected with a second RED/GREEN cycle, and re-reviewed successfully. A later spec review found two evidence gaps; both new tests passed immediately as characterization evidence. Quality review then identified Windows reparse honesty, capability binding, and collision-group completeness issues; all three produced RED failures, were fixed, and passed independent re-review.
 
 ## User Setup Required
 
@@ -143,7 +178,7 @@ None.
 ## Self-Check: PASSED
 
 - Required source and test files exist.
-- All five plan commits are present in order.
+- All seven plan commits are present in order.
 - RCFS-03 behavior, verification commands, and independent review remediation are recorded.
 - No `.planning/graphs/` file is staged or included in a plan commit.
 
