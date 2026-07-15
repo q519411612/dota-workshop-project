@@ -138,6 +138,10 @@ describe("release candidate public detail", () => {
     ]) {
       expect(() => PreflightReleaseCandidateInputSchema.parse({ ...input, [key]: "forbidden" })).toThrow();
     }
+    expect(() => PreflightReleaseCandidateInputSchema.parse({
+      ...input,
+      target: { ...input.target, token: "forbidden" }
+    })).toThrow();
     expect(Object.keys(PreflightReleaseCandidateInputSchema.shape).sort()).toEqual(["addonName", "target"]);
   });
 
@@ -154,6 +158,10 @@ describe("release candidate public detail", () => {
       contradictory.boundaries[key] = !expected[key];
       expectNormalizationFailure(contradictory);
     }
+
+    const extra = validSuccess();
+    extra.boundaries.credentialHandled = false;
+    expectNormalizationFailure(extra);
   });
 
   test("uses the fixed nested-array canonical digest", () => {

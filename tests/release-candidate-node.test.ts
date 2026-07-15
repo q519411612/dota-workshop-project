@@ -1,7 +1,7 @@
 import { lstat, mkdir, mkdtemp, open, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { constants as filesystemConstants } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { basename, join, relative } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import {
   createNodeReleaseCandidateFilesystem,
@@ -318,6 +318,51 @@ describe("production Node release candidate preflight", () => {
       blockers: [{ code: "CANDIDATE_REMOVAL_FAILED", category: "removal" }]
     });
     expect(cleanupAttempts).toBe(1);
+    expect(await snapshot(fixture.dotaRoot)).toEqual(before);
+    expect((await readdir(fixture.tempParent)).length).toBe(1);
+  });
+
+  test("registers cleanup ownership before post-create identity observation can fail", async () => {
+    const fixture = await createReadyFixture();
+    const before = await snapshot(fixture.dotaRoot);
+    let failedCandidateObservation = false;
+    let cleanupAttempts = 0;
+    const filesystem = createNodeReleaseCandidateFilesystem({
+      platform: "darwin",
+      onCleanupAttempt: () => { cleanupAttempts += 1; },
+      operations: {
+        lstat: async (path) => {
+          if (!failedCandidateObservation && basename(path).startsWith("dota-release-candidate-")) {
+            failedCandidateObservation = true;
+            throw new Error("identity observation failed");
+          }
+          return await lstat(path);
+        }
+      }
+    });
+    const detail = await preflightNodeReleaseCandidate(
+      { target: { kind: "fixture", root: fixture.dotaRoot }, addonName: fixture.addonName },
+      {
+        filesystem,
+        repositoryRoot: fixture.repositoryRoot,
+        tempParent: fixture.tempParent,
+        platform: "darwin"
+      }
+    );
+
+    expect(cleanupAttempts).toBe(1);
+    expect(detail).toMatchObject({
+      ok: false,
+      cleanup: {
+        attempted: true,
+        attempts: 1,
+        status: "failed",
+        code: "CANDIDATE_IDENTITY_MISMATCH",
+        identityMatched: false,
+        removed: false,
+        absent: false
+      }
+    });
     expect(await snapshot(fixture.dotaRoot)).toEqual(before);
     expect((await readdir(fixture.tempParent)).length).toBe(1);
   });
