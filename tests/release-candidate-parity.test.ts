@@ -3,8 +3,10 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { preflightNodeReleaseCandidate } from "../src/release-candidate-node.js";
+import { buildRemoteReleaseCandidateScript } from "../src/release-candidate-remote-script.js";
 import { preflightRemoteReleaseCandidate } from "../src/release-candidate-remote.js";
 import { createReleaseCandidateToolResult } from "../src/release-candidate-result.js";
+import { evaluateReleaseReadiness } from "../src/release-readiness.js";
 import { handleTool } from "../src/tools.js";
 import type { ToolResult } from "../src/types.js";
 
@@ -106,6 +108,31 @@ describe("release-candidate four-target parity", () => {
     ]) {
       expect(projected).toHaveProperty(key);
     }
+  });
+
+  test("executes embedded remote sensitive policy semantics against shared local findings", () => {
+    const content = 'ghp_12345678901234567890\npassword = "private"';
+    const localCategories = evaluateReleaseReadiness({
+      requiredPaths: [],
+      metadata: { state: "missing" },
+      scanRoots: [{ root: "game", files: [{ relativePath: "scripts/secret.lua", state: "text", content }] }]
+    })
+      .filter((finding) => finding.code === "SENSITIVE_MATERIAL")
+      .map((finding) => finding.category);
+    const script = buildRemoteReleaseCandidateScript({ dotaRoot: "C:/Dota", addonName: "fixture_addon" });
+    const match = script.match(/\$SensitiveMaterialRulesJson = '((?:''|[^'])*)'/);
+    expect(match).not.toBeNull();
+    const rules = JSON.parse(match![1]!.replaceAll("''", "'")) as Array<{
+      category: string;
+      pattern: string;
+      ignoreCase: boolean;
+    }>;
+    const remoteCategories = rules
+      .filter((rule) => new RegExp(rule.pattern, rule.ignoreCase ? "i" : "").test(content))
+      .map((rule) => rule.category);
+
+    expect(localCategories).toEqual(["github token", "password"]);
+    expect(remoteCategories).toEqual(localCategories);
   });
 });
 

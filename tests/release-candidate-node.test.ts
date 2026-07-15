@@ -188,6 +188,58 @@ describe("production Node release candidate preflight", () => {
     expect(await readdir(fixture.tempParent)).toEqual([]);
   });
 
+  test("runs the uninjected public local Windows route through the target-native classifier", async () => {
+    const fixture = await createReadyFixture();
+    let classifierCalls = 0;
+    const detail = await preflightNodeReleaseCandidate(
+      { target: { kind: "local", dotaRoot: fixture.dotaRoot }, addonName: fixture.addonName },
+      {
+        repositoryRoot: fixture.repositoryRoot,
+        tempParent: fixture.tempParent,
+        platform: "win32",
+        windowsClassifierExecutor: async ({ path }) => {
+          classifierCalls += 1;
+          const stats = await lstat(path);
+          const kind = stats.isFile() ? "file" : stats.isDirectory() ? "directory" : "special";
+          return {
+            exitCode: 0,
+            stdout: JSON.stringify({ schemaVersion: "1.0", kind, reparsePoint: false }),
+            stderr: ""
+          };
+        }
+      }
+    );
+
+    expect(classifierCalls).toBeGreaterThan(0);
+    expect(detail).toMatchObject({
+      ok: true,
+      execution: { kind: "local", outcome: "completed" },
+      cleanup: { status: "verified", absent: true }
+    });
+    expect(await readdir(fixture.tempParent)).toEqual([]);
+  });
+
+  test("classifies Windows file and directory reparse points and rejects uncertain output", async () => {
+    const outputs = new Map<string, unknown>([
+      ["file-link", { schemaVersion: "1.0", kind: "file", reparsePoint: true }],
+      ["directory-link", { schemaVersion: "1.0", kind: "directory", reparsePoint: true }],
+      ["malformed", { schemaVersion: "1.0", kind: "file", reparsePoint: false, private: true }]
+    ]);
+    const filesystem = createNodeReleaseCandidateFilesystem({
+      platform: "win32",
+      windowsClassifierExecutor: async ({ path }) => ({
+        exitCode: 0,
+        stdout: JSON.stringify(outputs.get(path)),
+        stderr: ""
+      })
+    });
+
+    expect(filesystem.reparsePointAware).toBe(true);
+    expect(await filesystem.classifySourceEntry("file-link")).toBe("reparse");
+    expect(await filesystem.classifySourceEntry("directory-link")).toBe("reparse");
+    await expect(filesystem.classifySourceEntry("malformed")).rejects.toThrow("WINDOWS_REPARSE_CLASSIFICATION_INVALID");
+  });
+
   test("runs local Windows contract execution only with a positive reparse-aware classifier", async () => {
     const fixture = await createReadyFixture();
     const filesystem = createNodeReleaseCandidateFilesystem({

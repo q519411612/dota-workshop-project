@@ -4,7 +4,11 @@ import {
   REMOTE_RELEASE_CANDIDATE_POLICY,
   buildRemoteReleaseCandidateScript
 } from "../src/release-candidate-remote-script.js";
-import { MAX_SECRET_SCAN_BYTES, RELEASE_METADATA_KEYS } from "../src/release-readiness.js";
+import {
+  MAX_SECRET_SCAN_BYTES,
+  RELEASE_METADATA_KEYS,
+  RELEASE_SENSITIVE_MATERIAL_RULES
+} from "../src/release-readiness.js";
 import { RELEASE_CANDIDATE_BOUNDARIES } from "../src/release-candidate-result.js";
 
 describe("remote release candidate PowerShell lifecycle", () => {
@@ -26,6 +30,7 @@ describe("remote release candidate PowerShell lifecycle", () => {
       schemaVersion: "1.0",
       maxSecretScanBytes: MAX_SECRET_SCAN_BYTES,
       releaseMetadataKeys: RELEASE_METADATA_KEYS,
+      sensitiveMaterialRules: RELEASE_SENSITIVE_MATERIAL_RULES,
       boundaries: RELEASE_CANDIDATE_BOUNDARIES,
       canonicalVector: {
         value: canonicalValue,
@@ -33,12 +38,28 @@ describe("remote release candidate PowerShell lifecycle", () => {
       }
     });
     expect(first).toContain(`$SchemaVersion = '1.0'`);
+    expect(first).toContain("$SensitiveMaterialRulesJson = '");
     expect(first).toContain(`$MaxSecretScanBytes = ${MAX_SECRET_SCAN_BYTES}`);
     for (const key of RELEASE_METADATA_KEYS) expect(first).toContain(`'${key}'`);
     for (const [key, value] of Object.entries(RELEASE_CANDIDATE_BOUNDARIES)) {
       expect(first).toContain(`${key} = $${value ? "true" : "false"}`);
     }
     expect(first).toContain(REMOTE_RELEASE_CANDIDATE_POLICY.canonicalVector.sha256);
+  });
+
+  test("embeds every categorized shared sensitive-material rule without first-match collapse", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+    const start = script.indexOf("function Test-ReleaseReadiness");
+    const end = script.indexOf("\nfunction ", start + 1);
+    const functionText = script.slice(start, end);
+
+    for (const rule of RELEASE_SENSITIVE_MATERIAL_RULES) {
+      expect(script).toContain(`"category":"${rule.category}"`);
+    }
+    expect(functionText).toContain("foreach ($rule in $SensitiveMaterialRules)");
+    expect(functionText).toContain("Add-Blocker 'SENSITIVE_MATERIAL' $rule.category");
+    expect(functionText).not.toContain("$patterns = @(");
+    expect(functionText).not.toContain("break");
   });
 
   test("generates one complete target-native lifecycle with finally-owned cleanup", () => {
