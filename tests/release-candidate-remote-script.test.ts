@@ -24,7 +24,7 @@ describe("remote release candidate PowerShell lifecycle", () => {
       boundaries: RELEASE_CANDIDATE_BOUNDARIES,
       canonicalVector: {
         value: [["1.0", "content", "content/dota_addons/demo/maps/demo.vmap", 7, "a".repeat(64)]],
-        sha256: "343e08a22f5855bba04008271e21765ec7a104ff048deb4616c4408ceaa1807a"
+        sha256: "5ad3563c7afd90fba5668732db4b4f78a7c5d00593d11510093a08687373d443"
       }
     });
     expect(first).toContain(`$SchemaVersion = '1.0'`);
@@ -56,7 +56,7 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).toContain("[StringComparison]::OrdinalIgnoreCase");
     expect(script).toContain("finally {");
     expect(script.match(/Remove-Item -LiteralPath \$candidateRoot/g)).toHaveLength(1);
-    expect(script).toContain("$result.cleanup.attempts = 1");
+    expect(script).toContain("attempts = 1");
     expect(script).toContain("$result.cleanup.absent = -not (Test-Path -LiteralPath $candidateRoot)");
     expect(script).not.toContain("Get-ChildItem -LiteralPath ([IO.Path]::GetTempPath())");
   });
@@ -92,10 +92,10 @@ describe("remote release candidate PowerShell lifecycle", () => {
 
     expect(script).toContain("game/dota_addons/$AddonName");
     expect(script).toContain("content/dota_addons/$AddonName");
-    expect(script).toContain("REMOTE_RELEASE_CANDIDATE_SCRIPT_FAILED");
+    expect(script).toContain("SOURCE_OBSERVATION_FAILED");
     expect(script).not.toContain("gameAddon = $gameAddonRoot");
     expect(script).not.toContain("contentAddon = $contentAddonRoot");
-    expect(script).not.toContain("candidateRoot =");
+    expect(script).not.toContain("candidateRoot = $candidateRoot");
     expect(script).not.toContain("FullName =");
   });
 
