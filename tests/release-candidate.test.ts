@@ -5701,4 +5701,135 @@ describe("release candidate input validation", () => {
       await expect(lstat(candidateRoot), scenario.name).rejects.toMatchObject({ code: "ENOENT" });
     }
   });
+
+  test("freezes independent blocker snapshots across every lifecycle domain", async () => {
+    const assertFrozenBlockerEvidence = (
+      result: Awaited<ReturnType<typeof withAssembledReleaseCandidate>>,
+      label: string
+    ): void => {
+      if (result.ok) throw new Error(`${label} unexpectedly succeeded`);
+      expect(Object.isFrozen(result.blockers), label).toBe(true);
+      const serializedBefore = JSON.stringify(result);
+      for (const blocker of result.blockers) {
+        expect(Object.isFrozen(blocker), label).toBe(true);
+        expect(Reflect.set(blocker, "code", "MUTATED"), label).toBe(false);
+        expect(Reflect.set(blocker, "path", "private/mutated"), label).toBe(false);
+      }
+      if (result.artifactValidation.status === "blocked") {
+        expect(Object.isFrozen(result.artifactValidation.blockers), label).toBe(true);
+        expect(result.artifactValidation.blockers).toHaveLength(result.blockers.length - (
+          result.cleanup.status === "failed" ? 1 : 0
+        ));
+        for (const [index, blocker] of result.artifactValidation.blockers.entries()) {
+          expect(Object.isFrozen(blocker), label).toBe(true);
+          expect(blocker, label).not.toBe(result.blockers[index]);
+          expect(Reflect.set(blocker, "category", "mutated"), label).toBe(false);
+        }
+      }
+      expect(JSON.stringify(result), label).toBe(serializedBefore);
+    };
+
+    const invalidFixture = await createFixture();
+    const invalidResult = await withAssembledReleaseCandidate(
+      { addonName: "invalid/name", dotaRoot: invalidFixture.dotaRoot, tempParent: invalidFixture.tempParent },
+      async () => "unexpected",
+      { repositoryRoot: invalidFixture.repositoryRoot }
+    );
+    assertFrozenBlockerEvidence(invalidResult, "precreation");
+
+    const readinessFixture = await createFixture();
+    await populateReadyFixture(readinessFixture);
+    await rm(join(readinessFixture.gameAddonRoot, "addoninfo.txt"));
+    const readinessLifecycle = createFixtureIdentityBoundCandidateLifecycle({
+      createCandidateLease: async () => { throw new Error("readiness blocker must not create"); },
+      cleanupCandidateLease: async () => ({ ok: true, removed: true, absent: true, identityMatched: true })
+    });
+    const readinessResult = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: readinessFixture.dotaRoot, tempParent: readinessFixture.tempParent },
+      async () => "unexpected",
+      {
+        repositoryRoot: readinessFixture.repositoryRoot,
+        filesystem: {
+          lstat,
+          realpath,
+          readDirectory: async (path) => await readdir(path),
+          classifySourceEntry: classifyFixtureEntry,
+          createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+          candidateLifecycle: readinessLifecycle
+        }
+      }
+    );
+    assertFrozenBlockerEvidence(readinessResult, "readiness");
+
+    const acquisitionFixture = await createFixture();
+    await populateReadyFixture(acquisitionFixture);
+    const acquisitionLifecycle = createFixtureIdentityBoundCandidateLifecycle({
+      createCandidateLease: async (validated) => {
+        const root = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+        return { inspectionRoot: root, identity: { root } };
+      },
+      acquireCandidateLease: async (_input, createRegisteredCandidate) => {
+        await createRegisteredCandidate();
+        return Object.freeze({ invalid: true });
+      },
+      cleanupCandidateLease: async (identity) => {
+        await rm(identity.root, { recursive: true, force: false });
+        return { ok: true, removed: true, absent: true, identityMatched: true };
+      }
+    });
+    const acquisitionResult = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: acquisitionFixture.dotaRoot, tempParent: acquisitionFixture.tempParent },
+      async () => "unexpected",
+      {
+        repositoryRoot: acquisitionFixture.repositoryRoot,
+        filesystem: {
+          lstat,
+          realpath,
+          readDirectory: async (path) => await readdir(path),
+          classifySourceEntry: classifyFixtureEntry,
+          createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+          candidateLifecycle: acquisitionLifecycle
+        }
+      }
+    );
+    assertFrozenBlockerEvidence(acquisitionResult, "acquisition");
+
+    const finalFixture = await createFixture();
+    await populateReadyFixture(finalFixture);
+    const finalLifecycle = createFixtureIdentityBoundCandidateLifecycle({
+      createCandidateLease: async (validated) => {
+        const root = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+        return { inspectionRoot: root, identity: { root } };
+      },
+      cleanupCandidateLease: async (identity) => {
+        await rm(identity.root, { recursive: true, force: false });
+        return {
+          ok: false,
+          removed: true,
+          absent: false,
+          identityMatched: true,
+          code: "CANDIDATE_ABSENCE_UNVERIFIED"
+        };
+      }
+    });
+    const finalResult = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: finalFixture.dotaRoot, tempParent: finalFixture.tempParent },
+      async (root) => {
+        await writeFile(join(root, "game/dota_addons/fixture_addon/addoninfo.txt"), "mutated\n");
+        return "must not survive";
+      },
+      {
+        repositoryRoot: finalFixture.repositoryRoot,
+        filesystem: {
+          lstat,
+          realpath,
+          readDirectory: async (path) => await readdir(path),
+          classifySourceEntry: classifyFixtureEntry,
+          createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+          candidateLifecycle: finalLifecycle
+        }
+      }
+    );
+    assertFrozenBlockerEvidence(finalResult, "final blocked plus cleanup failure");
+  });
 });
