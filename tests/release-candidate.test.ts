@@ -5159,6 +5159,52 @@ describe("release candidate input validation", () => {
       if (unsupportedRoot !== undefined) expect((await lstat(unsupportedRoot)).isDirectory()).toBe(true);
     }
 
+    let reentrantPrimitive: (() => Promise<object>) | undefined;
+    let reentrantAttempt: Promise<object> | undefined;
+    let reentrantRejected = false;
+    let reentrantCreateCalls = 0;
+    const reentrantRoots: string[] = [];
+    const reentrantCreate = vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+      reentrantCreateCalls += 1;
+      if (reentrantCreateCalls === 1) {
+        if (reentrantPrimitive === undefined) throw new Error("reentrant primitive was not registered");
+        reentrantAttempt = reentrantPrimitive();
+      }
+      const root = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+      reentrantRoots.push(root);
+      return { inspectionRoot: root, identity: { root } };
+    });
+    const reentrantCleanup = vi.fn(async (identity: { root: string }) => {
+      await rm(identity.root, { recursive: true, force: false });
+      return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
+    });
+    const reentrantLifecycle = createFactoryOwnedLifecycle<{ root: string }>({
+      createCandidateState: reentrantCreate,
+      acquireCandidateLease: async (_validated, createRegisteredCandidate) => {
+        reentrantPrimitive = createRegisteredCandidate;
+        const registration = await createRegisteredCandidate();
+        if (reentrantAttempt === undefined) throw new Error("reentrant creation was not attempted");
+        try {
+          await reentrantAttempt;
+        } catch {
+          reentrantRejected = true;
+        }
+        return registration;
+      },
+      cleanupCandidateLease: reentrantCleanup
+    });
+    const reentrantResult = await reentrantLifecycle.createCandidateLease(preparedOwnership.value);
+    expect(reentrantResult).toMatchObject({
+      ok: false,
+      state: "created-failure",
+      cleanup: { attempted: true, attempts: 1, status: "verified", verified: true }
+    });
+    expect(reentrantRejected).toBe(true);
+    expect(reentrantCreate).toHaveBeenCalledTimes(1);
+    expect(reentrantCleanup).toHaveBeenCalledTimes(1);
+    expect(reentrantRoots).toHaveLength(1);
+    await expect(lstat(reentrantRoots[0]!)).rejects.toMatchObject({ code: "ENOENT" });
+
     for (const scenario of ["provider throws", "provider returns malformed"] as const) {
       let inFlightRoot: string | undefined;
       let settleCreation: (() => void) | undefined;
