@@ -35,6 +35,7 @@ import {
   type IdentityBoundCandidateLifecycle,
   type ReleaseCandidateEntryKind,
   type ReleaseCandidateFilesystem,
+  type RegisteredCandidateCreation,
   type ValidatedReleaseCandidateInput
 } from "../src/release-candidate.js";
 import { MAX_SECRET_SCAN_BYTES, isReleaseTextPath } from "../src/release-readiness.js";
@@ -265,10 +266,14 @@ function createAcceptedSourceObserver() {
 }
 
 function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(operations: {
-  createCandidateLease(
+  createCandidateLease(input: ValidatedReleaseCandidateInput): Promise<{
+    inspectionRoot: string;
+    identity: TIdentity;
+  }>;
+  acquireCandidateLease?(
     input: ValidatedReleaseCandidateInput,
-    recordCreated: (created: { inspectionRoot: string; identity: TIdentity }) => void
-  ): Promise<{ inspectionRoot: string; identity: TIdentity }>;
+    createRegisteredCandidate: () => Promise<RegisteredCandidateCreation>
+  ): Promise<unknown>;
   cleanupCandidateLease(identity: TIdentity): Promise<CandidateLeaseCleanupResult>;
   readAcceptedSourceFile?(input: ValidatedReleaseCandidateInput, entry: Parameters<ReturnType<typeof createNoFollowSourceReader>>[1], maxBytes: number): Promise<AcceptedSourceReadResult>;
   inspectCandidateRoot?(identity: TIdentity): Promise<CandidateRootInspectionResult>;
@@ -441,7 +446,7 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
         );
       }))
   });
-  const { createCandidateLease, ...overrides } = operations;
+  const { createCandidateLease, acquireCandidateLease, ...overrides } = operations;
   return createIdentityBoundCandidateLifecycle({
     readAcceptedSourceFile: createNoFollowSourceReader(),
     observeAcceptedSourceEntry: createAcceptedSourceObserver(),
@@ -451,16 +456,10 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
     observeAcceptedSource: defaultObserveAcceptedSource,
     observeCandidate: defaultObserveCandidate,
     ...overrides,
-    createCandidateLease: async (input, recordCreated) => {
-      let registered = false;
-      const register = (created: { inspectionRoot: string; identity: TIdentity }): void => {
-        registered = true;
-        recordCreated(created);
-      };
-      const created = await createCandidateLease(input, register);
-      if (!registered) register(created);
-      return created;
-    }
+    createCandidateState: async (input) => await createCandidateLease(input),
+    acquireCandidateLease: acquireCandidateLease ?? (async (_input, createRegisteredCandidate) => (
+      await createRegisteredCandidate()
+    ))
   });
 }
 
@@ -1161,7 +1160,10 @@ describe("release candidate input validation", () => {
         throw new Error("invalid readable result must precede candidate creation");
       });
       const operations = {
-        createCandidateLease,
+        createCandidateState: createCandidateLease,
+        acquireCandidateLease: async (_input: ValidatedReleaseCandidateInput, createRegisteredCandidate: () => Promise<RegisteredCandidateCreation>) => (
+          await createRegisteredCandidate()
+        ),
         cleanupCandidateLease: vi.fn(async () => ({
           ok: true as const,
           removed: true as const,
@@ -1224,7 +1226,8 @@ describe("release candidate input validation", () => {
         throw new Error("raw candidate creation must not be used");
       }),
       candidateLifecycle: createIdentityBoundCandidateLifecycle({
-        createCandidateLease,
+        createCandidateState: createCandidateLease,
+        acquireCandidateLease: async (_input, createRegisteredCandidate) => await createRegisteredCandidate(),
         cleanupCandidateLease: vi.fn(async () => ({
           ok: true as const,
           removed: true as const,
@@ -4913,17 +4916,16 @@ describe("release candidate input validation", () => {
         return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
       });
       const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
-        createCandidateLease: (async (
-          validated: ValidatedReleaseCandidateInput,
-          recordCreated: (created: { inspectionRoot: string; identity: { root: string } }) => void
-        ) => {
+        createCandidateLease: async (validated) => {
           candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
           creationCount += 1;
-          const created = { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
-          recordCreated(created);
+          return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+        },
+        acquireCandidateLease: async (_validated, createRegisteredCandidate) => {
+          await createRegisteredCandidate();
           await Promise.resolve();
           return await scenario.acquire();
-        }) as never,
+        },
         cleanupCandidateLease
       });
       const result = await withAssembledReleaseCandidate(
@@ -4997,15 +4999,11 @@ describe("release candidate input validation", () => {
         identityMatched: true as const
       }));
       const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
-        createCandidateLease: (async (
-          validated: ValidatedReleaseCandidateInput,
-          recordCreated: (created: { inspectionRoot: string; identity: { root: string } }) => void
-        ) => {
+        createCandidateLease: (async (validated: ValidatedReleaseCandidateInput) => {
           candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
           creationCount += 1;
-          (recordCreated as (created: unknown) => void)(scenario.registered());
           await Promise.resolve();
-          throw new Error("private failure after unusable registration");
+          return scenario.registered();
         }) as never,
         cleanupCandidateLease
       });
@@ -5036,7 +5034,7 @@ describe("release candidate input validation", () => {
           verified: false,
           code: "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE"
         },
-        blockers: [{ code: "CANDIDATE_ACQUISITION_RESULT_INVALID", category: "creation" }]
+        blockers: [{ code: "CANDIDATE_CREATION_CONTRACT_FAILED", category: "creation" }]
       });
       expect(creationCount, scenario.name).toBe(1);
       expect(cleanupCandidateLease, scenario.name).not.toHaveBeenCalled();
