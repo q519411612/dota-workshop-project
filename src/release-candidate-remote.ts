@@ -35,6 +35,9 @@ export async function preflightRemoteReleaseCandidate(
   const outcome = await executeRemoteReleaseCandidateScript(input);
   const target = publicTarget(outcome.transport);
 
+  if (outcome.outcome === "configuration-failed") {
+    return configurationFailure(target, outcome.code);
+  }
   if (outcome.outcome !== "completed") {
     return transportFailure(target, outcome.outcome === "failed" ? outcome.exitCode : undefined);
   }
@@ -75,6 +78,23 @@ export async function preflightRemoteReleaseCandidate(
   }
 
   return completedResult(target, normalized);
+}
+
+function configurationFailure(
+  target: RemoteTarget,
+  code: "REMOTE_DOTA_ROOT_REQUIRED" | "REMOTE_DOTA_ROOT_INVALID" | "REMOTE_DESTINATION_INVALID" | "INVALID_ADDON_NAME"
+): ToolResult {
+  return createFailureResult({
+    target,
+    operation: OPERATION,
+    error: {
+      code,
+      message: "Remote release-candidate configuration was rejected before invocation."
+    },
+    evidence: ["remote release-candidate invocation was not started"],
+    logs: [{ source: "remote-release-candidate", lines: ["remote configuration rejected"] }],
+    releaseCandidate: normalizeReleaseCandidateDetail({})
+  });
 }
 
 function completedResult(target: RemoteTarget, detail: ValidReleaseCandidateDetail): ToolResult {
