@@ -33,7 +33,7 @@ patterns-established:
 
 requirements-completed: [RCFS-02]
 
-duration: 60min
+duration: 65min
 completed: 2026-07-15
 status: complete
 ---
@@ -44,7 +44,7 @@ status: complete
 
 ## Performance
 
-- **Duration:** 60 min
+- **Duration:** 65 min
 - **Started:** 2026-07-15T07:19:57Z
 - **Completed:** 2026-07-15T07:40:00Z
 - **Tasks:** 2
@@ -60,6 +60,7 @@ status: complete
 - Replaced raw readiness reads and candidate pathname writes with a factory-branded identity-bound assembly capability; incomplete capabilities fail before source reads or candidate creation.
 - Added no-follow, size-first accepted-source observations, lease-bound exclusive materialization, and exact structural reconciliation before callback inspection.
 - Enforced required file/directory kinds and guarded every hostile assembly-capability result behind strict sanitized parsers.
+- Required every readable-source result to prove exact UTF-8 byte equality before metadata or sensitive-content policy evaluation.
 - Kept source trees read-only and avoided recursive copy, retry, repair, filtering, generation, archive, manifest, hash, MCP, and remote behavior.
 
 ## Task Commits
@@ -74,6 +75,7 @@ status: complete
 8. **Exercise strict capability contracts and hostile results** - `df835ce` (test)
 9. **Bind source reads, destination writes, and exact-tree inspection to the opaque lease capability** - `b77c830` (fix)
 10. **Prove incomplete identity-bound assembly capabilities fail before creation** - `b18e105` (test)
+11. **Reject mismatched readable byte claims** - `ac59703` (test), `4d4b424` (fix)
 
 ## Files Created/Modified
 
@@ -116,7 +118,7 @@ status: complete
 **4. [Rule 1 - Destination identity] Replace pathname check/write seams with one lease-bound materialization operation**
 - **Found during:** Independent quality review.
 - **Issue:** Parent validation followed by later `mkdir`/`copyFile` left a replacement window and exposed raw destination write methods to the lifecycle.
-- **Fix:** Candidate materialization now accepts only the opaque lease, validated input, accepted source identity, fixed destination identity, and expected kind; the adapter must atomically validate, create exclusively, and verify containment/kind in one capability result.
+- **Fix:** Candidate materialization now accepts only the opaque lease, validated input, accepted source identity, fixed destination identity, and expected kind; the lifecycle accepts success only when the adapter capability reports complete identity, exclusive-creation, containment, and kind proof.
 - **Verification:** The old raw writer would create an outside sentinel, while GREEN calls only the bound operation, returns `CANDIDATE_DESTINATION_IDENTITY_MISMATCH`, writes no sentinel, skips callback, and cleans once.
 - **Committed in:** `591269d`, `df835ce`, `b77c830`.
 
@@ -134,9 +136,16 @@ status: complete
 - **Verification:** Both wrong-kind fixtures block before candidate creation or callback while existing preflight behavior remains unchanged.
 - **Committed in:** `e4d880d`, `df835ce`, `b77c830`.
 
+**7. [Rule 1 - Readable-result integrity] Verify declared size against exact UTF-8 bytes**
+- **Found during:** Strict adapter-result review.
+- **Issue:** A readable result could claim a small size while returning truncated, oversized, or multibyte content; policy scanning would trust and process inconsistent content.
+- **Fix:** Require `Buffer.byteLength(content, "utf8")` to equal the declared size before metadata parsing or sensitive-content scanning.
+- **Verification:** RED accepted both truncated ASCII and multibyte content containing a secret beyond the claimed prefix; GREEN returns only `SOURCE_READ_RESULT_INVALID`, never creates a candidate, and never serializes the secret.
+- **Committed in:** `ac59703`, `4d4b424`.
+
 ---
 
-**Total deviations:** 6 auto-fixed correctness and safety issues.
+**Total deviations:** 7 auto-fixed correctness and safety issues.
 **Impact on plan:** Corrections close RCFS-02 source-read, destination-write, and exact-tree gaps without adding hashes, manifests, source-after final mutation semantics, remote behavior, or formal cleanup-evidence scope.
 
 ## TDD Gate Compliance
@@ -146,6 +155,7 @@ status: complete
 - GREEN proves byte-identical binary copying, all inclusion categories, nested empty directories, shuffled enumeration, cleanup after copy failure, destination escape prevention, and callback-after-completion ordering.
 - Review RED commit `e2a7730` proves a rogue leased-root file previously survived into a successful callback; fix `ba52dc6` requires an empty root before assembly.
 - Capability RED commits `e4d880d` and `591269d` prove stale source reads, raw destination writes, wrong required kinds, and mid-assembly rogue injection before fix `b77c830`.
+- Readable-integrity RED `ac59703` proves inconsistent declared sizes reached policy evaluation before fix `4d4b424`.
 
 ## Independent Review
 
@@ -155,9 +165,9 @@ status: complete
 ## Verification Evidence
 
 - Focused complete-layout test: 1/1 passed.
-- Candidate lifecycle suite: 21/21 passed.
+- Candidate lifecycle suite: 22/22 passed.
 - Readiness and preflight regression suites: 19/19 passed.
-- Full repository suite: 181/181 passed across 20 files.
+- Full repository suite: 182/182 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed.
 - `git diff --check`: passed.
@@ -176,6 +186,13 @@ None.
 
 - Plan 03-06 can add the final source-after topology rewalk and mutation detection without changing fixed-layout assembly or candidate ownership.
 - Phase 4 can consume the complete candidate tree for deterministic manifests, byte hashes, scan coverage, and versioned cleanup evidence.
+
+## Adapter Contract Evidence Boundary
+
+- The lifecycle tests validate the opaque identity-bound assembly contract and strict result normalization only.
+- The controlled macOS fixture materializer uses pathname operations inside a deterministic test adapter. It does not prove safety against hostile external filesystem races and is not a production materialization primitive.
+- Default or incomplete Node adapters fail with `IDENTITY_BOUND_ASSEMBLY_REQUIRED` before candidate creation instead of claiming unsupported safety.
+- Fixture evidence does not establish real Windows or reparse-point runtime behavior; v1.14 completion relies on the approved macOS fixture and adapter-contract gate.
 
 ## Self-Check: PASSED
 
