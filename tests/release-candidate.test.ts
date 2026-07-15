@@ -863,8 +863,13 @@ describe("release candidate input validation", () => {
       async () => "unexpected",
       { repositoryRoot: oversizedFixture.repositoryRoot, filesystem: oversizedFilesystem }
     );
-    expect(oversized).toEqual({
+    expect(oversized).toMatchObject({
       ok: false,
+      scanCoverage: {
+        schemaVersion: "1.0",
+        totalFileCount: 7,
+        oversized: { count: 1, paths: ["game/addoninfo.txt"] }
+      },
       blockers: [{
         code: "REQUIRED_TEXT_OVERSIZED",
         category: "oversized-required-text",
