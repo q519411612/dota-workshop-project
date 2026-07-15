@@ -251,14 +251,123 @@ describe("release readiness policy", () => {
     const coverage = policy.evaluateReleaseScanCoverage(input);
 
     expect(coverage).toEqual({
-      schemaVersion: "1.0",
-      totalFileCount: 6,
-      text: { count: 2, paths: ["content/panorama/[redacted]", "game/scripts/[redacted]"] },
-      binary: { count: 1, paths: ["game/materials/icon.bin"] },
-      unreadable: { count: 1, paths: ["game/scripts/optional-unreadable.lua"] },
-      oversized: { count: 2, paths: ["content/maps/large.vmap.txt", "game/addoninfo.txt"] }
+      ok: true,
+      value: {
+        schemaVersion: "1.0",
+        totalFileCount: 6,
+        text: { count: 2, paths: ["content/panorama/[redacted]", "game/scripts/[redacted]"] },
+        binary: { count: 1, paths: ["game/materials/icon.bin"] },
+        unreadable: { count: 1, paths: ["game/scripts/optional-unreadable.lua"] },
+        oversized: { count: 2, paths: ["content/maps/large.vmap.txt", "game/addoninfo.txt"] }
+      }
     });
     expect(JSON.stringify(coverage)).not.toContain(firstCredential);
     expect(JSON.stringify(coverage)).not.toContain(secondCredential);
+  });
+
+  test("normalizes hostile release candidate scan coverage getters exactly once", async () => {
+    const policy = await import("../src/release-readiness.js") as unknown as {
+      evaluateReleaseScanCoverage?: (input: ReleaseReadinessInput) => unknown;
+    };
+    if (policy.evaluateReleaseScanCoverage === undefined) throw new Error("production scan coverage policy missing");
+    const privateRoot = privateUnixFixture();
+    const matchedValue = ["ghp", "12345678901234567890z"].join("_");
+    const reads = { root: 0, files: 0, relativePath: 0, state: 0 };
+    const file = {} as Record<string, unknown>;
+    Object.defineProperties(file, {
+      relativePath: {
+        enumerable: true,
+        get: () => (++reads.relativePath === 1 ? "scripts/safe.lua" : `${privateRoot}/${matchedValue}.lua`)
+      },
+      state: {
+        enumerable: true,
+        get: () => (++reads.state === 1 ? "text" : matchedValue)
+      },
+      content: { enumerable: true, value: "safe\n" }
+    });
+    const scanRoot = {} as Record<string, unknown>;
+    Object.defineProperties(scanRoot, {
+      root: {
+        enumerable: true,
+        get: () => (++reads.root === 1 ? "game" : privateRoot)
+      },
+      files: {
+        enumerable: true,
+        get: () => (++reads.files === 1 ? [file] : new Proxy([], {
+          get: () => {
+            throw new Error(`${privateRoot}/${matchedValue}`);
+          }
+        }))
+      }
+    });
+
+    const result = policy.evaluateReleaseScanCoverage({
+      requiredPaths: [],
+      metadata: { state: "missing" },
+      scanRoots: [scanRoot]
+    } as unknown as ReleaseReadinessInput);
+
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        schemaVersion: "1.0",
+        totalFileCount: 1,
+        text: { count: 1, paths: ["game/scripts/safe.lua"] },
+        binary: { count: 0, paths: [] },
+        unreadable: { count: 0, paths: [] },
+        oversized: { count: 0, paths: [] }
+      }
+    });
+    expect(reads).toEqual({ root: 1, files: 1, relativePath: 1, state: 1 });
+    expect(JSON.stringify(result)).not.toContain(privateRoot);
+    expect(JSON.stringify(result)).not.toContain(matchedValue);
+  });
+
+  test("returns sanitized failures for exceptional release candidate scan coverage observations", async () => {
+    const policy = await import("../src/release-readiness.js") as unknown as {
+      evaluateReleaseScanCoverage?: (input: ReleaseReadinessInput) => unknown;
+    };
+    if (policy.evaluateReleaseScanCoverage === undefined) throw new Error("production scan coverage policy missing");
+    const privateRoot = privateUnixFixture();
+    const matchedValue = ["ghp", "12345678901234567890y"].join("_");
+    const failure = {
+      ok: false,
+      blockers: [{ code: "POLICY_INPUT_INVALID", category: "scan-coverage-observation", disposition: "blocker" }]
+    };
+    const throwing = (): never => {
+      throw new Error(`${privateRoot}/${matchedValue}`);
+    };
+    const scenarios: Array<{ name: string; scanRoots: unknown[] }> = [
+      { name: "root getter", scanRoots: [Object.defineProperty({ files: [] }, "root", { get: throwing })] },
+      { name: "files getter", scanRoots: [Object.defineProperty({ root: "game" }, "files", { get: throwing })] },
+      {
+        name: "relative path getter",
+        scanRoots: [{ root: "game", files: [Object.defineProperty({ state: "text", content: "safe" }, "relativePath", { get: throwing })] }]
+      },
+      {
+        name: "state getter",
+        scanRoots: [{ root: "game", files: [Object.defineProperty({ relativePath: "safe.lua", content: "safe" }, "state", { get: throwing })] }]
+      },
+      {
+        name: "files iterator proxy",
+        scanRoots: [{
+          root: "game",
+          files: new Proxy([], {
+            get: (target, key, receiver) => key === Symbol.iterator ? throwing() : Reflect.get(target, key, receiver)
+          })
+        }]
+      }
+    ];
+
+    for (const scenario of scenarios) {
+      const result = policy.evaluateReleaseScanCoverage({
+        requiredPaths: [],
+        metadata: { state: "missing" },
+        scanRoots: scenario.scanRoots
+      } as unknown as ReleaseReadinessInput);
+      expect(result, scenario.name).toEqual(failure);
+      expect(JSON.stringify(result), scenario.name).not.toContain(privateRoot);
+      expect(JSON.stringify(result), scenario.name).not.toContain(matchedValue);
+    }
   });
 });
