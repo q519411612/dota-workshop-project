@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "vitest";
+import { PreflightReleaseCandidateInputSchema } from "../src/schemas.js";
 import {
   computeReleaseCandidateCombinedDigest,
   createReleaseCandidateToolResult,
@@ -114,6 +115,47 @@ function expectNormalizationFailure(input: unknown) {
 }
 
 describe("release candidate public detail", () => {
+  test("accepts only target and addonName for preflight input", () => {
+    const input = {
+      target: { kind: "fixture", root: "/fixture" },
+      addonName: "demo"
+    };
+
+    expect(PreflightReleaseCandidateInputSchema.parse(input)).toEqual(input);
+    for (const key of [
+      "credential",
+      "password",
+      "token",
+      "destination",
+      "retention",
+      "upload",
+      "archive",
+      "signing",
+      "encryption",
+      "build",
+      "repair",
+      "temporaryPath"
+    ]) {
+      expect(() => PreflightReleaseCandidateInputSchema.parse({ ...input, [key]: "forbidden" })).toThrow();
+    }
+    expect(Object.keys(PreflightReleaseCandidateInputSchema.shape).sort()).toEqual(["addonName", "target"]);
+  });
+
+  test("requires every exact immutable preflight boundary", () => {
+    const expected = boundaries();
+    expect(normalizeReleaseCandidateDetail(validSuccess())).toMatchObject({ boundaries: expected });
+
+    for (const key of Object.keys(expected) as Array<keyof ReturnType<typeof boundaries>>) {
+      const missing = validSuccess();
+      delete missing.boundaries[key];
+      expectNormalizationFailure(missing);
+
+      const contradictory = validSuccess();
+      contradictory.boundaries[key] = !expected[key];
+      expectNormalizationFailure(contradictory);
+    }
+  });
+
   test("uses the fixed nested-array canonical digest", () => {
     const entries = manifestEntries();
     const expected = createHash("sha256")
