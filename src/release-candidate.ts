@@ -888,14 +888,11 @@ async function inspectCandidateLease<T>(
     const candidateAfter = await captureCandidateIntegrity(lease, expected, inventory, sourceBefore, lifecycle);
     const sourceAfter = await captureSourceIntegrity(input, inventory, lifecycle);
     const finalReconciliation = await reconcileReleaseCandidate(lease, input, inventory, lifecycle);
-    if (
-      candidateAfter.ok
-      && sourceAfter.ok
-      && (
-        !sameIntegritySets(sourceBefore, candidateAfter.value.observations)
-        || !sameIntegritySets(sourceBefore, sourceAfter.value)
-      )
-    ) return integrityMismatch();
+    const sourceIntegrityChanged = sourceAfter.ok
+      && !sameIntegritySets(sourceBefore, sourceAfter.value);
+    const candidateIntegrityChanged = candidateAfter.ok
+      && !sameIntegritySets(sourceBefore, candidateAfter.value.observations);
+    if (sourceIntegrityChanged || candidateIntegrityChanged) return integrityMismatch();
     if (finalStability !== undefined) return finalStability;
     if (finalReconciliation !== undefined) return finalReconciliation;
     if (!sourceAfter.ok) return sourceAfter;
