@@ -35,7 +35,7 @@ patterns-established:
 
 requirements-completed: [RCFS-03]
 
-duration: 33min
+duration: 40min
 completed: 2026-07-15
 status: complete
 ---
@@ -46,9 +46,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 33 min
+- **Duration:** 40 min
 - **Started:** 2026-07-15T05:44:02Z
-- **Completed:** 2026-07-15T06:17:30Z
+- **Completed:** 2026-07-15T06:24:00Z
 - **Tasks:** 2 plus independent review remediation
 - **Files modified:** 2
 
@@ -64,6 +64,7 @@ status: complete
 - Made Windows source validation explicitly fail closed unless a supplied adapter declares exact reparse-point awareness; the built-in Node classifier makes no unsupported Windows claim.
 - Bound inventory to the exact filesystem capability that produced the opaque validated handle, preventing host/default adapter substitution.
 - Emit one deterministic blocker for every member of two- and three-member case-fold collision groups under shuffled enumeration.
+- Register every syntactically valid identity before kind and containment acceptance, so unsafe/regular mixed groups retain both collision evidence and the unsafe member's independent blocker.
 
 ## Task Commits
 
@@ -74,6 +75,8 @@ status: complete
 5. **Prove cross-root provenance and unsafe-kind operation boundaries** - `29c068a` (test)
 6. **Expose Windows, capability-binding, and collision-group gaps** - `336cb58` (test)
 7. **Bind safe inventory capability and complete collision groups** - `808ceac` (fix)
+8. **Expose mixed unsafe and accepted collision groups** - `26cf5c8` (test)
+9. **Register every syntactically valid identity** - `e8de031` (fix)
 
 ## Files Created/Modified
 
@@ -134,9 +137,17 @@ status: complete
 - **Verification:** Adapter-driven two- and three-member groups produce the same complete ordinal blocker set under forward and reversed enumeration.
 - **Committed in:** `336cb58`, `808ceac`
 
+**6. [Rule 2 - Mixed collision completeness] Register unsafe identities before acceptance**
+- **Found during:** Independent quality re-review
+- **Issue:** Fold-group registration occurred after kind and canonical-containment acceptance, so an unsafe `Alpha` and contained regular `alpha` did not form a visible collision group.
+- **Fix:** Register every syntactically valid normalized identity immediately after syntax validation and before classification or canonicalization; unsafe handling remains unchanged afterward.
+- **Files modified:** `tests/release-candidate.test.ts`, `src/release-candidate.ts`
+- **Verification:** Symbolic-link, reparse, and canonical-escape variants each retain their unsafe blocker plus exactly one collision blocker for both members under forward and reversed enumeration; link/reparse paths are never canonicalized.
+- **Committed in:** `26cf5c8`, `e8de031`
+
 ---
 
-**Total deviations:** 5 auto-fixed missing-critical contract issues.
+**Total deviations:** 6 auto-fixed missing-critical contract issues.
 **Impact on plan:** The corrections strengthen RCFS-03 completeness, Windows honesty, and adapter isolation without adding candidate creation, copying, cleanup, manifest, MCP, command routing, or remote scope.
 
 ## TDD Gate Compliance
@@ -147,23 +158,25 @@ status: complete
 - Every GREEN transition was followed by the focused test, typecheck, and build checks.
 - Spec-review evidence commit `29c068a` was characterization GREEN: no implementation correction was necessary.
 - Quality-review RED `336cb58` reproduced Windows capability, adapter-binding, and incomplete collision-group behavior before fix commit `808ceac`.
+- Mixed-collision RED `26cf5c8` reproduced missing collision evidence for unsafe/regular groups before fix commit `e8de031`.
 
 ## Verification Evidence
 
 - Focused source-identity test: 1/1 passed.
-- Candidate input and inventory suite: 8/8 passed.
-- Full repository suite: 168/168 passed across 20 files.
+- Candidate input and inventory suite: 9/9 passed.
+- Full repository suite: 169/169 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed; generated untracked `dist/release-candidate.js` was removed because this module is not yet a tracked package artifact.
 - `git diff --check`: passed.
 - Independent re-review: both confirmed warnings resolved; no remaining blocker or warning.
 - Spec-review follow-up: cross-root provenance and exact unsafe-kind adapter operation boundaries are now directly asserted.
 - Quality re-review: all three important findings resolved with no remaining blocker or warning.
+- Mixed-collision re-review: unsafe members retain independent blockers and complete collision evidence without dereference or ordering drift.
 - Staged-path checks contained only the intended task file for every code commit; `.planning/graphs/` remained unstaged and unchanged by this plan.
 
 ## Issues Encountered
 
-The first implementation passed the planned focused tests but independent review identified incomplete nested blocker discovery and an optional adapter fallback. Both were reproduced, corrected with a second RED/GREEN cycle, and re-reviewed successfully. A later spec review found two evidence gaps; both new tests passed immediately as characterization evidence. Quality review then identified Windows reparse honesty, capability binding, and collision-group completeness issues; all three produced RED failures, were fixed, and passed independent re-review.
+The first implementation passed the planned focused tests but independent review identified incomplete nested blocker discovery and an optional adapter fallback. Both were reproduced, corrected with a second RED/GREEN cycle, and re-reviewed successfully. A later spec review found two evidence gaps; both new tests passed immediately as characterization evidence. Quality review then identified Windows reparse honesty, capability binding, and collision-group completeness issues; all three produced RED failures, were fixed, and passed independent re-review. The final mixed unsafe/regular collision gap also produced RED, required a one-line registration-order correction, and passed re-review.
 
 ## User Setup Required
 
@@ -178,7 +191,7 @@ None.
 ## Self-Check: PASSED
 
 - Required source and test files exist.
-- All seven plan commits are present in order.
+- All nine plan commits are present in order.
 - RCFS-03 behavior, verification commands, and independent review remediation are recorded.
 - No `.planning/graphs/` file is staged or included in a plan commit.
 
