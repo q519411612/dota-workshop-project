@@ -3612,6 +3612,188 @@ describe("release candidate input validation", () => {
     expect(canonicalDigest(splitManifest)).toBe("d21f4762cf09cab91efca857c63bf1c89f7d5644b8bdfd00b4bd5404a5d04c1a");
   });
 
+  test("rejects non-bijective candidate integrity ledgers", async () => {
+    const runLedger = async (
+      mutateFinal: (observations: FixtureIntegrityObservation[]) => FixtureIntegrityObservation[],
+      reconcileCandidateTree?: (
+        identity: { root: string },
+        expected: CandidateExpectedEntry[]
+      ) => Promise<CandidateTreeReconciliationResult>
+    ) => {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      await mkdir(join(fixture.contentAddonRoot, "materials/empty/nested"), { recursive: true });
+      let candidateCalls = 0;
+      const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+        createCandidateLease: async (validated) => {
+          const root = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return { inspectionRoot: root, identity: { root } };
+        },
+        cleanupCandidateLease: async (identity) => {
+          await rm(identity.root, { recursive: true, force: false });
+          return { ok: true, removed: true, absent: true, identityMatched: true };
+        },
+        ...(reconcileCandidateTree === undefined ? {} : { reconcileCandidateTree }),
+        observeCandidate: async (identity, expected) => {
+          candidateCalls += 1;
+          const observations = await Promise.all(expected
+            .filter((entry) => entry.kind === "file")
+            .map(async (entry) => {
+              const [root] = entry.path.split("/");
+              return await streamFixtureIntegrity(
+                join(identity.root, ...entry.path.split("/")),
+                root as "game" | "content",
+                entry.path
+              );
+            }));
+          return {
+            ok: true,
+            schemaVersion: "1.0",
+            observations: candidateCalls === 1 ? observations : mutateFinal(observations)
+          };
+        }
+      });
+      const callback = vi.fn(async () => "inspected");
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        callback,
+        {
+          repositoryRoot: fixture.repositoryRoot,
+          filesystem: {
+            lstat,
+            realpath,
+            readDirectory: async (path) => await readdir(path),
+            classifySourceEntry: classifyFixtureEntry,
+            createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+            candidateLifecycle: lifecycle
+          }
+        }
+      );
+      return { result, callback, candidateCalls };
+    };
+
+    const duplicateResults = [];
+    for (const reverse of [false, true]) {
+      const execution = await runLedger((observations) => {
+        const first = observations[0];
+        const omitted = observations.at(-1);
+        if (first === undefined || omitted === undefined) throw new Error("ledger fixture is incomplete");
+        const unexpected = {
+          ...first,
+          path: "game/dota_addons/fixture_addon/unexpected.bin"
+        };
+        const occurrences = [first, first, ...observations.slice(1, -1), unexpected];
+        return reverse ? occurrences.reverse() : occurrences;
+      });
+      expect(execution.callback).toHaveBeenCalledTimes(1);
+      expect(execution.candidateCalls).toBe(2);
+      duplicateResults.push(execution.result);
+    }
+    expect(duplicateResults[1]).toEqual(duplicateResults[0]);
+    expect(duplicateResults[0]).toEqual({
+      ok: false,
+      inclusionLedger: {
+        schemaVersion: "1.0",
+        expectedFileCount: 7,
+        observedFileCount: 8,
+        matchedFileCount: 5
+      },
+      blockers: [
+        {
+          code: "CANDIDATE_LEDGER_DUPLICATE",
+          category: "integrity-duplicate",
+          path: "game/dota_addons/fixture_addon/addoninfo.txt",
+          count: 2
+        },
+        {
+          code: "CANDIDATE_LEDGER_MISSING",
+          category: "integrity-missing",
+          path: "game/dota_addons/fixture_addon/scripts/vscripts/addon_game_mode.lua",
+          count: 0
+        },
+        {
+          code: "CANDIDATE_LEDGER_UNEXPECTED",
+          category: "integrity-unexpected",
+          path: "game/dota_addons/fixture_addon/unexpected.bin",
+          count: 1
+        }
+      ]
+    });
+
+    const wrongFacts = await runLedger((observations) => observations.map((observation, index) => {
+      if (index === 0) return { ...observation, root: "content" };
+      if (index === 1) return { ...observation, path: "game/dota_addons/fixture_addon/wrong-path.bin" };
+      if (index === 2) return { ...observation, kindMatched: false } as FixtureIntegrityObservation;
+      if (index === 3) return { ...observation, identityMatched: false } as FixtureIntegrityObservation;
+      return observation;
+    }));
+    expect(wrongFacts.result).toEqual({
+      ok: false,
+      inclusionLedger: {
+        schemaVersion: "1.0",
+        expectedFileCount: 7,
+        observedFileCount: 7,
+        matchedFileCount: 3
+      },
+      blockers: [
+        {
+          code: "CANDIDATE_LEDGER_WRONG_ROOT",
+          category: "integrity-wrong-root",
+          path: "game/dota_addons/fixture_addon/addoninfo.txt",
+          count: 1
+        },
+        {
+          code: "CANDIDATE_LEDGER_WRONG_KIND",
+          category: "integrity-wrong-kind",
+          path: "game/dota_addons/fixture_addon/scripts/npc/herolist.txt",
+          count: 1
+        },
+        {
+          code: "CANDIDATE_LEDGER_UNOBSERVED",
+          category: "integrity-unobserved",
+          path: "game/dota_addons/fixture_addon/scripts/npc/npc_heroes_custom.txt",
+          count: 1
+        },
+        {
+          code: "CANDIDATE_LEDGER_UNEXPECTED",
+          category: "integrity-unexpected",
+          path: "game/dota_addons/fixture_addon/wrong-path.bin",
+          count: 1
+        },
+        {
+          code: "CANDIDATE_LEDGER_MISSING",
+          category: "integrity-missing",
+          path: "game/dota_addons/fixture_addon/resource/addon_fixture_addon_english.txt",
+          count: 0
+        }
+      ]
+    });
+
+    const missingDirectory = await runLedger(
+      (observations) => observations,
+      async () => ({
+        ok: false,
+        code: "CANDIDATE_TREE_MISMATCH",
+        issues: [{
+          code: "CANDIDATE_TREE_MISSING",
+          path: "content/dota_addons/fixture_addon/materials/empty/nested"
+        }]
+      })
+    );
+    expect(missingDirectory.result).toEqual({
+      ok: false,
+      blockers: [{
+        code: "CANDIDATE_TREE_MISSING",
+        category: "assembly",
+        path: "content/dota_addons/fixture_addon/materials/empty/nested"
+      }]
+    });
+    expect(missingDirectory.callback).not.toHaveBeenCalled();
+    expect(missingDirectory.candidateCalls).toBe(0);
+    expect(JSON.stringify(missingDirectory.result)).not.toContain("manifest");
+    expect(JSON.stringify(duplicateResults[0])).not.toContain("manifest");
+  });
+
   test("rejects malformed final integrity observations without retry or repair", async () => {
     const malformedCandidateResults: Array<Readonly<{ name: string; result(path: string): unknown }>> = [
       { name: "missing observation", result: () => ({ ok: true, schemaVersion: "1.0", observations: [] }) },
