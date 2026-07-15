@@ -169,7 +169,7 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).toContain("Assert-SafeSourceAncestors $File.sourceRoot $File.source");
     expect(script).toContain("Get-WindowsFileIdentity $File.source");
     expect(script).toContain("function Assert-OwnedCandidateRoot");
-    expect(script).toContain("Get-WindowsFileIdentity $CandidateRoot");
+    expect(script).toContain("Get-WindowsPathIdentity $CandidateRoot");
     expect(script).not.toContain("Add-Type");
   });
 
@@ -188,7 +188,7 @@ describe("remote release candidate PowerShell lifecycle", () => {
 
     const createIndex = script.indexOf("[IO.Directory]::CreateDirectory($path)");
     const registerIndex = script.indexOf("$script:candidateRoot = $path", createIndex);
-    const identityIndex = script.indexOf("Get-WindowsFileIdentity $path", createIndex);
+    const identityIndex = script.indexOf("Get-WindowsPathIdentity $path", createIndex);
     expect(createIndex).toBeGreaterThan(0);
     expect(registerIndex).toBeGreaterThan(createIndex);
     expect(identityIndex).toBeGreaterThan(registerIndex);
@@ -215,7 +215,7 @@ describe("remote release candidate PowerShell lifecycle", () => {
     const manifestIndex = script.indexOf("entries = @($finalEntries)", candidateFinalIndex);
 
     expect(script).toContain("function Get-FinalCandidateEntries");
-    expect(script).toContain("Get-FileSha256 $candidate");
+    expect(script).toContain("$candidateHash = Get-HexDigest ($sha.ComputeHash($stream))");
     expect(sourceFinalIndex).toBeGreaterThan(0);
     expect(candidateFinalIndex).toBeGreaterThan(sourceFinalIndex);
     expect(manifestIndex).toBeGreaterThan(candidateFinalIndex);
@@ -236,13 +236,17 @@ describe("remote release candidate PowerShell lifecycle", () => {
     const manifestIndex = script.indexOf("$manifest =", beforeProjection);
     const afterProjection = script.indexOf("Assert-CandidateProjectionIdentity", manifestIndex);
 
-    expect(copyFunction).toContain("[IO.FileShare]::None");
-    expect(copyFunction).toContain("Get-WindowsFileIdentity $Destination");
-    expect(copyFunction.indexOf("Get-WindowsFileIdentity $Destination")).toBeLessThan(copyFunction.indexOf("$destinationStream.Dispose()"));
+    expect(copyFunction).toContain("$destinationStream = [IO.FileStream]::new($Destination, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)");
+    expect(copyFunction).not.toContain("[IO.FileShare]::Delete");
+    expect(copyFunction).toContain("Get-WindowsPathIdentity $Destination");
+    expect(copyFunction.indexOf("Get-WindowsPathIdentity $Destination")).toBeLessThan(copyFunction.indexOf("$destinationStream.Dispose()"));
     expect(script).toContain("$candidateFileIdentities = @{}");
     expect(script).toContain("$candidateFileIdentities[$file.identity] = Copy-FileStreamed");
     expect(observationFunction).toContain("[IO.FileStream]::new($candidate, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)");
-    expect(observationFunction).toContain("Get-WindowsFileIdentity $candidate");
+    expect(observationFunction).toContain("Get-WindowsPathIdentity $candidate");
+    expect(script).toContain("volumeIdentity = $volumeIdentity; fileIdentity = $fileIdentity");
+    expect(observationFunction).toContain("Test-IdentityTupleEqual $firstIdentity $ExpectedIdentity");
+    expect(observationFunction).toContain("Test-IdentityTupleEqual $secondIdentity $ExpectedIdentity");
     expect(observationFunction).toContain("$sha.ComputeHash($stream)");
     expect(observationFunction).not.toContain("Get-FileSha256 $candidate");
     expect(script).toContain("function Assert-CandidateProjectionIdentity");
