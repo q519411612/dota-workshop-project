@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, expectTypeOf, test, vi } from "vitest";
 import {
   continueReleaseCandidatePreparation,
+  createIdentityBoundCandidateLifecycle,
   inventoryReleaseCandidateSources,
   prepareReleaseCandidateInput,
   withAssembledReleaseCandidate,
@@ -63,17 +64,29 @@ describe("release candidate input validation", () => {
     } = {}) => {
       let candidateRoot: string | undefined;
       const writes: Array<{ operation: "create" | "remove"; path: string }> = [];
-      const createCandidateRoot = vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+      const createCandidateLease = vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
         candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
         writes.push({ operation: "create", path: candidateRoot });
-        return candidateRoot;
+        return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
       });
-      const removeCandidateRoot = vi.fn(async (path: string) => {
-        writes.push({ operation: "remove", path });
+      const cleanupCandidateLease = vi.fn(async (identity: { root: string }) => {
+        writes.push({ operation: "remove", path: identity.root });
         if (options.failRemoval === true) {
-          throw new Error(`EACCES: ${join(fixture.root, "credential_password=private-value")}`);
+          return {
+            ok: false as const,
+            removed: false,
+            absent: false,
+            identityMatched: true,
+            code: "CANDIDATE_REMOVAL_FAILED" as const
+          };
         }
-        await rm(path, { recursive: true, force: false });
+        await rm(identity.root, { recursive: true, force: false });
+        return {
+          ok: true as const,
+          removed: true as const,
+          absent: true as const,
+          identityMatched: true as const
+        };
       });
       const filesystem = {
         lstat,
@@ -86,13 +99,18 @@ describe("release candidate input validation", () => {
         )),
         readDirectory: async (path: string) => await readdir(path),
         classifySourceEntry: classifyFixtureEntry,
-        createCandidateRoot,
-        removeCandidateRoot
+        createCandidateRoot: vi.fn(async () => {
+          throw new Error("raw candidate creation must not be used");
+        }),
+        candidateLifecycle: createIdentityBoundCandidateLifecycle({
+          createCandidateLease,
+          cleanupCandidateLease
+        })
       };
       return {
         filesystem,
-        createCandidateRoot,
-        removeCandidateRoot,
+        createCandidateLease,
+        cleanupCandidateLease,
         writes,
         candidateRoot: () => candidateRoot
       };
@@ -120,8 +138,8 @@ describe("release candidate input validation", () => {
     );
 
     expect(successfulResult).toEqual({ ok: true, value: "inspected" });
-    expect(successfulLifecycle.createCandidateRoot).toHaveBeenCalledTimes(1);
-    expect(successfulLifecycle.removeCandidateRoot).toHaveBeenCalledTimes(1);
+    expect(successfulLifecycle.createCandidateLease).toHaveBeenCalledTimes(1);
+    expect(successfulLifecycle.cleanupCandidateLease).toHaveBeenCalledTimes(1);
     expect(inspectSuccess).toHaveBeenCalledTimes(1);
     expect(successfulLifecycle.writes.map(({ operation }) => operation)).toEqual(["create", "remove"]);
     const successfulRoot = successfulLifecycle.candidateRoot();
@@ -149,8 +167,8 @@ describe("release candidate input validation", () => {
     });
     expect(JSON.stringify(callbackResult)).not.toContain(callbackFixture.root);
     expect(JSON.stringify(callbackResult)).not.toContain("private-value");
-    expect(callbackLifecycle.createCandidateRoot).toHaveBeenCalledTimes(1);
-    expect(callbackLifecycle.removeCandidateRoot).toHaveBeenCalledTimes(1);
+    expect(callbackLifecycle.createCandidateLease).toHaveBeenCalledTimes(1);
+    expect(callbackLifecycle.cleanupCandidateLease).toHaveBeenCalledTimes(1);
     const callbackRoot = callbackLifecycle.candidateRoot();
     if (callbackRoot === undefined) throw new Error("callback candidate root was not recorded");
     await expect(lstat(callbackRoot)).rejects.toMatchObject({ code: "ENOENT" });
@@ -174,12 +192,12 @@ describe("release candidate input validation", () => {
       ok: false,
       blockers: [{ code: "CANDIDATE_ROOT_NOT_ISOLATED", category: "unsafe-isolation" }]
     });
-    expect(aliasLifecycle.createCandidateRoot).toHaveBeenCalledTimes(1);
-    expect(aliasLifecycle.removeCandidateRoot).not.toHaveBeenCalled();
+    expect(aliasLifecycle.createCandidateLease).toHaveBeenCalledTimes(1);
+    expect(aliasLifecycle.cleanupCandidateLease).toHaveBeenCalledTimes(1);
     expect(inspectAlias).not.toHaveBeenCalled();
     const aliasRoot = aliasLifecycle.candidateRoot();
     if (aliasRoot === undefined) throw new Error("aliased candidate root was not recorded");
-    expect((await lstat(aliasRoot)).isDirectory()).toBe(true);
+    await expect(lstat(aliasRoot)).rejects.toMatchObject({ code: "ENOENT" });
 
     const removalFixture = await createFixture();
     const removalLifecycle = createLifecycleFilesystem(removalFixture, { failRemoval: true });
@@ -228,14 +246,27 @@ describe("release candidate input validation", () => {
       const target = await scenario.target(fixture);
       const sentinel = join(target, "ownership-sentinel.txt");
       await writeFile(sentinel, "survives\n");
-      const removeCandidateRoot = vi.fn(async () => undefined);
+      const rawRemoval = vi.fn(async () => undefined);
+      const cleanupCandidateLease = vi.fn(async () => ({
+        ok: false as const,
+        removed: false,
+        absent: false,
+        identityMatched: false,
+        code: "CANDIDATE_IDENTITY_MISMATCH" as const
+      }));
       const filesystem = {
         lstat,
         realpath,
         readDirectory: async (path: string) => await readdir(path),
         classifySourceEntry: classifyFixtureEntry,
         createCandidateRoot: vi.fn(async () => target),
-        removeCandidateRoot
+        candidateLifecycle: createIdentityBoundCandidateLifecycle({
+          createCandidateLease: vi.fn(async () => ({
+            inspectionRoot: target,
+            identity: { target, rawRemoval }
+          })),
+          cleanupCandidateLease
+        })
       };
 
       const result = await withAssembledReleaseCandidate(
@@ -248,10 +279,11 @@ describe("release candidate input validation", () => {
         { repositoryRoot: fixture.repositoryRoot, filesystem }
       );
 
-      expect(removeCandidateRoot, scenario.name).not.toHaveBeenCalled();
+      expect(cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
+      expect(rawRemoval, scenario.name).not.toHaveBeenCalled();
       expect(result, scenario.name).toEqual({
         ok: false,
-        blockers: [{ code: "CANDIDATE_ROOT_NOT_OWNED", category: "unsafe-isolation" }]
+        blockers: [{ code: "CANDIDATE_IDENTITY_MISMATCH", category: "removal" }]
       });
       expect(await lstat(sentinel), scenario.name).toBeDefined();
       expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
@@ -260,19 +292,44 @@ describe("release candidate input validation", () => {
     const swappedFixture = await createFixture();
     await writeFile(join(swappedFixture.repositoryRoot, "repository-sentinel.txt"), "survives\n");
     let swappedRoot: string | undefined;
-    const swappedRemoval = vi.fn(async (path: string) => {
-      await rm(path, { recursive: true, force: false });
+    const swappedRemoval = vi.fn(async (path: string) => await rm(path, { recursive: true, force: false }));
+    const swappedCleanup = vi.fn(async (identity: { root: string; canonicalRoot: string }) => {
+      const currentCanonicalRoot = await realpath(identity.root);
+      if (currentCanonicalRoot !== identity.canonicalRoot) {
+        return {
+          ok: false as const,
+          removed: false,
+          absent: false,
+          identityMatched: false,
+          code: "CANDIDATE_IDENTITY_MISMATCH" as const
+        };
+      }
+      await swappedRemoval(identity.root);
+      return {
+        ok: true as const,
+        removed: true as const,
+        absent: true as const,
+        identityMatched: true as const
+      };
     });
     const swappedFilesystem = {
       lstat,
       realpath,
       readDirectory: async (path: string) => await readdir(path),
       classifySourceEntry: classifyFixtureEntry,
-      createCandidateRoot: vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
-        swappedRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
-        return swappedRoot;
+      createCandidateRoot: vi.fn(async () => {
+        throw new Error("raw candidate creation must not be used");
       }),
-      removeCandidateRoot: swappedRemoval
+      candidateLifecycle: createIdentityBoundCandidateLifecycle({
+        createCandidateLease: vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+          swappedRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return {
+            inspectionRoot: swappedRoot,
+            identity: { root: swappedRoot, canonicalRoot: await realpath(swappedRoot) }
+          };
+        }),
+        cleanupCandidateLease: swappedCleanup
+      })
     };
 
     const swappedResult = await withAssembledReleaseCandidate(
@@ -291,8 +348,9 @@ describe("release candidate input validation", () => {
 
     expect(swappedResult).toEqual({
       ok: false,
-      blockers: [{ code: "CANDIDATE_REMOVAL_UNVERIFIED", category: "removal" }]
+      blockers: [{ code: "CANDIDATE_IDENTITY_MISMATCH", category: "removal" }]
     });
+    expect(swappedCleanup).toHaveBeenCalledTimes(1);
     expect(swappedRemoval).not.toHaveBeenCalled();
     expect(await lstat(join(swappedFixture.repositoryRoot, "repository-sentinel.txt"))).toBeDefined();
     if (swappedRoot === undefined) throw new Error("swapped candidate root was not recorded");
@@ -300,19 +358,31 @@ describe("release candidate input validation", () => {
 
     const mutableFixture = await createFixture();
     let mutableRoot: string | undefined;
-    const capturedRemoval = vi.fn(async (path: string) => {
-      await rm(path, { recursive: true, force: false });
+    const capturedCleanup = vi.fn(async (identity: { root: string }) => {
+      await rm(identity.root, { recursive: true, force: false });
+      return {
+        ok: true as const,
+        removed: true as const,
+        absent: true as const,
+        identityMatched: true as const
+      };
+    });
+    const originalLifecycle = createIdentityBoundCandidateLifecycle({
+      createCandidateLease: vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+        mutableRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+        return { inspectionRoot: mutableRoot, identity: { root: mutableRoot } };
+      }),
+      cleanupCandidateLease: capturedCleanup
     });
     const mutableFilesystem = {
       lstat,
       realpath,
       readDirectory: async (path: string) => await readdir(path),
       classifySourceEntry: classifyFixtureEntry,
-      createCandidateRoot: vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
-        mutableRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
-        return mutableRoot;
+      createCandidateRoot: vi.fn(async () => {
+        throw new Error("raw candidate creation must not be used");
       }),
-      removeCandidateRoot: capturedRemoval
+      candidateLifecycle: originalLifecycle
     };
 
     const mutableResult = await withAssembledReleaseCandidate(
@@ -322,16 +392,53 @@ describe("release candidate input validation", () => {
         tempParent: mutableFixture.tempParent
       },
       async () => {
-        mutableFilesystem.removeCandidateRoot = vi.fn(async () => undefined);
+        mutableFilesystem.candidateLifecycle = createIdentityBoundCandidateLifecycle({
+          createCandidateLease: vi.fn(async () => {
+            throw new Error("replacement create must not run");
+          }),
+          cleanupCandidateLease: vi.fn(async () => ({
+            ok: false as const,
+            removed: false,
+            absent: false,
+            identityMatched: false,
+            code: "CANDIDATE_IDENTITY_MISMATCH" as const
+          }))
+        });
         return "inspected";
       },
       { repositoryRoot: mutableFixture.repositoryRoot, filesystem: mutableFilesystem }
     );
 
     expect(mutableResult).toEqual({ ok: true, value: "inspected" });
-    expect(capturedRemoval).toHaveBeenCalledTimes(1);
+    expect(capturedCleanup).toHaveBeenCalledTimes(1);
     if (mutableRoot === undefined) throw new Error("mutable candidate root was not recorded");
     await expect(lstat(mutableRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const unmarkedFixture = await createFixture();
+    const unmarkedCreate = vi.fn(async (validated: ValidatedReleaseCandidateInput) => (
+      await mkdtemp(join(validated.tempParent, "dota-release-candidate-"))
+    ));
+    const unmarkedFilesystem: ReleaseCandidateFilesystem = {
+      lstat,
+      realpath,
+      readDirectory: async (path) => await readdir(path),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot: unmarkedCreate
+    };
+    const unmarkedResult = await withAssembledReleaseCandidate(
+      {
+        addonName: "fixture_addon",
+        dotaRoot: unmarkedFixture.dotaRoot,
+        tempParent: unmarkedFixture.tempParent
+      },
+      async () => "unexpected",
+      { repositoryRoot: unmarkedFixture.repositoryRoot, filesystem: unmarkedFilesystem }
+    );
+    expect(unmarkedResult).toEqual({
+      ok: false,
+      blockers: [{ code: "IDENTITY_BOUND_CLEANUP_REQUIRED", category: "creation" }]
+    });
+    expect(unmarkedCreate).not.toHaveBeenCalled();
   });
 
   test("blocks invalid inputs before candidate creation", async () => {
