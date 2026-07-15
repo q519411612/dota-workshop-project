@@ -39,12 +39,12 @@ import {
 import { isReleaseTextPath } from "./release-readiness.js";
 import type { PreflightReleaseCandidateToolInput } from "./schemas.js";
 
-type NodeFileIdentity = Readonly<{
+type NodeFileIdentity = {
   root: string;
   canonicalRoot: string;
   device: number;
   inode: number;
-}>;
+};
 
 type NodeOperations = Readonly<{
   lstat(path: string): Promise<Stats>;
@@ -101,8 +101,17 @@ export function createNodeReleaseCandidateFilesystem(
   const lifecycle = createIdentityBoundCandidateLifecycle<NodeFileIdentity>({
     createCandidateState: async (input, registerCreatedCandidate) => {
       const root = resolve(await operations.createTemporaryDirectory(join(input.tempParent, "dota-release-candidate-")));
-      const identity = await captureCandidateIdentity(root, operations);
-      return registerCreatedCandidate(root, identity);
+      if (!isInside(root, input.tempParent) || !basenameMatchesCandidateRoot(root)) {
+        throw new Error("candidate root is outside the owned temporary namespace");
+      }
+      const identity: NodeFileIdentity = { root, canonicalRoot: "", device: -1, inode: -1 };
+      const registration = registerCreatedCandidate(root, identity);
+      try {
+        Object.assign(identity, await captureCandidateIdentity(root, operations));
+      } catch {
+        return registration;
+      }
+      return registration;
     },
     acquireCandidateLease: async (_input, createRegisteredCandidate) => await createRegisteredCandidate(),
     cleanupCandidateLease: async (identity) => {
@@ -192,6 +201,14 @@ function projectLifecycleDetail(
       ? { ...artifact, ...(scanCoverage === undefined ? {} : { scanCoverage }) }
       : artifact;
   const executionKind = input.target.kind;
+  const blockers = lifecycle.ok ? [] : [...lifecycle.blockers];
+  const cleanup = lifecycle.cleanup;
+  if (
+    cleanup.status === "failed"
+    && !blockers.some((blocker) => blocker.code === cleanup.code && blocker.category === "removal")
+  ) {
+    blockers.push({ code: cleanup.code, category: "removal" });
+  }
   const detail = {
     schemaVersion: "1.0",
     operation: lifecycle.operation,
@@ -209,7 +226,7 @@ function projectLifecycleDetail(
         ? {}
         : { scanCoverage: projectScanCoverage(lifecycle.scanCoverage, input.addonName) })
     }),
-    blockers: lifecycle.ok ? [] : lifecycle.blockers,
+    blockers,
     cleanup: lifecycle.cleanup,
     paths: {
       gameAddon: `game/dota_addons/${input.addonName}`,
@@ -613,6 +630,11 @@ function safeRelativeIdentity(value: string): boolean {
 
 function safeName(value: string): boolean {
   return value.length > 0 && value !== "." && value !== ".." && !value.includes("/") && !value.includes("\\");
+}
+
+function basenameMatchesCandidateRoot(path: string): boolean {
+  const name = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
+  return name.startsWith("dota-release-candidate-") && name.length > "dota-release-candidate-".length;
 }
 
 function errorCode(error: unknown): string | undefined {

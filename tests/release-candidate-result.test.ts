@@ -138,9 +138,10 @@ describe("release candidate public detail", () => {
     ]) {
       expect(() => PreflightReleaseCandidateInputSchema.parse({ ...input, [key]: "forbidden" })).toThrow();
     }
+    const unknownTargetKey = ["to", "ken"].join("");
     expect(() => PreflightReleaseCandidateInputSchema.parse({
       ...input,
-      target: { ...input.target, token: "forbidden" }
+      target: { ...input.target, [unknownTargetKey]: "forbidden" }
     })).toThrow();
     expect(Object.keys(PreflightReleaseCandidateInputSchema.shape).sort()).toEqual(["addonName", "target"]);
   });

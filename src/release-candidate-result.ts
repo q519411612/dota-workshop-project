@@ -747,6 +747,11 @@ function normalizeStringArray(input: unknown): string[] | undefined {
 
 function normalizeBoundaries(input: unknown): ReleaseCandidateBoundaryDetail | undefined {
   if (!isObject(input)) return undefined;
+  const keys = Reflect.ownKeys(input);
+  if (
+    keys.length !== BOUNDARY_KEYS.length
+    || keys.some((key) => typeof key !== "string" || !BOUNDARY_KEYS.includes(key as typeof BOUNDARY_KEYS[number]))
+  ) return undefined;
   const output: Record<string, boolean> = {};
   for (const key of BOUNDARY_KEYS) {
     const value = get(input, key);
@@ -795,7 +800,10 @@ function validateDomainConsistency(input: Readonly<{
     && !blockers.some((blocker) => blocker.category === "inspection" && blocker.code === operation.code)
   ) return false;
   if (artifactValidation.status === "blocked") {
-    if (!sameValue(blockers, artifactValidation.blockers)) return false;
+    const artifactBlockers = blockers.filter((blocker) => (
+      blocker.category !== "removal" && blocker.category !== "transport"
+    ));
+    if (!sameValue(artifactBlockers, artifactValidation.blockers)) return false;
     if (!sameValue(inclusionLedger, artifactValidation.inclusionLedger)) return false;
     if (!sameValue(scanCoverage, artifactValidation.scanCoverage)) return false;
   }

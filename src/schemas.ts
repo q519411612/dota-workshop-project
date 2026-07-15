@@ -82,8 +82,14 @@ export const DryRunReleaseReportInputSchema = z.object({
   addonName: z.string().min(1)
 });
 
+const PreflightReleaseCandidateTargetSchema = z.discriminatedUnion("kind", [
+  FixtureTargetSchema.strict(),
+  LocalTargetSchema.strict(),
+  RemoteTargetSchema.strict()
+]);
+
 export const PreflightReleaseCandidateInputSchema = z.object({
-  target: TargetSchema,
+  target: PreflightReleaseCandidateTargetSchema,
   addonName: z.string().min(1)
 }).strict();
 
