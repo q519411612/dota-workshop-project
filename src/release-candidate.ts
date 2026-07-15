@@ -448,6 +448,17 @@ export async function prepareReleaseCandidateInput(
 export async function inventoryReleaseCandidateSources(
   input: ValidatedReleaseCandidateInput
 ): Promise<ReleaseCandidateInventoryResult> {
+  const result = await inventoryReleaseCandidateSourcesInternal(input);
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    entries: result.entries.map((entry) => ({ ...entry, path: sanitizeRelativeIdentity(entry.path) }))
+  };
+}
+
+async function inventoryReleaseCandidateSourcesInternal(
+  input: ValidatedReleaseCandidateInput
+): Promise<ReleaseCandidateInventoryResult> {
   const filesystem = input[releaseCandidateFilesystemCapability];
   const entries: ReleaseCandidateSourceEntry[] = [];
   const blockers: ReleaseCandidateInventoryBlocker[] = [];
@@ -485,8 +496,12 @@ export async function inventoryReleaseCandidateSources(
   appendCollisionBlockers(identities, blockers);
 
   if (blockers.length > 0) {
-    blockers.sort(compareInventoryBlockers);
-    return { ok: false, blockers };
+    const sanitizedBlockers = blockers.map((blocker) => ({
+      ...blocker,
+      path: sanitizeRelativeIdentity(blocker.path)
+    }));
+    sanitizedBlockers.sort(compareInventoryBlockers);
+    return { ok: false, blockers: sanitizedBlockers };
   }
 
   entries.sort((left, right) => compareOrdinal(left.path, right.path));
@@ -501,7 +516,7 @@ export async function withAssembledReleaseCandidate<T>(
   const prepared = await prepareReleaseCandidateInput(input, dependencies);
   if (!prepared.ok) return prepared;
 
-  const inventory = await inventoryReleaseCandidateSources(prepared.value);
+  const inventory = await inventoryReleaseCandidateSourcesInternal(prepared.value);
   if (!inventory.ok) return inventory;
 
   const filesystem = prepared.value[releaseCandidateFilesystemCapability];
@@ -696,8 +711,7 @@ async function parseCandidateRootInspection(
 
 function safeCandidateEntryIdentity(name: string): string {
   if (invalidSourceNameCategory(name) !== undefined) return "[invalid]";
-  if (/(?:password|passwd|pwd|token|api[_-]?key|secret)/iu.test(name)) return "[redacted]";
-  return name;
+  return sanitizeRelativeIdentity(name);
 }
 
 async function assembleReleaseCandidate(
@@ -1344,6 +1358,15 @@ function invalidSourceNameCategory(name: string): "absolute" | "traversal" | "se
 function safeChildIdentity(parent: string, name: string): string {
   const normalized = name.replaceAll("\\", "/").replace(/^\/+/, "");
   return `${parent}/${normalized}`;
+}
+
+function sanitizeRelativeIdentity(identity: string): string {
+  return identity
+    .split("/")
+    .map((segment) => (
+      /(?:password|passwd|pwd|token|api[_-]?key|secret)/iu.test(segment) ? "[redacted]" : segment
+    ))
+    .join("/");
 }
 
 function foldIdentity(identity: string): string {

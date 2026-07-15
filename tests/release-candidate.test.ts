@@ -2698,6 +2698,120 @@ describe("release candidate input validation", () => {
     }
   });
 
+  test("redacts credential-shaped identities from every serialized inventory outcome", async () => {
+    const secretValue = "inventory-private-value";
+    const credentialName = credentialPasswordFixture(secretValue);
+    const upperCredentialName = credentialName.toUpperCase();
+    const redactedPath = "game/dota_addons/fixture_addon/[redacted]";
+    const scenarios: Array<Readonly<{
+      name: string;
+      names: string[];
+      classify?: "file" | "reparse" | "throw";
+      escape?: boolean;
+      expected: unknown;
+    }>> = [
+      {
+        name: "accepted inventory entry",
+        names: [credentialName],
+        expected: { ok: true, entries: [{ root: "game", path: redactedPath, kind: "file" }] }
+      },
+      {
+        name: "unsafe entry kind",
+        names: [credentialName],
+        classify: "reparse",
+        expected: {
+          ok: false,
+          blockers: [{ code: "SOURCE_ENTRY_UNSAFE", path: redactedPath, category: "reparse" }]
+        }
+      },
+      {
+        name: "canonical escape",
+        names: [credentialName],
+        escape: true,
+        expected: {
+          ok: false,
+          blockers: [{ code: "SOURCE_ENTRY_OUTSIDE_ROOT", path: redactedPath, category: "escape" }]
+        }
+      },
+      {
+        name: "unreadable entry",
+        names: [credentialName],
+        classify: "throw",
+        expected: {
+          ok: false,
+          blockers: [{ code: "SOURCE_ENTRY_UNREADABLE", path: redactedPath, category: "unreadable" }]
+        }
+      },
+      {
+        name: "invalid identity",
+        names: [`${credentialName}\\nested.lua`],
+        expected: {
+          ok: false,
+          blockers: [{
+            code: "SOURCE_IDENTITY_INVALID",
+            path: `${redactedPath}/nested.lua`,
+            category: "separator"
+          }]
+        }
+      },
+      {
+        name: "exact duplicate",
+        names: [credentialName, credentialName],
+        expected: {
+          ok: false,
+          blockers: [{ code: "SOURCE_IDENTITY_COLLISION", path: redactedPath, category: "exact-duplicate" }]
+        }
+      },
+      {
+        name: "case-fold collision",
+        names: [credentialName, upperCredentialName],
+        expected: {
+          ok: false,
+          blockers: [
+            { code: "SOURCE_IDENTITY_COLLISION", path: redactedPath, category: "case-fold" },
+            { code: "SOURCE_IDENTITY_COLLISION", path: redactedPath, category: "case-fold" }
+          ]
+        }
+      }
+    ];
+
+    for (const scenario of scenarios) {
+      const fixture = await createFixture();
+      const privateEscape = join(fixture.repositoryRoot, credentialName);
+      const filesystem: ReleaseCandidateFilesystem = {
+        lstat,
+        realpath: async (path) => {
+          if (scenario.escape && path.endsWith(`/${credentialName}`)) return privateEscape;
+          if (path.toLowerCase().includes(`/dota_addons/fixture_addon/${credentialName}`)) return path;
+          return await realpath(path);
+        },
+        readDirectory: async (path) => (
+          path.endsWith("/game/dota_addons/fixture_addon") ? [...scenario.names] : []
+        ),
+        classifySourceEntry: async () => {
+          if (scenario.classify === "throw") throw new Error(credentialName);
+          return scenario.classify ?? "file";
+        },
+        createCandidateRoot: vi.fn(async () => { throw new Error("candidate creation is forbidden"); })
+      };
+      const prepared = await prepareReleaseCandidateInput(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+      expect(prepared.ok, scenario.name).toBe(true);
+      if (!prepared.ok) throw new Error("redaction fixture input was rejected");
+
+      const result = await inventoryReleaseCandidateSources(prepared.value);
+      const serialized = JSON.stringify(result);
+
+      expect(result, scenario.name).toEqual(scenario.expected);
+      expect(serialized, scenario.name).not.toContain(credentialName);
+      expect(serialized, scenario.name).not.toContain(upperCredentialName);
+      expect(serialized, scenario.name).not.toContain(secretValue);
+      expect(serialized, scenario.name).not.toContain(fixture.root);
+    }
+  });
+
   test("fails on source mutation without writing source trees", async () => {
     type MutationCheckpoint = "lease" | "before-copy" | "after-copy" | "reconcile" | "callback";
     const mutationScenarios: Array<Readonly<{
