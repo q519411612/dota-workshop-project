@@ -1,4 +1,5 @@
 import { constants as filesystemConstants, type Stats } from "node:fs";
+import { execFile } from "node:child_process";
 import {
   lstat,
   mkdir,
@@ -56,9 +57,22 @@ type NodeOperations = Readonly<{
   removeTree(path: string): Promise<void>;
 }>;
 
+type WindowsClassifierExecution = Readonly<{
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}>;
+
+type WindowsClassifierExecutor = (input: Readonly<{
+  command: string;
+  args: readonly string[];
+  path: string;
+}>) => Promise<WindowsClassifierExecution>;
+
 export type NodeReleaseCandidateFilesystemOptions = Readonly<{
   platform?: NodeJS.Platform;
   windowsClassifySourceEntry?: (path: string) => Promise<ReleaseCandidateEntryKind>;
+  windowsClassifierExecutor?: WindowsClassifierExecutor;
   operations?: Partial<NodeOperations>;
   onCleanupAttempt?: () => void;
 }>;
@@ -71,6 +85,7 @@ export type NodeReleaseCandidatePreflightDependencies = Readonly<{
   filesystem?: ReleaseCandidateFilesystem;
   inspectCandidate?: (candidateRoot: string) => Promise<ReleaseCandidateInspectionValue>;
   onCleanupAttempt?: () => void;
+  windowsClassifierExecutor?: WindowsClassifierExecutor;
 }>;
 
 type FixtureOrLocalPreflightInput = Readonly<{
@@ -93,9 +108,11 @@ export function createNodeReleaseCandidateFilesystem(
 ): ReleaseCandidateFilesystem {
   const platform = options.platform ?? process.platform;
   const operations: NodeOperations = Object.freeze({ ...DEFAULT_OPERATIONS, ...options.operations });
-  const windowsClassifier = options.windowsClassifySourceEntry;
+  const windowsClassifier = options.windowsClassifySourceEntry ?? (
+    async (path: string) => await classifyWindowsEntry(path, options.windowsClassifierExecutor ?? executeWindowsClassifier)
+  );
   const classify = platform === "win32"
-    ? windowsClassifier ?? (async () => "unknown" as const)
+    ? windowsClassifier
     : async (path: string) => await classifyNodeEntry(path, operations);
 
   const lifecycle = createIdentityBoundCandidateLifecycle<NodeFileIdentity>({
@@ -140,7 +157,7 @@ export function createNodeReleaseCandidateFilesystem(
   });
 
   return Object.freeze({
-    ...(platform === "win32" && windowsClassifier !== undefined ? { reparsePointAware: true as const } : {}),
+    ...(platform === "win32" ? { reparsePointAware: true as const } : {}),
     lstat: async (path) => await operations.lstat(path),
     realpath: async (path) => await operations.realpath(path),
     readDirectory: async (path) => await operations.readDirectory(path),
@@ -169,7 +186,8 @@ export async function preflightNodeReleaseCandidate(
     : input.target.dotaRoot ?? dependencies.environment?.DOTA_INSTALL_ROOT ?? "";
   const filesystem = dependencies.filesystem ?? createNodeReleaseCandidateFilesystem({
     platform,
-    onCleanupAttempt: dependencies.onCleanupAttempt
+    onCleanupAttempt: dependencies.onCleanupAttempt,
+    windowsClassifierExecutor: dependencies.windowsClassifierExecutor
   });
   const lifecycle = await withAssembledReleaseCandidate(
     {
@@ -274,6 +292,71 @@ function projectScanCoverage(
     unreadable: category(coverage.unreadable),
     oversized: category(coverage.oversized)
   };
+}
+
+async function classifyWindowsEntry(
+  path: string,
+  executor: WindowsClassifierExecutor
+): Promise<ReleaseCandidateEntryKind> {
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    `$item = Get-Item -LiteralPath '${path.replaceAll("'", "''")}' -Force`,
+    "$kind = if ($item.PSIsContainer) { 'directory' } elseif ($item -is [IO.FileInfo]) { 'file' } else { 'special' }",
+    "$result = [ordered]@{ schemaVersion = '1.0'; kind = $kind; reparsePoint = (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) }",
+    "[Console]::Out.Write(($result | ConvertTo-Json -Compress))"
+  ].join("\n");
+  const execution = await executor({
+    command: "powershell.exe",
+    args: ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")],
+    path
+  });
+  if (execution.exitCode !== 0 || execution.stderr.length !== 0) {
+    throw new Error("WINDOWS_REPARSE_CLASSIFICATION_INVALID");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(execution.stdout);
+  } catch {
+    throw new Error("WINDOWS_REPARSE_CLASSIFICATION_INVALID");
+  }
+  if (!isExactWindowsClassification(parsed)) {
+    throw new Error("WINDOWS_REPARSE_CLASSIFICATION_INVALID");
+  }
+  return parsed.reparsePoint ? "reparse" : parsed.kind;
+}
+
+async function executeWindowsClassifier(input: Readonly<{
+  command: string;
+  args: readonly string[];
+  path: string;
+}>): Promise<WindowsClassifierExecution> {
+  return await new Promise((resolve) => {
+    execFile(
+      input.command,
+      [...input.args],
+      { encoding: "utf8", windowsHide: true, maxBuffer: 64 * 1024 },
+      (error, stdout, stderr) => {
+        resolve({
+          exitCode: error === null ? 0 : typeof error.code === "number" ? error.code : -1,
+          stdout,
+          stderr
+        });
+      }
+    );
+  });
+}
+
+function isExactWindowsClassification(value: unknown): value is Readonly<{
+  schemaVersion: "1.0";
+  kind: "file" | "directory" | "special";
+  reparsePoint: boolean;
+}> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).sort().join("\0") !== ["kind", "reparsePoint", "schemaVersion"].join("\0")) return false;
+  return record.schemaVersion === "1.0"
+    && (record.kind === "file" || record.kind === "directory" || record.kind === "special")
+    && typeof record.reparsePoint === "boolean";
 }
 
 async function classifyNodeEntry(path: string, operations: NodeOperations): Promise<ReleaseCandidateEntryKind> {

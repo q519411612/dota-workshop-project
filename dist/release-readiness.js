@@ -43,14 +43,18 @@ const TEXT_SCAN_EXTENSIONS = new Set([
 const PLACEHOLDER_VALUES = new Set(["", "changeme", "change me", "placeholder", "tbd", "todo", "unknown", "your name"]);
 const REQUIRED_PATH_LABEL_SET = new Set(REQUIRED_PATH_LABELS);
 const SCAN_ROOT_IDENTITY_SET = new Set(SCAN_ROOT_IDENTITIES);
-const SECRET_PATTERNS = [
-    { category: "private key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/i },
-    { category: "github token", pattern: /gh[pousr]_[A-Za-z0-9_]{20,}/ },
-    { category: "steam credential", pattern: /\bsteam_(?:password|token|secret|apikey|api_key)\b/i },
-    { category: "password", pattern: /(?:\b|_)(?:password|passwd|pwd)\b\s*[:=]/i },
-    { category: "token", pattern: /\b(?:token|api[_-]?key|secret)\b\s*[:=]/i },
-    { category: "host credential", pattern: /\b(?:remote_|windows_)?(?:host|username)\b\s*[:=].*\b(?:password|token|secret|key)\b/i }
-];
+export const RELEASE_SENSITIVE_MATERIAL_RULES = Object.freeze([
+    Object.freeze({ category: "private key", pattern: "-----BEGIN [A-Z ]*PRIVATE KEY-----", ignoreCase: true }),
+    Object.freeze({ category: "github token", pattern: "gh[pousr]_[A-Za-z0-9_]{20,}", ignoreCase: false }),
+    Object.freeze({ category: "steam credential", pattern: "\\bsteam_(?:password|token|secret|apikey|api_key)\\b", ignoreCase: true }),
+    Object.freeze({ category: "password", pattern: "(?:\\b|_)(?:password|passwd|pwd)\\b\\s*[:=]", ignoreCase: true }),
+    Object.freeze({ category: "token", pattern: "\\b(?:token|api[_-]?key|secret)\\b\\s*[:=]", ignoreCase: true }),
+    Object.freeze({ category: "host credential", pattern: "\\b(?:remote_|windows_)?(?:host|username)\\b\\s*[:=].*\\b(?:password|token|secret|key)\\b", ignoreCase: true })
+]);
+const SECRET_PATTERNS = RELEASE_SENSITIVE_MATERIAL_RULES.map((rule) => Object.freeze({
+    category: rule.category,
+    pattern: new RegExp(rule.pattern, rule.ignoreCase ? "i" : "")
+}));
 export function isReleaseTextPath(path) {
     return TEXT_SCAN_EXTENSIONS.has(extname(path).toLowerCase());
 }

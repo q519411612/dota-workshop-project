@@ -152,7 +152,7 @@ describe("production Node release candidate preflight", () => {
     expect(await readdir(fixture.tempParent)).toEqual([]);
   });
 
-  test("fails local Windows before candidate creation without positive reparse classification", async () => {
+  test("fails local Windows before candidate creation when target-native classification is unavailable", async () => {
     const fixture = await createReadyFixture();
     let created = 0;
     const filesystem = createNodeReleaseCandidateFilesystem({
@@ -179,10 +179,11 @@ describe("production Node release candidate preflight", () => {
       ok: false,
       operation: { status: "not-reached" },
       artifactValidation: { status: "not-reached" },
-      blockers: [{ code: "WINDOWS_REPARSE_CLASSIFIER_REQUIRED" }],
       cleanup: { attempted: false, attempts: 0, status: "not-reached", verified: false },
       execution: { kind: "local", outcome: "failed" }
     });
+    expect(detail.blockers.length).toBeGreaterThan(0);
+    expect(detail.blockers.every((blocker) => blocker.code === "SOURCE_ENTRY_UNREADABLE")).toBe(true);
     expect(created).toBe(0);
     expect(await snapshot(fixture.dotaRoot)).toEqual(before);
     expect(await readdir(fixture.tempParent)).toEqual([]);
