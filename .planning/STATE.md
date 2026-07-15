@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.14
 milestone_name: Workshop Addon Release Candidate Preflight
-status: planning
-last_updated: "2026-07-15T02:38:06.740Z"
+status: planned
+last_updated: "2026-07-15T00:00:00+08:00"
 last_activity: 2026-07-15
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -15,14 +15,14 @@ progress:
 
 # Project State: Dota Workshop Project
 
-**Updated:** 2026-07-13
+**Updated:** 2026-07-15
 
 ## Project Reference
 
 See: `.planning/PROJECT.md`
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** Planning the next milestone after the v1.13 archive.
+**Current focus:** Phase 3 planning for safe, isolated two-root addon candidate assembly.
 
 ## Archived Roadmap
 
@@ -30,27 +30,48 @@ See: `.planning/PROJECT.md`
 |---|---|---|---|
 | v1.13 Local Install Simulation | 1-2 | Shipped | `.planning/milestones/v1.13-ROADMAP.md` |
 
-## Decisions In Effect
+## Current Position
+
+Phase: 3 of 5 (Safe Candidate Assembly)
+Plan: —
+Status: Ready for phase planning
+Progress: [----------] 0%
+Last activity: 2026-07-15 — v1.14 roadmap created with 19/19 requirements mapped
+
+## Performance Metrics
+
+| Metric | Value |
+|---|---|
+| Milestone phases | 3 |
+| Completed phases | 0 |
+| Requirements mapped | 19/19 |
+| Plans completed | 0 |
+
+## Accumulated Context
+
+### Decisions In Effect
 
 | Decision | Source |
-|----------|--------|
+|---|---|
 | Build a thin vertical slice first | `.planning/PROJECT.md` |
 | Package as a Codex plugin | `.planning/PROJECT.md` |
-| Support both local Windows and remote Windows | `.planning/PROJECT.md` |
+| Support both local Windows and remote Windows behind one MCP contract | `.planning/PROJECT.md` |
 | Use SSH or PowerShell Remoting for remote Windows | `.planning/PROJECT.md` |
-| Keep one unified MCP tool interface | `.planning/PROJECT.md` |
-| Start with a minimal runnable addon template | `.planning/PROJECT.md` |
 | Runtime validation launches without `-tools` and enables `-condebug` | Remote v1.1 investigation |
-| v1.2 release readiness must stay dry-run only before real Workshop upload automation | `.planning/MILESTONES.md` |
-| v1.3 Windows validation details must stay runtime-only and sanitized from repository artifacts | `.planning/phases/01-windows-validation-closure/01-VERIFICATION.md` |
+| Release readiness remains dry-run only before real Workshop upload automation | `.planning/MILESTONES.md` |
+| Private Windows target details remain runtime-only and sanitized | v1.3 verification evidence |
 | v1.4 handoff readiness is local-only and must not install globally or publish packages | `.planning/phases/01-plugin-install-handoff-readiness/01-VERIFICATION.md` |
 | v1.5 examples must be schema-valid safe templates and must not store private target or credential material | `.planning/phases/01-operator-runbook-example-workflows/01-VERIFICATION.md` |
-| v1.6 RC gate must be local-only and must not perform upload, login, encryption, signing, Windows smoke, or remote smoke | `.planning/MILESTONES.md` |
-| v1.7 handoff report must be local-only and must aggregate RC evidence, delivery checklist, docs coverage, and explicit release boundaries | `.planning/phases/01-release-handoff-bundle-readiness/01-VERIFICATION.md` |
-| v1.8 milestone report must be local-only and must aggregate v1.2-v1.7 commits, delivery summaries, verification status, review docs, release boundaries, and remaining non-blocking items | `.planning/MILESTONES.md` |
-| v1.13 install simulation must scan every copied text format covered by the plugin layout without leaking matched values | `.planning/milestones/v1.13-MILESTONE-AUDIT.md` |
+| v1.6 RC verification must not upload, log in, encrypt, sign, or run Windows smoke | `.planning/MILESTONES.md` |
+| v1.7 handoff reporting aggregates RC evidence, delivery artifacts, documentation, and release boundaries | `.planning/phases/01-release-handoff-bundle-readiness/01-VERIFICATION.md` |
+| v1.8 closeout reporting aggregates v1.2-v1.7 history, verification, boundaries, and remaining items | `.planning/MILESTONES.md` |
+| Simulated install inputs reject symbolic links and unsafe isolation | `.planning/milestones/v1.13-MILESTONE-AUDIT.md` |
+| v1.13 install simulation scans every copied supported text format without leaking matched values | `.planning/milestones/v1.13-MILESTONE-AUDIT.md` |
+| v1.14 candidates are temporary, target-local, and include both addon roots without heuristic filtering | `.planning/REQUIREMENTS.md` |
+| Cleanup uncertainty forces overall failure while preserving artifact-validation state | `.planning/REQUIREMENTS.md` |
+| macOS fixtures close v1.14; real Windows evidence is optional and must not be claimed by contract tests | `.planning/REQUIREMENTS.md` |
 
-## Research Inputs
+### Research Inputs
 
 - `.planning/research/STACK.md`
 - `.planning/research/FEATURES.md`
@@ -60,31 +81,32 @@ See: `.planning/PROJECT.md`
 - `.planning/research/DOTA2_WORKSHOP_API_V2.md`
 - `.planning/research/GAMEPLAY_LOOP_API_NOTES.md`
 
-## Verification Notes
+### Verification Notes
 
-- v1.5 shipped `docs/operator-runbook.md`, schema-valid workflow examples, and `verify:plugin`.
-- v1.6 shipped `npm run verify:rc`, a structured RC verifier, command aggregation, repository hygiene scanning, publishing boundary checks, docs, and tests.
-- v1.7 shipped `npm run verify:handoff`, a structured handoff verifier, delivery checklist reporting, documentation coverage checks, explicit release boundaries, and report path sanitization.
-- v1.8 shipped `npm run verify:milestone`, a structured milestone closeout verifier, v1.2-v1.7 inventory, handoff preflight reuse, docs/handoff output checks, release boundary reporting, and remaining non-blocking item reporting.
-- v1.13 shipped the local install simulation verifier and its audit-gap closure through the current `origin/main` baseline.
-- The refreshed v1.13 milestone audit passes with 6/6 requirements, 2/2 phases, 6/6 integration connections, and 6/6 end-to-end flows.
-- Local graphify freshness files under `.planning/graphs/` remain intentionally uncommitted and outside this closure scope.
-- Real Windows remote smoke passed in v1.3; it remains optional supporting evidence, not part of this local milestone gate.
+- v1.5 shipped checked operator guidance, schema-valid workflow examples, and plugin verification.
+- v1.6 shipped local RC verification with repository hygiene and publishing-boundary checks.
+- v1.7 shipped local handoff verification with delivery, documentation, boundary, and sanitized report evidence.
+- v1.8 shipped local milestone closeout verification for v1.2-v1.7 history and release-note readiness.
+- v1.13 shipped the local install simulation verifier with 150/150 tests, clean independent review, and complete audit coverage.
+- Real Windows remote smoke passed in v1.3; it remains optional supporting evidence, not part of the v1.14 completion gate.
+- Local graphify freshness files under `.planning/graphs/` remain intentionally uncommitted and outside milestone planning scope.
+- v1.14 must not perform Steam login, Workshop mutation or upload, archive creation, signing, encryption, credential handling, game launch, or runtime validation.
+- Remote failures must remain explicit; local fallback is prohibited.
 
-## Next Action
+### Todos
 
-Run `$gsd-new-milestone` to define the next focused version and fresh requirements.
+- Plan Phase 3 from the safe candidate assembly requirements.
+- Preserve exact one-phase traceability as phases are executed.
+
+### Blockers
+
+- None.
+
+## Session Continuity
+
+**Last completed action:** Created the v1.14 roadmap and mapped all 19 requirements to Phases 3-5.
+**Next action:** Run `$gsd-plan-phase 3`.
+**Resume context:** Start with Phase 3 safe assembly; integrity/cleanup follows in Phase 4, then MCP/remote parity in Phase 5.
 
 ---
-*Last updated: 2026-07-13 after the v1.13 milestone archive*
-
-## Current Position
-
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-07-15 — Milestone v1.14 started
-
-## Operator Next Steps
-
-- Start the next milestone with /gsd-new-milestone
+*Last updated: 2026-07-15 after creating the v1.14 roadmap*

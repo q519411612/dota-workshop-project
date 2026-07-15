@@ -65,31 +65,31 @@ Traceability is populated during roadmap creation. Each v1.14 requirement must m
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RCOP-01 | Unmapped | Pending |
-| RCOP-02 | Unmapped | Pending |
-| RCOP-03 | Unmapped | Pending |
-| RCOP-04 | Unmapped | Pending |
-| RCFS-01 | Unmapped | Pending |
-| RCFS-02 | Unmapped | Pending |
-| RCFS-03 | Unmapped | Pending |
-| RCFS-04 | Unmapped | Pending |
-| RCFS-05 | Unmapped | Pending |
-| RCIN-01 | Unmapped | Pending |
-| RCIN-02 | Unmapped | Pending |
-| RCIN-03 | Unmapped | Pending |
-| RCIN-04 | Unmapped | Pending |
-| RCIN-05 | Unmapped | Pending |
-| RCCL-01 | Unmapped | Pending |
-| RCCL-02 | Unmapped | Pending |
-| RCCL-03 | Unmapped | Pending |
-| RCCL-04 | Unmapped | Pending |
-| RCCL-05 | Unmapped | Pending |
+| RCOP-01 | Phase 5 | Pending |
+| RCOP-02 | Phase 3 | Pending |
+| RCOP-03 | Phase 5 | Pending |
+| RCOP-04 | Phase 5 | Pending |
+| RCFS-01 | Phase 3 | Pending |
+| RCFS-02 | Phase 3 | Pending |
+| RCFS-03 | Phase 3 | Pending |
+| RCFS-04 | Phase 3 | Pending |
+| RCFS-05 | Phase 3 | Pending |
+| RCIN-01 | Phase 4 | Pending |
+| RCIN-02 | Phase 4 | Pending |
+| RCIN-03 | Phase 4 | Pending |
+| RCIN-04 | Phase 4 | Pending |
+| RCIN-05 | Phase 4 | Pending |
+| RCCL-01 | Phase 4 | Pending |
+| RCCL-02 | Phase 4 | Pending |
+| RCCL-03 | Phase 5 | Pending |
+| RCCL-04 | Phase 5 | Pending |
+| RCCL-05 | Phase 5 | Pending |
 
 **Coverage:**
 - v1.14 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19
+- Mapped to phases: 19
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-15*
-*Last updated: 2026-07-15 after initial v1.14 definition*
+*Last updated: 2026-07-15 after v1.14 roadmap creation*
