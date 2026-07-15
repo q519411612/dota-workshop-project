@@ -29,6 +29,7 @@ key-decisions:
   - "Aggregate all deterministic ledger discrepancies before sanitizing emitted paths, while preserving structural reconciliation as an independent predicate for files and empty directories."
   - "After callback settlement, collect final source stability, candidate integrity, source integrity, and candidate topology before selecting any failure or projecting a manifest."
   - "Compare every valid final source and candidate integrity domain independently against source-before so one malformed peer domain cannot suppress a proven byte mutation."
+  - "Compose independently valid source-integrity and candidate-ledger failures without introducing artifact-validation state reserved for plan 04-06."
 
 patterns-established:
   - "Candidate observation arrays are parsed into ordinal occurrence collections before any candidate identity map is created."
@@ -38,7 +39,7 @@ patterns-established:
 
 requirements-completed: [RCIN-04]
 
-duration: 36min
+duration: 47min
 completed: 2026-07-15
 status: complete
 ---
@@ -49,9 +50,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 36 min
+- **Duration:** 47 min
 - **Started:** 2026-07-15T13:31:09Z
-- **Completed:** 2026-07-15T14:07:02Z
+- **Completed:** 2026-07-15T14:18:09Z
 - **Tasks:** 2
 - **Files modified:** 3
 
@@ -77,6 +78,8 @@ status: complete
 - Review GREEN: removed and unexpected empty-directory mutations, including mutation immediately before callback failure, now produce final structural blockers with no manifest.
 - Review RED: `npm test -- tests/release-candidate.test.ts -t "prioritizes changed final source hashes over candidate ledger failures"` returned candidate payload failure even though a valid final source observation proved changed bytes under intentionally stable metadata.
 - Review GREEN: source-before/source-after and source-before/candidate comparisons now run independently whenever their respective final domain is valid; proven byte mutation takes integrity precedence over malformed or duplicate peer evidence.
+- Final review RED: `npm test -- tests/release-candidate.test.ts -t "preserves candidate ledger evidence with changed final source hashes"` returned only `RELEASE_CANDIDATE_INTEGRITY_MISMATCH`, discarding the independently valid duplicate, missing, and unexpected ledger evidence.
+- Final review GREEN: source-integrity mismatch is emitted first, followed by the candidate ledger blockers in deterministic order with the exact 7 expected, 8 observed, and 5 matched counts; malformed candidate payloads without a ledger remain generic-only.
 
 ## Task Commits
 
@@ -92,6 +95,8 @@ status: complete
 10. **Require independent final source hash precedence** - `9f267ff` (`test`)
 11. **Align combined source-mutation precedence evidence** - `264976d` (`test`)
 12. **Compare final integrity domains independently** - `3948ca1` (`fix`)
+13. **Require combined source and candidate evidence** - `07ee126` (`test`)
+14. **Preserve combined integrity evidence** - `6ff581e` (`fix`)
 
 ## Files Created/Modified
 
@@ -108,6 +113,7 @@ status: complete
 - Final evidence acquisition never returns early on one failed domain: source stability, candidate integrity, source integrity, and candidate topology are collected before deterministic precedence is applied.
 - Integrity mismatch remains highest priority when both final hash collections are valid; otherwise source mutation, structural mismatch, source acquisition failure, candidate acquisition failure, and callback failure remain explicitly distinguishable.
 - A valid changed final source hash is sufficient for `RELEASE_CANDIDATE_INTEGRITY_MISMATCH` even when final candidate parsing fails; the symmetric candidate comparison follows the same independent rule.
+- When final source bytes changed and the final candidate ledger is also non-bijective, the result composes both proven domains: the generic integrity blocker remains first and the exact candidate ledger evidence follows without adding plan 04-06 artifact or cleanup state.
 
 ## Deviations from Plan
 
@@ -126,13 +132,14 @@ None - plan executed exactly as written.
 - Candidate topology is reconciled both after assembly and after callback settlement; file hashes never substitute for empty-directory proof.
 - All final domains are collected before failure selection, cleanup still executes once in the existing `finally`, and no failure path projects a manifest.
 - Valid source and candidate hash domains are compared independently against the immutable source-before baseline before adapter-shape failures are selected.
+- Valid non-bijective candidate ledger evidence is preserved beside a proven source-integrity mismatch; malformed candidate payloads without a ledger do not manufacture partial evidence.
 
 ## Verification Evidence
 
 - Focused occurrence-ledger matrix: 1/1 passed.
 - Focused independent-review regressions: 2/2 passed.
-- Complete release-candidate suite: 38/38 passed.
-- Full repository suite: 198/198 passed across 20 files.
+- Complete release-candidate suite: 39/39 passed.
+- Full repository suite: 199/199 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed; generated untracked `dist/release-candidate.js` was removed after verification.
 - `npm run verify:rc`: passed all plugin, example, typecheck, test, build, repository scan, warning, and blocker gates.
@@ -145,6 +152,7 @@ None - plan executed exactly as written.
 - Confirmed paths are compared internally before shared evidence sanitization, preventing redaction collisions from changing ledger identity.
 - Confirmed callback settlement is followed by fresh source stability, candidate integrity, source integrity, and identity-bound tree reconciliation before any manifest success.
 - Confirmed a malformed candidate payload cannot mask a valid changed source digest even when metadata stability deliberately reports no change.
+- Confirmed combined source-integrity and candidate-ledger failures preserve exact counts and deterministic blocker order while withholding the manifest and completing cleanup.
 - Confirmed no fallback, retry, recopy, repair, truncation, raw exception, absolute candidate path, source mutation, archive, signing, encryption, upload, credential, compile, remote, or MCP behavior was added.
 - Confirmed source trees remain read-only and candidate cleanup remains lease-bound.
 - Confirmed existing `.planning/graphs/` modifications remained unstaged and were neither changed nor committed.
