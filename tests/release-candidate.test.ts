@@ -1,10 +1,12 @@
-import { lstat, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, expectTypeOf, test, vi } from "vitest";
 import {
   continueReleaseCandidatePreparation,
+  inventoryReleaseCandidateSources,
   prepareReleaseCandidateInput,
+  type ReleaseCandidateEntryKind,
   type ReleaseCandidateFilesystem,
   type ValidatedReleaseCandidateInput
 } from "../src/release-candidate.js";
@@ -366,5 +368,231 @@ describe("release candidate input validation", () => {
     expect(continuation).toHaveBeenCalledTimes(1);
     expect(createCandidateRoot).toHaveBeenCalledTimes(1);
     expect(Object.isFrozen(continuation.mock.calls[0][0])).toBe(true);
+  });
+
+  test("rejects unsafe source identities before creation", async () => {
+    const fixture = await createFixture();
+    const privateRoot = join(fixture.root, "private", "credential_password=private-value");
+    await mkdir(privateRoot, { recursive: true });
+    await writeFile(join(privateRoot, "target.txt"), "private target contents\n");
+    await symlink(join(privateRoot, "target.txt"), join(fixture.gameAddonRoot, "linked.txt"));
+
+    const createCandidateRoot = vi.fn(async (validated: ValidatedReleaseCandidateInput) => (
+      join(validated.tempParent, "candidate")
+    ));
+    const classify = async (path: string): Promise<ReleaseCandidateEntryKind> => {
+      const stats = await lstat(path);
+      if (stats.isSymbolicLink()) return "symbolic-link";
+      if (stats.isFile()) return "file";
+      if (stats.isDirectory()) return "directory";
+      return "special";
+    };
+    const filesystem: ReleaseCandidateFilesystem = {
+      lstat,
+      realpath,
+      readDirectory: async (path) => await readdir(path),
+      classifySourceEntry: classify,
+      createCandidateRoot
+    };
+
+    const prepared = await prepareReleaseCandidateInput(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      { repositoryRoot: fixture.repositoryRoot, filesystem }
+    );
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) throw new Error("fixture input was rejected");
+
+    const realpathSpy = vi.fn(async (path: string) => await realpath(path));
+    const realSymlinkResult = await inventoryReleaseCandidateSources(prepared.value, {
+      ...filesystem,
+      realpath: realpathSpy
+    });
+    expect(realSymlinkResult).toEqual({
+      ok: false,
+      blockers: [{
+        code: "SOURCE_ENTRY_UNSAFE",
+        path: "game/dota_addons/fixture_addon/linked.txt",
+        category: "symbolic-link"
+      }]
+    });
+    expect(realpathSpy).not.toHaveBeenCalledWith(join(fixture.gameAddonRoot, "linked.txt"));
+    expect(JSON.stringify(realSymlinkResult)).not.toContain(fixture.root);
+    expect(JSON.stringify(realSymlinkResult)).not.toContain("private-value");
+
+    type InventoryScenario = {
+      name: string;
+      gameNames?: string[];
+      contentNames?: string[];
+      kinds?: Record<string, ReleaseCandidateEntryKind>;
+      canonicalEscapes?: string[];
+      expected: { code: string; path: string; category: string }[];
+      unclassified?: string[];
+    };
+    const scenarios: InventoryScenario[] = [
+      {
+        name: "Windows reparse point",
+        gameNames: ["junction"],
+        kinds: { "game/junction": "reparse" },
+        expected: [{
+          code: "SOURCE_ENTRY_UNSAFE",
+          path: "game/dota_addons/fixture_addon/junction",
+          category: "reparse"
+        }]
+      },
+      {
+        name: "special entry",
+        gameNames: ["pipe"],
+        kinds: { "game/pipe": "special" },
+        expected: [{
+          code: "SOURCE_ENTRY_UNSAFE",
+          path: "game/dota_addons/fixture_addon/pipe",
+          category: "special"
+        }]
+      },
+      {
+        name: "unknown entry",
+        contentNames: ["device"],
+        kinds: { "content/device": "unknown" },
+        expected: [{
+          code: "SOURCE_ENTRY_UNSAFE",
+          path: "content/dota_addons/fixture_addon/device",
+          category: "unknown"
+        }]
+      },
+      {
+        name: "absolute identity",
+        gameNames: ["/absolute.lua"],
+        expected: [{
+          code: "SOURCE_IDENTITY_INVALID",
+          path: "game/dota_addons/fixture_addon/absolute.lua",
+          category: "absolute"
+        }],
+        unclassified: ["/absolute.lua"]
+      },
+      {
+        name: "Windows absolute identity",
+        contentNames: ["C:\\private.lua"],
+        expected: [{
+          code: "SOURCE_IDENTITY_INVALID",
+          path: "content/dota_addons/fixture_addon/C:/private.lua",
+          category: "absolute"
+        }],
+        unclassified: ["C:\\private.lua"]
+      },
+      {
+        name: "parent traversal",
+        gameNames: [".."],
+        expected: [{
+          code: "SOURCE_IDENTITY_INVALID",
+          path: "game/dota_addons/fixture_addon/..",
+          category: "traversal"
+        }],
+        unclassified: [".."]
+      },
+      {
+        name: "dot segment",
+        contentNames: ["."],
+        expected: [{
+          code: "SOURCE_IDENTITY_INVALID",
+          path: "content/dota_addons/fixture_addon/.",
+          category: "traversal"
+        }],
+        unclassified: ["."]
+      },
+      {
+        name: "separator ambiguity",
+        gameNames: ["scripts\\addon.lua"],
+        expected: [{
+          code: "SOURCE_IDENTITY_INVALID",
+          path: "game/dota_addons/fixture_addon/scripts/addon.lua",
+          category: "separator"
+        }],
+        unclassified: ["scripts\\addon.lua"]
+      },
+      {
+        name: "canonical escape",
+        contentNames: ["escaped.txt"],
+        kinds: { "content/escaped.txt": "file" },
+        canonicalEscapes: ["content/escaped.txt"],
+        expected: [{
+          code: "SOURCE_ENTRY_OUTSIDE_ROOT",
+          path: "content/dota_addons/fixture_addon/escaped.txt",
+          category: "escape"
+        }]
+      },
+      {
+        name: "case-only collision",
+        gameNames: ["Scripts", "scripts"],
+        kinds: { "game/Scripts": "directory", "game/scripts": "directory" },
+        expected: [{
+          code: "SOURCE_IDENTITY_COLLISION",
+          path: "game/dota_addons/fixture_addon/scripts",
+          category: "case-fold"
+        }]
+      }
+    ];
+
+    for (const scenario of scenarios) {
+      const classifiedPaths: string[] = [];
+      const canonicalizedPaths: string[] = [];
+      const gameRoot = prepared.value.gameAddonRoot;
+      const contentRoot = prepared.value.contentAddonRoot;
+      const keyForPath = (path: string): string => {
+        if (path.startsWith(`${gameRoot}/`)) return `game/${path.slice(gameRoot.length + 1)}`;
+        if (path.startsWith(`${contentRoot}/`)) return `content/${path.slice(contentRoot.length + 1)}`;
+        return path;
+      };
+      const scenarioFilesystem: ReleaseCandidateFilesystem = {
+        ...filesystem,
+        readDirectory: vi.fn(async (path) => {
+          if (path === gameRoot) return scenario.gameNames ?? [];
+          if (path === contentRoot) return scenario.contentNames ?? [];
+          return [];
+        }),
+        classifySourceEntry: vi.fn(async (path) => {
+          classifiedPaths.push(path);
+          return scenario.kinds?.[keyForPath(path)] ?? "file";
+        }),
+        realpath: vi.fn(async (path) => {
+          canonicalizedPaths.push(path);
+          return scenario.canonicalEscapes?.includes(keyForPath(path))
+            ? join(privateRoot, "target.txt")
+            : path;
+        })
+      };
+
+      const result = await inventoryReleaseCandidateSources(prepared.value, scenarioFilesystem);
+
+      expect(result, scenario.name).toEqual({ ok: false, blockers: scenario.expected });
+      expect(createCandidateRoot, scenario.name).not.toHaveBeenCalled();
+      if ((scenario.unclassified ?? []).length > 0) {
+        expect(classifiedPaths, scenario.name).toEqual([]);
+      }
+      expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
+      expect(JSON.stringify(result), scenario.name).not.toContain("private-value");
+      if (scenario.name === "canonical escape") {
+        expect(canonicalizedPaths).toContain(join(contentRoot, "escaped.txt"));
+      }
+    }
+
+    await rm(join(fixture.gameAddonRoot, "linked.txt"));
+    await Promise.all([
+      mkdir(join(fixture.gameAddonRoot, "zeta")),
+      writeFile(join(fixture.gameAddonRoot, "Alpha.txt"), "alpha\n"),
+      writeFile(join(fixture.contentAddonRoot, "beta.txt"), "beta\n")
+    ]);
+    const accepted = await inventoryReleaseCandidateSources(prepared.value, {
+      ...filesystem,
+      readDirectory: async (path) => (await readdir(path)).reverse()
+    });
+    expect(accepted).toEqual({
+      ok: true,
+      entries: [
+        { root: "content", path: "content/dota_addons/fixture_addon/beta.txt", kind: "file" },
+        { root: "game", path: "game/dota_addons/fixture_addon/Alpha.txt", kind: "file" },
+        { root: "game", path: "game/dota_addons/fixture_addon/zeta", kind: "directory" }
+      ]
+    });
+    expect(createCandidateRoot).not.toHaveBeenCalled();
   });
 });
