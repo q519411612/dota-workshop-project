@@ -263,6 +263,17 @@ type ReleaseCandidateInspectionOutcome<T> = Readonly<{
   blockers: ReleaseCandidateLifecycleFailure["blockers"];
   value?: T;
 }>;
+type ReleaseCandidateInspectionValue =
+  | null
+  | boolean
+  | number
+  | string
+  | ReleaseCandidateInspectionArray
+  | ReleaseCandidateInspectionObject;
+interface ReleaseCandidateInspectionArray extends ReadonlyArray<ReleaseCandidateInspectionValue> {}
+interface ReleaseCandidateInspectionObject {
+  readonly [key: string]: ReleaseCandidateInspectionValue;
+}
 type AcceptedSourceObservation = Extract<AcceptedSourceObservationResult, { ok: true }>;
 type AcceptedSourceObservations = ReadonlyMap<string, AcceptedSourceObservation>;
 type FileIntegrityObservations = ReadonlyMap<string, FileIntegrityObservation>;
@@ -1169,12 +1180,17 @@ async function inspectCandidateLease<T>(
     if (!sameIntegritySets(sourceBefore, candidateBefore.value.observations)) {
       return blockedArtifact(integrityMismatch(), scanCoverage);
     }
-    let value: T | undefined;
-    let inspectionFailed = false;
+    let value: ReleaseCandidateInspectionValue | undefined;
+    let inspectionFailureCode: "CANDIDATE_INSPECTION_FAILED" | "CANDIDATE_INSPECTION_VALUE_UNSAFE" | undefined;
     try {
-      value = await inspect(canonicalRoot);
+      const normalized = normalizeReleaseCandidateInspectionValue(
+        await inspect(canonicalRoot),
+        canonicalRoot
+      );
+      if (normalized.ok) value = normalized.value;
+      else inspectionFailureCode = "CANDIDATE_INSPECTION_VALUE_UNSAFE";
     } catch {
-      inspectionFailed = true;
+      inspectionFailureCode = "CANDIDATE_INSPECTION_FAILED";
     }
     const finalStability = await verifySourceStability(input, inventory, observations, lifecycle);
     const candidateAfter = await captureCandidateIntegrity(lease, expected, inventory, sourceBefore, lifecycle);
@@ -1193,18 +1209,22 @@ async function inspectCandidateLease<T>(
       return blockedArtifact(
         composeFinalFailure(primaryFailure, candidateAfter),
         scanCoverage,
-        inspectionFailed ? "failed" : "completed"
+        inspectionFailureCode === undefined ? "completed" : "failed"
       );
     }
     if (!candidateAfter.ok) {
-      return blockedArtifact(candidateAfter, scanCoverage, inspectionFailed ? "failed" : "completed");
+      return blockedArtifact(
+        candidateAfter,
+        scanCoverage,
+        inspectionFailureCode === undefined ? "completed" : "failed"
+      );
     }
     const manifest = projectReleaseCandidateManifest(inventory, candidateAfter.value.observations);
     if (manifest === undefined) {
       return blockedArtifact(
         lifecycleBlocked("CANDIDATE_MANIFEST_PROJECTION_FAILED", "integrity"),
         scanCoverage,
-        inspectionFailed ? "failed" : "completed"
+        inspectionFailureCode === undefined ? "completed" : "failed"
       );
     }
     const artifactValidation = freezePassedArtifact(
@@ -1212,11 +1232,11 @@ async function inspectCandidateLease<T>(
       candidateAfter.value.inclusionLedger,
       scanCoverage
     );
-    if (inspectionFailed) {
+    if (inspectionFailureCode !== undefined) {
       return Object.freeze({
         operation: operationFailed(),
         artifactValidation,
-        blockers: [Object.freeze({ code: "CANDIDATE_INSPECTION_FAILED", category: "inspection" as const })]
+        blockers: [Object.freeze({ code: inspectionFailureCode, category: "inspection" as const })]
       });
     }
     return Object.freeze({
@@ -1228,6 +1248,89 @@ async function inspectCandidateLease<T>(
   } catch {
     return blockedArtifact(lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation"), scanCoverage);
   }
+}
+
+function normalizeReleaseCandidateInspectionValue(
+  value: unknown,
+  candidateRoot: string
+): Readonly<{ ok: true; value: ReleaseCandidateInspectionValue }> | Readonly<{ ok: false }> {
+  const active = new WeakSet<object>();
+  const normalize = (current: unknown, depth: number): ReleaseCandidateInspectionValue | undefined => {
+    if (depth > 64) return undefined;
+    if (current === null || typeof current === "boolean") return current;
+    if (typeof current === "number") return Number.isFinite(current) ? current : undefined;
+    if (typeof current === "string") {
+      const normalizedIdentity = current.replaceAll("\\", "/");
+      if (
+        current.includes(candidateRoot)
+        || isPortableAbsolutePath(current)
+        || sanitizeRelativeEvidenceIdentity(current) !== normalizedIdentity
+      ) return undefined;
+      return current;
+    }
+    if (typeof current !== "object") return undefined;
+    try {
+      if (active.has(current)) return undefined;
+      active.add(current);
+      const prototype = Object.getPrototypeOf(current);
+      if (Array.isArray(current)) {
+        if (prototype !== Array.prototype) return undefined;
+        const keys = Reflect.ownKeys(current);
+        const length = Reflect.getOwnPropertyDescriptor(current, "length")?.value;
+        if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) return undefined;
+        if (
+          keys.some((key) => (
+            typeof key !== "string"
+            || (key !== "length" && !/^(?:0|[1-9][0-9]*)$/u.test(key))
+          ))
+          || keys.length !== length + 1
+        ) return undefined;
+        const output: ReleaseCandidateInspectionValue[] = [];
+        for (let index = 0; index < length; index += 1) {
+          const descriptor = Reflect.getOwnPropertyDescriptor(current, String(index));
+          if (descriptor === undefined || !("value" in descriptor)) return undefined;
+          const child = normalize(descriptor.value, depth + 1);
+          if (child === undefined) return undefined;
+          output.push(child);
+        }
+        return Object.freeze(output);
+      }
+      if (prototype !== Object.prototype && prototype !== null) return undefined;
+      const keys = Reflect.ownKeys(current);
+      if (keys.some((key) => typeof key !== "string")) return undefined;
+      const output = Object.create(null) as Record<string, ReleaseCandidateInspectionValue>;
+      for (const key of (keys as string[]).sort(compareOrdinal)) {
+        if (
+          isPortableAbsolutePath(key)
+          || sanitizeRelativeEvidenceIdentity(key) !== key.replaceAll("\\", "/")
+        ) return undefined;
+        const descriptor = Reflect.getOwnPropertyDescriptor(current, key);
+        if (descriptor === undefined || !("value" in descriptor)) return undefined;
+        const child = normalize(descriptor.value, depth + 1);
+        if (child === undefined) return undefined;
+        Object.defineProperty(output, key, {
+          value: child,
+          enumerable: true,
+          configurable: false,
+          writable: false
+        });
+      }
+      return Object.freeze(output);
+    } catch {
+      return undefined;
+    } finally {
+      active.delete(current);
+    }
+  };
+
+  const normalized = normalize(value, 0);
+  return normalized === undefined
+    ? Object.freeze({ ok: false as const })
+    : Object.freeze({ ok: true as const, value: normalized });
+}
+
+function isPortableAbsolutePath(value: string): boolean {
+  return isAbsolute(value) || /^[A-Za-z]:[\\/]/u.test(value) || /^[/\\]{2}/u.test(value);
 }
 
 async function parseCandidateRootInspection(

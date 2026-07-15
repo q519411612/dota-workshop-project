@@ -5743,7 +5743,7 @@ describe("release candidate input validation", () => {
           if (scenario.mutation) await writeFile(join(root, "game/dota_addons/fixture_addon/addoninfo.txt"), "mutated candidate\n");
           callbackSettled = true;
           if (scenario.callbackThrows) throw new Error(`private callback failure ${fixture.root}`);
-          return Object.freeze({ candidateRoot: root });
+          return Object.freeze({ candidateRoot: "withheld" });
         },
         {
           repositoryRoot: fixture.repositoryRoot,
@@ -5906,7 +5906,7 @@ describe("release candidate input validation", () => {
       { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
       async (root) => {
         await writeFile(join(root, "game/dota_addons/fixture_addon/addoninfo.txt"), "mutated\n");
-        return Object.freeze({ path: root });
+        return Object.freeze({ path: "withheld" });
       },
       {
         repositoryRoot: fixture.repositoryRoot,
