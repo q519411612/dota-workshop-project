@@ -107,7 +107,7 @@ function createDefaultFilesystem(platform: NodeJS.Platform): ReleaseCandidateFil
 
 export type ReleaseCandidateLifecycleBlocker = Readonly<{
   code: string;
-  category: "assembly" | "creation" | "inspection" | "removal" | "unsafe-isolation" | "unexpected-entry";
+  category: "assembly" | "creation" | "inspection" | "integrity" | "removal" | "unsafe-isolation" | "unexpected-entry";
   path?: string;
 }>;
 
@@ -126,6 +126,7 @@ export type ReleaseCandidateLifecycleResult<T> =
 type ReleaseCandidateLifecycleFailure = Extract<ReleaseCandidateLifecycleResult<never>, { ok: false }>;
 type AcceptedSourceObservation = Extract<AcceptedSourceObservationResult, { ok: true }>;
 type AcceptedSourceObservations = ReadonlyMap<string, AcceptedSourceObservation>;
+type FileIntegrityObservations = ReadonlyMap<string, FileIntegrityObservation>;
 
 export type ReleaseCandidateLease = Readonly<{
   [releaseCandidateLeaseBrand]: true;
@@ -181,11 +182,34 @@ export type AcceptedSourceObservationResult =
       mtimeMs: number;
       ctimeMs: number;
       mode: number;
-      bytes?: Uint8Array;
       identityMatched: true;
       contained: true;
     }>
   | Readonly<{ ok: false; code: "SOURCE_ENTRY_CHANGED" | "SOURCE_OBSERVATION_FAILED" }>;
+
+export type FileIntegrityObservation = Readonly<{
+  ok: true;
+  schemaVersion: "1.0";
+  root: ReleaseCandidateSourceRoot;
+  path: string;
+  bytes: number;
+  sha256: string;
+  identityMatched: true;
+  kindMatched: true;
+  contained: true;
+}>;
+
+export type SourceIntegrityObservationResult =
+  | FileIntegrityObservation
+  | Readonly<{ ok: false; code: "SOURCE_INTEGRITY_OBSERVATION_FAILED" | "SOURCE_INTEGRITY_IDENTITY_CHANGED" }>;
+
+export type CandidateIntegrityObservationResult =
+  | Readonly<{
+      ok: true;
+      schemaVersion: "1.0";
+      observations: FileIntegrityObservation[];
+    }>
+  | Readonly<{ ok: false; code: "CANDIDATE_INTEGRITY_OBSERVATION_FAILED" | "CANDIDATE_INTEGRITY_IDENTITY_CHANGED" }>;
 
 export type CandidateMaterializationOperation = Readonly<{
   destination: string;
@@ -243,6 +267,14 @@ export type IdentityBoundCandidateLifecycle = Readonly<{
     input: ValidatedReleaseCandidateInput,
     entry: ReleaseCandidateSourceEntry
   ): Promise<AcceptedSourceObservationResult>;
+  observeAcceptedSource(
+    input: ValidatedReleaseCandidateInput,
+    entry: ReleaseCandidateSourceEntry
+  ): Promise<unknown>;
+  observeCandidate(
+    lease: ReleaseCandidateLease,
+    expected: CandidateExpectedEntry[]
+  ): Promise<unknown>;
   inspectCandidateRoot(lease: ReleaseCandidateLease): Promise<CandidateRootInspectionResult>;
   materializeCandidateEntry(
     lease: ReleaseCandidateLease,
@@ -270,6 +302,14 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
     input: ValidatedReleaseCandidateInput,
     entry: ReleaseCandidateSourceEntry
   ): Promise<AcceptedSourceObservationResult>;
+  observeAcceptedSource?(
+    input: ValidatedReleaseCandidateInput,
+    entry: ReleaseCandidateSourceEntry
+  ): Promise<unknown>;
+  observeCandidate?(
+    identity: TIdentity,
+    expected: CandidateExpectedEntry[]
+  ): Promise<unknown>;
   inspectCandidateRoot?(identity: TIdentity): Promise<CandidateRootInspectionResult>;
   materializeCandidateEntry?(
     identity: TIdentity,
@@ -286,6 +326,8 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
   const cleanupCandidateLease = operations.cleanupCandidateLease.bind(operations);
   const readAcceptedSourceFile = operations.readAcceptedSourceFile?.bind(operations);
   const observeAcceptedSourceEntry = operations.observeAcceptedSourceEntry?.bind(operations);
+  const observeAcceptedSource = operations.observeAcceptedSource?.bind(operations);
+  const observeCandidate = operations.observeCandidate?.bind(operations);
   const inspectCandidateRoot = operations.inspectCandidateRoot?.bind(operations);
   const materializeCandidateEntry = operations.materializeCandidateEntry?.bind(operations);
   const reconcileCandidateTree = operations.reconcileCandidateTree?.bind(operations);
@@ -328,6 +370,18 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
         ? { ok: false, code: "SOURCE_OBSERVATION_FAILED" }
         : await observeAcceptedSourceEntry(input, entry)
     ),
+    observeAcceptedSource: async (input, entry) => (
+      observeAcceptedSource === undefined
+        ? { ok: false, code: "SOURCE_INTEGRITY_OBSERVATION_FAILED" }
+        : await observeAcceptedSource(input, entry)
+    ),
+    observeCandidate: async (lease, expected) => {
+      const identity = identities.get(lease);
+      if (identity === undefined || observeCandidate === undefined) {
+        return { ok: false, code: "CANDIDATE_INTEGRITY_IDENTITY_CHANGED" };
+      }
+      return await observeCandidate(identity, expected);
+    },
     inspectCandidateRoot: async (lease) => {
       const identity = identities.get(lease);
       if (identity === undefined || inspectCandidateRoot === undefined) {
@@ -359,6 +413,8 @@ type BoundCandidateLifecycle = Readonly<{
   cleanupCandidateLease: IdentityBoundCandidateLifecycle["cleanupCandidateLease"];
   readAcceptedSourceFile: IdentityBoundCandidateLifecycle["readAcceptedSourceFile"];
   observeAcceptedSourceEntry: IdentityBoundCandidateLifecycle["observeAcceptedSourceEntry"];
+  observeAcceptedSource: IdentityBoundCandidateLifecycle["observeAcceptedSource"];
+  observeCandidate: IdentityBoundCandidateLifecycle["observeCandidate"];
   inspectCandidateRoot: IdentityBoundCandidateLifecycle["inspectCandidateRoot"];
   materializeCandidateEntry: IdentityBoundCandidateLifecycle["materializeCandidateEntry"];
   reconcileCandidateTree: IdentityBoundCandidateLifecycle["reconcileCandidateTree"];
@@ -550,6 +606,8 @@ export async function withAssembledReleaseCandidate<T>(
     lifecycle
   );
   if (precreationStability !== undefined) return precreationStability;
+  const sourceBefore = await captureSourceIntegrity(prepared.value, inventory.entries, lifecycle);
+  if (!sourceBefore.ok) return sourceBefore;
 
   let created: Awaited<ReturnType<BoundCandidateLifecycle["createCandidateLease"]>>;
   try {
@@ -567,6 +625,7 @@ export async function withAssembledReleaseCandidate<T>(
       prepared.value,
       inventory.entries,
       observations.value,
+      sourceBefore.value,
       lifecycle,
       inspect
     );
@@ -596,6 +655,8 @@ function bindIdentityBoundCandidateLifecycle(
     cleanupCandidateLease: capability.cleanupCandidateLease.bind(capability),
     readAcceptedSourceFile: capability.readAcceptedSourceFile.bind(capability),
     observeAcceptedSourceEntry: capability.observeAcceptedSourceEntry.bind(capability),
+    observeAcceptedSource: capability.observeAcceptedSource.bind(capability),
+    observeCandidate: capability.observeCandidate.bind(capability),
     inspectCandidateRoot: capability.inspectCandidateRoot.bind(capability),
     materializeCandidateEntry: capability.materializeCandidateEntry.bind(capability),
     reconcileCandidateTree: capability.reconcileCandidateTree.bind(capability)
@@ -608,6 +669,7 @@ async function inspectCandidateLease<T>(
   input: ValidatedReleaseCandidateInput,
   inventory: ReleaseCandidateSourceEntry[],
   observations: AcceptedSourceObservations,
+  sourceBefore: FileIntegrityObservations,
   lifecycle: BoundCandidateLifecycle,
   inspect: (candidateRoot: string) => Promise<T>
 ): Promise<ReleaseCandidateLifecycleResult<T>> {
@@ -653,6 +715,10 @@ async function inspectCandidateLease<T>(
     if (reconciliationFailure !== undefined) return reconciliationFailure;
     const prereviewStability = await verifySourceStability(input, inventory, observations, lifecycle);
     if (prereviewStability !== undefined) return prereviewStability;
+    const expected = expectedCandidateTree(input, inventory);
+    const candidateBefore = await captureCandidateIntegrity(lease, expected, sourceBefore, lifecycle);
+    if (!candidateBefore.ok) return candidateBefore;
+    if (!sameIntegritySets(sourceBefore, candidateBefore.value)) return integrityMismatch();
     let value: T | undefined;
     let inspectionFailed = false;
     try {
@@ -660,6 +726,14 @@ async function inspectCandidateLease<T>(
     } catch {
       inspectionFailed = true;
     }
+    const candidateAfter = await captureCandidateIntegrity(lease, expected, sourceBefore, lifecycle);
+    if (!candidateAfter.ok) return candidateAfter;
+    const sourceAfter = await captureSourceIntegrity(input, inventory, lifecycle);
+    if (!sourceAfter.ok) return sourceAfter;
+    if (
+      !sameIntegritySets(sourceBefore, candidateAfter.value)
+      || !sameIntegritySets(sourceBefore, sourceAfter.value)
+    ) return integrityMismatch();
     const finalStability = await verifySourceStability(input, inventory, observations, lifecycle);
     if (finalStability !== undefined) return finalStability;
     if (inspectionFailed) return lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
@@ -820,6 +894,170 @@ function expectedCandidateTree(
     .sort((left, right) => compareOrdinal(left.path, right.path));
 }
 
+async function captureSourceIntegrity(
+  input: ValidatedReleaseCandidateInput,
+  inventory: ReleaseCandidateSourceEntry[],
+  lifecycle: BoundCandidateLifecycle
+): Promise<{ ok: true; value: FileIntegrityObservations } | ReleaseCandidateLifecycleFailure> {
+  const observations = new Map<string, FileIntegrityObservation>();
+  for (const entry of inventory) {
+    if (entry.kind !== "file") continue;
+    const parsed = await parseFileIntegrityObservation(
+      async () => await lifecycle.observeAcceptedSource(input, entry),
+      entry,
+      "SOURCE_INTEGRITY_RESULT_INVALID"
+    );
+    if (!parsed.ok) return parsed;
+    observations.set(entry.path, parsed.value);
+  }
+  return { ok: true, value: observations };
+}
+
+async function captureCandidateIntegrity(
+  lease: ReleaseCandidateLease,
+  expectedTree: CandidateExpectedEntry[],
+  sourceBefore: FileIntegrityObservations,
+  lifecycle: BoundCandidateLifecycle
+): Promise<{ ok: true; value: FileIntegrityObservations } | ReleaseCandidateLifecycleFailure> {
+  const expectedFiles = expectedTree.filter((entry) => entry.kind === "file");
+  try {
+    const result = await lifecycle.observeCandidate(lease, expectedTree);
+    if (
+      result === null
+      || typeof result !== "object"
+      || Reflect.get(result, "ok") !== true
+      || Reflect.get(result, "schemaVersion") !== "1.0"
+    ) return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+    const foreign = Reflect.get(result, "observations");
+    if (!Array.isArray(foreign)) {
+      return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+    }
+    const length = Reflect.get(foreign, "length");
+    if (!Number.isSafeInteger(length) || length !== expectedFiles.length) {
+      return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+    }
+
+    const expectedByPath = new Map(expectedFiles.map((entry) => [entry.path, entry]));
+    const occurrences: FileIntegrityObservation[] = [];
+    for (let index = 0; index < length; index += 1) {
+      const foreignObservation = Reflect.get(foreign, String(index));
+      if (foreignObservation === null || typeof foreignObservation !== "object") {
+        return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+      }
+      const foreignPath = Reflect.get(foreignObservation, "path");
+      const expected = typeof foreignPath === "string" ? expectedByPath.get(foreignPath) : undefined;
+      if (expected === undefined) return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+      const parsed = parseFileIntegrityObservationValue(
+        foreignObservation,
+        {
+          root: expected.path.startsWith("game/") ? "game" : "content",
+          path: expected.path
+        },
+        "CANDIDATE_INTEGRITY_RESULT_INVALID"
+      );
+      if (!parsed.ok) return parsed;
+      occurrences.push(parsed.value);
+    }
+
+    occurrences.sort((left, right) => compareOrdinal(left.path, right.path));
+    const expectedPaths = [...sourceBefore.keys()].sort(compareOrdinal);
+    if (
+      occurrences.length !== expectedPaths.length
+      || occurrences.some((observation, index) => observation.path !== expectedPaths[index])
+    ) return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+
+    const observations = new Map<string, FileIntegrityObservation>();
+    for (const observation of occurrences) {
+      if (observations.has(observation.path)) {
+        return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+      }
+      observations.set(observation.path, observation);
+    }
+    return { ok: true, value: observations };
+  } catch {
+    return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+  }
+}
+
+async function parseFileIntegrityObservation(
+  acquire: () => Promise<unknown>,
+  expected: Pick<ReleaseCandidateSourceEntry, "root" | "path">,
+  invalidCode: string
+): Promise<{ ok: true; value: FileIntegrityObservation } | ReleaseCandidateLifecycleFailure> {
+  try {
+    return parseFileIntegrityObservationValue(await acquire(), expected, invalidCode);
+  } catch {
+    return lifecycleBlocked(invalidCode, "integrity");
+  }
+}
+
+function parseFileIntegrityObservationValue(
+  result: unknown,
+  expected: Pick<ReleaseCandidateSourceEntry, "root" | "path">,
+  invalidCode: string
+): { ok: true; value: FileIntegrityObservation } | ReleaseCandidateLifecycleFailure {
+  try {
+    if (result === null || typeof result !== "object" || Reflect.get(result, "ok") !== true) {
+      return lifecycleBlocked(invalidCode, "integrity");
+    }
+    const schemaVersion = Reflect.get(result, "schemaVersion");
+    const root = Reflect.get(result, "root");
+    const path = Reflect.get(result, "path");
+    const bytes = Reflect.get(result, "bytes");
+    const sha256 = Reflect.get(result, "sha256");
+    if (
+      schemaVersion !== "1.0"
+      || root !== expected.root
+      || path !== expected.path
+      || !Number.isSafeInteger(bytes)
+      || (bytes as number) < 0
+      || typeof sha256 !== "string"
+      || !/^[0-9a-f]{64}$/.test(sha256)
+      || Reflect.get(result, "identityMatched") !== true
+      || Reflect.get(result, "kindMatched") !== true
+      || Reflect.get(result, "contained") !== true
+    ) return lifecycleBlocked(invalidCode, "integrity");
+    return {
+      ok: true,
+      value: {
+        ok: true,
+        schemaVersion: "1.0",
+        root,
+        path,
+        bytes: bytes as number,
+        sha256,
+        identityMatched: true,
+        kindMatched: true,
+        contained: true
+      }
+    };
+  } catch {
+    return lifecycleBlocked(invalidCode, "integrity");
+  }
+}
+
+function sameIntegritySets(
+  expected: FileIntegrityObservations,
+  observed: FileIntegrityObservations
+): boolean {
+  if (expected.size !== observed.size) return false;
+  for (const [path, baseline] of expected) {
+    const current = observed.get(path);
+    if (
+      current === undefined
+      || current.root !== baseline.root
+      || current.path !== baseline.path
+      || current.bytes !== baseline.bytes
+      || current.sha256 !== baseline.sha256
+    ) return false;
+  }
+  return true;
+}
+
+function integrityMismatch(): ReleaseCandidateLifecycleFailure {
+  return lifecycleBlocked("RELEASE_CANDIDATE_INTEGRITY_MISMATCH", "integrity");
+}
+
 async function parseCandidateReconciliation(
   acquire: () => Promise<unknown>
 ): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
@@ -967,13 +1205,6 @@ async function parseAcceptedSourceObservation(
       || Reflect.get(result, "identityMatched") !== true
       || Reflect.get(result, "contained") !== true
     ) return lifecycleBlocked("SOURCE_OBSERVATION_RESULT_INVALID", "assembly");
-    const bytes = Reflect.get(result, "bytes");
-    if (kind === "file" && (!(bytes instanceof Uint8Array) || bytes.byteLength !== size)) {
-      return lifecycleBlocked("SOURCE_OBSERVATION_RESULT_INVALID", "assembly");
-    }
-    if (kind === "directory" && bytes !== undefined) {
-      return lifecycleBlocked("SOURCE_OBSERVATION_RESULT_INVALID", "assembly");
-    }
     return {
       ok: true,
       value: {
@@ -984,7 +1215,6 @@ async function parseAcceptedSourceObservation(
         mtimeMs,
         ctimeMs,
         mode,
-        ...(kind === "file" ? { bytes: Uint8Array.from(bytes as Uint8Array) } : {}),
         identityMatched: true,
         contained: true
       }
@@ -1019,9 +1249,7 @@ function sameSourceObservation(
     || accepted.ctimeMs !== current.ctimeMs
     || accepted.mode !== current.mode
   ) return false;
-  if (accepted.kind === "directory") return current.bytes === undefined;
-  if (accepted.bytes === undefined || current.bytes === undefined || accepted.bytes.length !== current.bytes.length) return false;
-  return accepted.bytes.every((byte, index) => byte === current.bytes?.[index]);
+  return true;
 }
 
 function sourceChangedDuringAssembly(): ReleaseCandidateLifecycleFailure {
