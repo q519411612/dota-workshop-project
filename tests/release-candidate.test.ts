@@ -861,4 +861,99 @@ describe("release candidate input validation", () => {
       expect(await inventoryReleaseCandidateSources(prepared.value)).toEqual(expected);
     }
   });
+
+  test("reports collisions between unsafe and accepted identities", async () => {
+    const fixture = await createFixture();
+    const privateTarget = join(fixture.repositoryRoot, "private-target");
+    const scenarios: Array<{
+      name: string;
+      unsafeKind: ReleaseCandidateEntryKind;
+      escape: boolean;
+      unsafeBlocker: { code: string; category: string };
+    }> = [
+      {
+        name: "symbolic link collides with regular file",
+        unsafeKind: "symbolic-link",
+        escape: false,
+        unsafeBlocker: { code: "SOURCE_ENTRY_UNSAFE", category: "symbolic-link" }
+      },
+      {
+        name: "reparse point collides with regular file",
+        unsafeKind: "reparse",
+        escape: false,
+        unsafeBlocker: { code: "SOURCE_ENTRY_UNSAFE", category: "reparse" }
+      },
+      {
+        name: "canonical escape collides with contained file",
+        unsafeKind: "file",
+        escape: true,
+        unsafeBlocker: { code: "SOURCE_ENTRY_OUTSIDE_ROOT", category: "escape" }
+      }
+    ];
+
+    for (const scenario of scenarios) {
+      for (const reverse of [false, true]) {
+        const names = ["Alpha.txt", "alpha.txt"];
+        const unsafePath = join(fixture.gameAddonRoot, "Alpha.txt");
+        const acceptedPath = join(fixture.gameAddonRoot, "alpha.txt");
+        const classifiedPaths: string[] = [];
+        const canonicalizedPaths: string[] = [];
+        const createCandidateRoot = vi.fn(async (validated: ValidatedReleaseCandidateInput) => (
+          join(validated.tempParent, "candidate")
+        ));
+        const filesystem: ReleaseCandidateFilesystem = {
+          lstat,
+          realpath: async (path) => {
+            canonicalizedPaths.push(path);
+            if (scenario.escape && path === unsafePath) return privateTarget;
+            return path;
+          },
+          readDirectory: async (path) => {
+            if (path !== fixture.gameAddonRoot) return [];
+            return reverse ? [...names].reverse() : [...names];
+          },
+          classifySourceEntry: async (path) => {
+            classifiedPaths.push(path);
+            return path === unsafePath ? scenario.unsafeKind : "file";
+          },
+          createCandidateRoot
+        };
+        const prepared = await prepareReleaseCandidateInput(
+          { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+          { repositoryRoot: fixture.repositoryRoot, filesystem }
+        );
+        expect(prepared.ok, scenario.name).toBe(true);
+        if (!prepared.ok) throw new Error(`${scenario.name} fixture input was rejected`);
+
+        const result = await inventoryReleaseCandidateSources(prepared.value);
+
+        expect(result, `${scenario.name}, reverse=${reverse}`).toEqual({
+          ok: false,
+          blockers: [
+            {
+              code: scenario.unsafeBlocker.code,
+              path: "game/dota_addons/fixture_addon/Alpha.txt",
+              category: scenario.unsafeBlocker.category
+            },
+            {
+              code: "SOURCE_IDENTITY_COLLISION",
+              path: "game/dota_addons/fixture_addon/Alpha.txt",
+              category: "case-fold"
+            },
+            {
+              code: "SOURCE_IDENTITY_COLLISION",
+              path: "game/dota_addons/fixture_addon/alpha.txt",
+              category: "case-fold"
+            }
+          ]
+        });
+        expect(classifiedPaths.filter((path) => path === unsafePath)).toHaveLength(1);
+        expect(classifiedPaths.filter((path) => path === acceptedPath)).toHaveLength(1);
+        if (scenario.unsafeKind === "symbolic-link" || scenario.unsafeKind === "reparse") {
+          expect(canonicalizedPaths).not.toContain(unsafePath);
+        }
+        expect(createCandidateRoot).not.toHaveBeenCalled();
+      }
+    }
+  });
 });
