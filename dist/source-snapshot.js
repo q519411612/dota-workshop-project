@@ -8,7 +8,6 @@ const SOURCE_PATHS = [
     ".codex-plugin",
     ".mcp.json",
     ".planning/PROJECT.md",
-    ".planning/REQUIREMENTS.md",
     ".planning/ROADMAP.md",
     ".planning/phases",
     ".planning/research",
@@ -73,8 +72,9 @@ export async function generateSourceSnapshotManifest(input = {}) {
     const root = input.root ?? process.cwd();
     const packageJson = await readPackageJson(root);
     const blockers = [];
-    await appendMissingRequiredPathBlockers(root, blockers);
-    const files = await collectSourceFiles(root);
+    const requirementsSource = await resolveRequirementsSource(root);
+    await appendMissingRequiredPathBlockers(root, blockers, requirementsSource);
+    const files = await collectSourceFiles(root, requirementsSource);
     const snapshotFiles = [];
     for (const file of files) {
         const absolutePath = join(root, file);
@@ -136,15 +136,8 @@ async function readPackageJson(root) {
         };
     }
 }
-async function appendMissingRequiredPathBlockers(root, blockers) {
-    if (!await hasRequirementsSource(root)) {
-        blockers.push({
-            code: "REQUIRED_SOURCE_PATH_MISSING",
-            path: ".planning/REQUIREMENTS.md",
-            field: "files",
-            category: "source coverage"
-        });
-    }
+async function appendMissingRequiredPathBlockers(root, blockers, requirementsSource) {
+    blockers.push(...requirementsSource.blockers);
     for (const path of REQUIRED_PATHS) {
         try {
             await access(join(root, path));
@@ -159,47 +152,89 @@ async function appendMissingRequiredPathBlockers(root, blockers) {
         }
     }
 }
-async function hasRequirementsSource(root) {
-    try {
-        await access(join(root, ".planning/REQUIREMENTS.md"));
-        return true;
-    }
-    catch {
-        // 活跃里程碑关闭后，归档 requirements 是同一来源契约的唯一合法替代。
-    }
-    return await resolveLatestArchivedMilestone(root) !== undefined;
-}
-async function collectSourceFiles(root) {
+async function collectSourceFiles(root, requirementsSource) {
     const files = [];
     for (const sourcePath of SOURCE_PATHS) {
         await collectPath(root, sourcePath, files);
     }
-    if (!await pathExists(root, ".planning/REQUIREMENTS.md")) {
-        const archivedMilestone = await resolveLatestArchivedMilestone(root);
-        if (archivedMilestone !== undefined) {
-            for (const suffix of ["-REQUIREMENTS.md", "-ROADMAP.md", "-MILESTONE-AUDIT.md", "-phases"]) {
-                await collectPath(root, `.planning/milestones/${archivedMilestone}${suffix}`, files);
-            }
+    for (const sourcePath of requirementsSource.paths) {
+        if (!requirementsSource.blockers.some((blocker) => blocker.path === sourcePath.path)) {
+            await collectPath(root, sourcePath.path, files);
         }
     }
     return [...new Set(files)].sort(comparePath);
 }
-async function pathExists(root, repositoryPath) {
+async function resolveRequirementsSource(root) {
+    const activePath = ".planning/REQUIREMENTS.md";
+    const activeKind = await readPathKind(root, activePath);
+    if (activeKind !== "missing") {
+        return {
+            kind: "active",
+            paths: [{ path: activePath, expected: "file" }],
+            blockers: activeKind === "file" ? [] : [sourcePathBlocker("REQUIRED_SOURCE_PATH_INVALID", activePath)]
+        };
+    }
+    const archivedMilestone = await resolveLatestArchivedMilestone(root);
+    if (archivedMilestone === undefined) {
+        return {
+            kind: "missing",
+            paths: [],
+            blockers: [sourcePathBlocker("REQUIRED_SOURCE_PATH_MISSING", activePath)]
+        };
+    }
+    const paths = [
+        { path: `.planning/milestones/${archivedMilestone}-REQUIREMENTS.md`, expected: "file" },
+        { path: `.planning/milestones/${archivedMilestone}-ROADMAP.md`, expected: "file" },
+        { path: `.planning/milestones/${archivedMilestone}-MILESTONE-AUDIT.md`, expected: "file" },
+        { path: `.planning/milestones/${archivedMilestone}-phases`, expected: "directory" }
+    ];
+    const blockers = [];
+    for (const sourcePath of paths) {
+        const actual = await readPathKind(root, sourcePath.path);
+        if (actual === "missing") {
+            blockers.push(sourcePathBlocker("REQUIRED_SOURCE_PATH_MISSING", sourcePath.path));
+        }
+        else if (actual !== sourcePath.expected) {
+            blockers.push(sourcePathBlocker("REQUIRED_SOURCE_PATH_INVALID", sourcePath.path));
+        }
+    }
+    return { kind: "archived", paths, blockers };
+}
+function sourcePathBlocker(code, path) {
+    return {
+        code,
+        path,
+        field: "files",
+        category: "source coverage"
+    };
+}
+async function readPathKind(root, repositoryPath) {
     try {
-        await access(join(root, repositoryPath));
-        return true;
+        const entry = await stat(join(root, repositoryPath));
+        if (entry.isFile())
+            return "file";
+        if (entry.isDirectory())
+            return "directory";
+        return "other";
     }
-    catch {
-        return false;
+    catch (error) {
+        if (isNotFoundError(error))
+            return "missing";
+        throw error;
     }
+}
+function isNotFoundError(error) {
+    return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
 async function resolveLatestArchivedMilestone(root) {
     let entries;
     try {
         entries = await readdir(join(root, ".planning/milestones"), { withFileTypes: true });
     }
-    catch {
-        return undefined;
+    catch (error) {
+        if (isNotFoundError(error))
+            return undefined;
+        throw error;
     }
     const versions = entries
         .filter((entry) => entry.isFile())

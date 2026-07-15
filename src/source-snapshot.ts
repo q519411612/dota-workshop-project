@@ -58,7 +58,6 @@ const SOURCE_PATHS = [
   ".codex-plugin",
   ".mcp.json",
   ".planning/PROJECT.md",
-  ".planning/REQUIREMENTS.md",
   ".planning/ROADMAP.md",
   ".planning/phases",
   ".planning/research",
@@ -115,6 +114,12 @@ const TEXT_EXTENSIONS = new Set([
   ".kv"
 ]);
 
+type RequirementsSourceResolution = {
+  kind: "active" | "archived" | "missing";
+  paths: Array<{ path: string; expected: "file" | "directory" }>;
+  blockers: SourceSnapshotBlocker[];
+};
+
 const SENSITIVE_PATTERNS = [
   { category: "private key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/i },
   { category: "token", pattern: /\b(?:token|api[_-]?key|secret)\b\s*[:=]\s*["']?(?:gh[pousr]_|sk-|[A-Za-z0-9_/-]{20,})/i },
@@ -130,10 +135,11 @@ export async function generateSourceSnapshotManifest(
   const root = input.root ?? process.cwd();
   const packageJson = await readPackageJson(root);
   const blockers: SourceSnapshotBlocker[] = [];
+  const requirementsSource = await resolveRequirementsSource(root);
 
-  await appendMissingRequiredPathBlockers(root, blockers);
+  await appendMissingRequiredPathBlockers(root, blockers, requirementsSource);
 
-  const files = await collectSourceFiles(root);
+  const files = await collectSourceFiles(root, requirementsSource);
   const snapshotFiles: SourceSnapshotFile[] = [];
   for (const file of files) {
     const absolutePath = join(root, file);
@@ -200,15 +206,12 @@ async function readPackageJson(root: string): Promise<{ name: string; version: s
   }
 }
 
-async function appendMissingRequiredPathBlockers(root: string, blockers: SourceSnapshotBlocker[]): Promise<void> {
-  if (!await hasRequirementsSource(root)) {
-    blockers.push({
-      code: "REQUIRED_SOURCE_PATH_MISSING",
-      path: ".planning/REQUIREMENTS.md",
-      field: "files",
-      category: "source coverage"
-    });
-  }
+async function appendMissingRequiredPathBlockers(
+  root: string,
+  blockers: SourceSnapshotBlocker[],
+  requirementsSource: RequirementsSourceResolution
+): Promise<void> {
+  blockers.push(...requirementsSource.blockers);
 
   for (const path of REQUIRED_PATHS) {
     try {
@@ -224,48 +227,90 @@ async function appendMissingRequiredPathBlockers(root: string, blockers: SourceS
   }
 }
 
-async function hasRequirementsSource(root: string): Promise<boolean> {
-  try {
-    await access(join(root, ".planning/REQUIREMENTS.md"));
-    return true;
-  } catch {
-    // 活跃里程碑关闭后，归档 requirements 是同一来源契约的唯一合法替代。
-  }
-
-  return await resolveLatestArchivedMilestone(root) !== undefined;
-}
-
-async function collectSourceFiles(root: string): Promise<string[]> {
+async function collectSourceFiles(root: string, requirementsSource: RequirementsSourceResolution): Promise<string[]> {
   const files: string[] = [];
   for (const sourcePath of SOURCE_PATHS) {
     await collectPath(root, sourcePath, files);
   }
-  if (!await pathExists(root, ".planning/REQUIREMENTS.md")) {
-    const archivedMilestone = await resolveLatestArchivedMilestone(root);
-    if (archivedMilestone !== undefined) {
-      for (const suffix of ["-REQUIREMENTS.md", "-ROADMAP.md", "-MILESTONE-AUDIT.md", "-phases"]) {
-        await collectPath(root, `.planning/milestones/${archivedMilestone}${suffix}`, files);
-      }
+  for (const sourcePath of requirementsSource.paths) {
+    if (!requirementsSource.blockers.some((blocker) => blocker.path === sourcePath.path)) {
+      await collectPath(root, sourcePath.path, files);
     }
   }
   return [...new Set(files)].sort(comparePath);
 }
 
-async function pathExists(root: string, repositoryPath: string): Promise<boolean> {
-  try {
-    await access(join(root, repositoryPath));
-    return true;
-  } catch {
-    return false;
+async function resolveRequirementsSource(root: string): Promise<RequirementsSourceResolution> {
+  const activePath = ".planning/REQUIREMENTS.md";
+  const activeKind = await readPathKind(root, activePath);
+  if (activeKind !== "missing") {
+    return {
+      kind: "active",
+      paths: [{ path: activePath, expected: "file" }],
+      blockers: activeKind === "file" ? [] : [sourcePathBlocker("REQUIRED_SOURCE_PATH_INVALID", activePath)]
+    };
   }
+
+  const archivedMilestone = await resolveLatestArchivedMilestone(root);
+  if (archivedMilestone === undefined) {
+    return {
+      kind: "missing",
+      paths: [],
+      blockers: [sourcePathBlocker("REQUIRED_SOURCE_PATH_MISSING", activePath)]
+    };
+  }
+
+  const paths: RequirementsSourceResolution["paths"] = [
+    { path: `.planning/milestones/${archivedMilestone}-REQUIREMENTS.md`, expected: "file" },
+    { path: `.planning/milestones/${archivedMilestone}-ROADMAP.md`, expected: "file" },
+    { path: `.planning/milestones/${archivedMilestone}-MILESTONE-AUDIT.md`, expected: "file" },
+    { path: `.planning/milestones/${archivedMilestone}-phases`, expected: "directory" }
+  ];
+  const blockers: SourceSnapshotBlocker[] = [];
+  for (const sourcePath of paths) {
+    const actual = await readPathKind(root, sourcePath.path);
+    if (actual === "missing") {
+      blockers.push(sourcePathBlocker("REQUIRED_SOURCE_PATH_MISSING", sourcePath.path));
+    } else if (actual !== sourcePath.expected) {
+      blockers.push(sourcePathBlocker("REQUIRED_SOURCE_PATH_INVALID", sourcePath.path));
+    }
+  }
+
+  return { kind: "archived", paths, blockers };
+}
+
+function sourcePathBlocker(code: string, path: string): SourceSnapshotBlocker {
+  return {
+    code,
+    path,
+    field: "files",
+    category: "source coverage"
+  };
+}
+
+async function readPathKind(root: string, repositoryPath: string): Promise<"file" | "directory" | "other" | "missing"> {
+  try {
+    const entry = await stat(join(root, repositoryPath));
+    if (entry.isFile()) return "file";
+    if (entry.isDirectory()) return "directory";
+    return "other";
+  } catch (error) {
+    if (isNotFoundError(error)) return "missing";
+    throw error;
+  }
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
 
 async function resolveLatestArchivedMilestone(root: string): Promise<string | undefined> {
   let entries;
   try {
     entries = await readdir(join(root, ".planning/milestones"), { withFileTypes: true });
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (isNotFoundError(error)) return undefined;
+    throw error;
   }
 
   const versions = entries
