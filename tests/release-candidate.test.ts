@@ -925,6 +925,68 @@ describe("release candidate input validation", () => {
     }
   });
 
+  test("rejects readable source results whose UTF-8 bytes do not match the claimed size", async () => {
+    const cases = [
+      { name: "truncated content", size: 8, content: "short" },
+      {
+        name: "multibyte content with a secret beyond the claimed prefix",
+        size: 2,
+        content: "ok🙂password=synthetic-private-value"
+      }
+    ];
+    for (const scenario of cases) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      const createCandidateLease = vi.fn(async () => {
+        throw new Error("invalid readable result must precede candidate creation");
+      });
+      const operations = {
+        createCandidateLease,
+        cleanupCandidateLease: vi.fn(async () => ({
+          ok: true as const,
+          removed: true as const,
+          absent: true as const,
+          identityMatched: true as const
+        })),
+        readAcceptedSourceFile: vi.fn(async () => ({
+          ok: true as const,
+          state: "readable" as const,
+          size: scenario.size,
+          content: scenario.content,
+          identityMatched: true as const,
+          kindMatched: true as const,
+          contained: true as const
+        })),
+        inspectCandidateRoot: vi.fn(async () => ({ ok: true as const, empty: true as const, identityMatched: true as const })),
+        materializeCandidateEntry: vi.fn(async () => ({ ok: true as const, created: true as const, identityMatched: true as const, kindMatched: true as const, contained: true as const })),
+        reconcileCandidateTree: vi.fn(async () => ({ ok: true as const, exact: true as const, identityMatched: true as const }))
+      };
+      const filesystem: ReleaseCandidateFilesystem = {
+        lstat,
+        realpath,
+        readDirectory: async (path) => await readdir(path),
+        classifySourceEntry: classifyFixtureEntry,
+        createCandidateRoot: vi.fn(async () => {
+          throw new Error("raw candidate creation must not be used");
+        }),
+        candidateLifecycle: createIdentityBoundCandidateLifecycle(operations)
+      };
+
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        async () => "unexpected",
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+
+      expect(result, scenario.name).toEqual({
+        ok: false,
+        blockers: [{ code: "SOURCE_READ_RESULT_INVALID", category: "assembly" }]
+      });
+      expect(JSON.stringify(result), scenario.name).not.toContain("synthetic-private-value");
+      expect(createCandidateLease, scenario.name).not.toHaveBeenCalled();
+    }
+  });
+
   test("fails before creation when identity-bound assembly operations are incomplete", async () => {
     const fixture = await createFixture();
     await populateReadyFixture(fixture);
