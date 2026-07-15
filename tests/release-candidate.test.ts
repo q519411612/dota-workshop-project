@@ -1151,9 +1151,10 @@ describe("release candidate input validation", () => {
         })),
         readAcceptedSourceFile: vi.fn(async () => ({
           ok: true as const,
+          schemaVersion: "1.0" as const,
           state: "readable" as const,
           size: scenario.size,
-          content: scenario.content,
+          bytes: Buffer.from(scenario.content),
           identityMatched: true as const,
           kindMatched: true as const,
           contained: true as const
