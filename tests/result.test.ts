@@ -22,6 +22,7 @@ describe("MCP result contract", () => {
       commands: [{ command: "inspect", cwd: "/tmp/dota" }],
       logs: [{ source: "fixture", lines: ["ok"] }]
     });
+    expect(result).not.toHaveProperty("releaseCandidate");
   });
 
   test("failure results include stable error codes and evidence", () => {
@@ -43,5 +44,6 @@ describe("MCP result contract", () => {
     });
     expect(result.warnings).toEqual([]);
     expect(result.evidence).toEqual(["checked C:/missing"]);
+    expect(result).not.toHaveProperty("releaseCandidate");
   });
 });
