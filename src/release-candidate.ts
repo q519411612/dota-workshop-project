@@ -116,7 +116,8 @@ function createDefaultFilesystem(platform: NodeJS.Platform): ReleaseCandidateFil
 
 export type ReleaseCandidateLifecycleBlocker = Readonly<{
   code: string;
-  category: "assembly" | "creation" | "inspection" | "removal" | "unsafe-isolation";
+  category: "assembly" | "creation" | "inspection" | "removal" | "unsafe-isolation" | "unexpected-entry";
+  path?: string;
 }>;
 
 export type ReleaseCandidateLifecycleResult<T> =
@@ -205,6 +206,7 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
 type BoundCandidateLifecycle = Readonly<{
   lstat: ReleaseCandidateFilesystem["lstat"];
   realpath: ReleaseCandidateFilesystem["realpath"];
+  readDirectory: ReleaseCandidateFilesystem["readDirectory"];
   classifySourceEntry: ReleaseCandidateFilesystem["classifySourceEntry"];
   createCandidateLease: IdentityBoundCandidateLifecycle["createCandidateLease"];
   cleanupCandidateLease: IdentityBoundCandidateLifecycle["cleanupCandidateLease"];
@@ -420,6 +422,7 @@ function bindIdentityBoundCandidateLifecycle(
   return Object.freeze({
     lstat: filesystem.lstat.bind(filesystem),
     realpath: filesystem.realpath.bind(filesystem),
+    readDirectory: filesystem.readDirectory.bind(filesystem),
     classifySourceEntry: filesystem.classifySourceEntry.bind(filesystem),
     createCandidateLease: capability.createCandidateLease.bind(capability),
     cleanupCandidateLease: capability.cleanupCandidateLease.bind(capability),
@@ -455,6 +458,8 @@ async function inspectCandidateLease<T>(
     if (!isCandidateRootIsolated(canonicalRoot, input)) {
       return lifecycleBlocked("CANDIDATE_ROOT_NOT_ISOLATED", "unsafe-isolation");
     }
+    const unexpectedEntries = await candidateRootUnexpectedEntries(canonicalRoot, lifecycle);
+    if (unexpectedEntries !== undefined) return unexpectedEntries;
     const assemblyFailure = await assembleReleaseCandidate(canonicalRoot, input, inventory, lifecycle);
     if (assemblyFailure !== undefined) return assemblyFailure;
     try {
@@ -465,6 +470,35 @@ async function inspectCandidateLease<T>(
   } catch {
     return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
   }
+}
+
+async function candidateRootUnexpectedEntries(
+  candidateRoot: string,
+  filesystem: Pick<ReleaseCandidateFilesystem, "readDirectory">
+): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+  let names: string[];
+  try {
+    names = await filesystem.readDirectory(candidateRoot);
+  } catch {
+    return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
+  }
+  if (names.length === 0) return undefined;
+  return {
+    ok: false,
+    blockers: [...names]
+      .sort(compareOrdinal)
+      .map((name) => ({
+        code: "CANDIDATE_ROOT_NOT_EMPTY",
+        category: "unexpected-entry" as const,
+        path: safeCandidateEntryIdentity(name)
+      }))
+  };
+}
+
+function safeCandidateEntryIdentity(name: string): string {
+  if (invalidSourceNameCategory(name) !== undefined) return "[invalid]";
+  if (/(?:password|passwd|pwd|token|api[_-]?key|secret)/iu.test(name)) return "[redacted]";
+  return name;
 }
 
 async function assembleReleaseCandidate(
