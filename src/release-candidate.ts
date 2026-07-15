@@ -1895,18 +1895,24 @@ function projectReleaseCandidateManifest(
   entries.sort((left, right) => (
     compareOrdinal(left.root, right.root) || compareOrdinal(left.path, right.path)
   ));
-  const canonical = [
-    "1.0",
-    entries.map((entry) => [entry.root, entry.path, entry.bytes, entry.sha256])
-  ];
-  const combinedSha256 = createHash("sha256")
-    .update(Buffer.from(JSON.stringify(canonical), "utf8"))
-    .digest("hex");
+  const combinedSha256 = computeReleaseCandidateCombinedDigest(entries);
   return Object.freeze({
     schemaVersion: "1.0",
     entries: Object.freeze(entries),
     combinedSha256
   });
+}
+
+export function computeReleaseCandidateCombinedDigest(
+  entries: readonly Pick<ReleaseCandidateManifestEntry, "root" | "path" | "bytes" | "sha256">[]
+): string {
+  const canonical = [
+    "1.0",
+    entries.map((entry) => [entry.root, entry.path, entry.bytes, entry.sha256])
+  ];
+  return createHash("sha256")
+    .update(Buffer.from(JSON.stringify(canonical), "utf8"))
+    .digest("hex");
 }
 
 function integrityMismatch(): ReleaseCandidateLifecycleFailure {

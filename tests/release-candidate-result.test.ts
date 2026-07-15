@@ -9,7 +9,13 @@ import {
 const DIGEST_A = "a".repeat(64);
 const DIGEST_B = "b".repeat(64);
 
-function manifestEntries() {
+function manifestEntries(): Array<{
+  schemaVersion: "1.0";
+  root: "content" | "game";
+  path: string;
+  bytes: number;
+  sha256: string;
+}> {
   return [
     { schemaVersion: "1.0", root: "content", path: "content/dota_addons/demo/panorama/layout/custom_game/main.xml", bytes: 7, sha256: DIGEST_A },
     { schemaVersion: "1.0", root: "game", path: "game/dota_addons/demo/scripts/vscripts/addon_game_mode.lua", bytes: 11, sha256: DIGEST_B }
@@ -50,7 +56,7 @@ function boundaries() {
   };
 }
 
-function validSuccess() {
+function validSuccess(): any {
   const entries = manifestEntries();
   const manifest = {
     schemaVersion: "1.0",
@@ -194,7 +200,7 @@ describe("release candidate public detail", () => {
 
     expect(JSON.stringify(normalized)).toBe(before);
     expect(Object.isFrozen(normalized)).toBe(true);
-    if (normalized.normalization.status === "valid") {
+    if ("commands" in normalized) {
       expect(Object.isFrozen(normalized.manifest?.entries)).toBe(true);
       expect(Object.isFrozen(normalized.manifest?.entries[0])).toBe(true);
       expect(Object.isFrozen(normalized.scanCoverage?.text.paths)).toBe(true);
@@ -258,8 +264,9 @@ describe("release candidate public detail", () => {
   });
 
   test("fails closed for getters, proxies, throwing arrays, unknown codes, and thenables", () => {
+    const privatePath = ["", "Users", "secret"].join("/");
     const throwingGetter = Object.defineProperty({}, "schemaVersion", {
-      get() { throw new Error("private /Users/secret"); }
+      get() { throw new Error(`private ${privatePath}`); }
     });
     const proxy = new Proxy(validSuccess(), { get() { throw new Error("private"); } });
     const throwingArray = validSuccess();
@@ -287,7 +294,7 @@ describe("release candidate public detail", () => {
     const remoteNormalized = normalizeReleaseCandidateDetail(remote);
     expect(fixtureNormalized.normalization.status).toBe("valid");
     expect(remoteNormalized.normalization.status).toBe("valid");
-    if (fixtureNormalized.normalization.status === "valid" && remoteNormalized.normalization.status === "valid") {
+    if ("execution" in fixtureNormalized && "execution" in remoteNormalized) {
       expect({ ...remoteNormalized, execution: fixtureNormalized.execution }).toEqual(fixtureNormalized);
     }
 

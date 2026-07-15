@@ -1,3 +1,4 @@
+import type { ReleaseCandidateDetail } from "./release-candidate-result.js";
 import type { CommandEvidence, LogEvidence, Target, ToolError, ToolResult } from "./types.js";
 
 type SuccessInput = {
@@ -8,6 +9,7 @@ type SuccessInput = {
   paths?: Record<string, string>;
   commands?: CommandEvidence[];
   logs?: LogEvidence[];
+  releaseCandidate?: ReleaseCandidateDetail;
 };
 
 type FailureInput = SuccessInput & {
@@ -23,7 +25,8 @@ export function createSuccessResult(input: SuccessInput): ToolResult {
     warnings: input.warnings ?? [],
     paths: input.paths ?? {},
     commands: input.commands ?? [],
-    logs: input.logs ?? []
+    logs: input.logs ?? [],
+    ...(input.releaseCandidate === undefined ? {} : { releaseCandidate: input.releaseCandidate })
   };
 }
 
@@ -37,6 +40,7 @@ export function createFailureResult(input: FailureInput): ToolResult {
     warnings: input.warnings ?? [],
     paths: input.paths ?? {},
     commands: input.commands ?? [],
-    logs: input.logs ?? []
+    logs: input.logs ?? [],
+    ...(input.releaseCandidate === undefined ? {} : { releaseCandidate: input.releaseCandidate })
   };
 }

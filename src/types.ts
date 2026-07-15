@@ -47,4 +47,6 @@ export type ToolResult = {
   commands: CommandEvidence[];
   logs: LogEvidence[];
   error?: ToolError;
+  releaseCandidate?: ReleaseCandidateDetail;
 };
+import type { ReleaseCandidateDetail } from "./release-candidate-result.js";
