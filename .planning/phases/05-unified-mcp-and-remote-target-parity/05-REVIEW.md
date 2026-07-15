@@ -1,6 +1,6 @@
 ---
 phase: 05-unified-mcp-and-remote-target-parity
-reviewed: 2026-07-15T21:12:10Z
+reviewed: 2026-07-15T21:35:11Z
 depth: deep
 files_reviewed: 28
 files_reviewed_list:
@@ -42,7 +42,7 @@ status: clean
 
 # Phase 5: Code Review Report
 
-**Reviewed:** 2026-07-15T21:12:10Z
+**Reviewed:** 2026-07-15T21:35:11Z
 **Depth:** deep
 **Files Reviewed:** 28
 **Status:** clean
@@ -63,10 +63,20 @@ Cleanup lease observation is side-effect-free. A failed lease now produces exact
 - Cleanup-time blocker mutation: closed by side-effect-free lease observation.
 - Cleanup lease-invalid normalization: closed by the exact no-extra-facts cleanup object and passed/blocked normalization regressions.
 
+### Final Cross-Phase Re-review
+
+- The public uninjected `local-win32` route reaches the lifecycle through the production target-native PowerShell classifier.
+- File and directory reparse points return `reparse`; nonzero, stderr, malformed JSON, and extra-key output fail explicitly before candidate creation.
+- The remote lifecycle embeds the exported shared categorized sensitive-material rules, retains every matching category, and the parity test extracts and evaluates the embedded policy.
+- All 19 v1.14 requirement checkboxes are checked with exactly one owning plan and one owning summary each.
+- The staged runtime closure is synchronized and invokes successfully.
+
 ### Verification Evidence
 
 - Focused release-candidate suites: 8 files, 88 tests passed.
-- Complete repository suite: 28 files, 303 tests passed.
+- Earlier deep-review repository suite: 28 files, 303 tests passed.
+- Final remediation re-review: 37 targeted runtime tests passed.
+- Complete post-remediation repository suite: 28 files, 307 tests passed.
 - `npm run typecheck`: passed.
 - `git diff --check`: passed.
 - Packaged runtime import-closure invocation: passed.
@@ -79,6 +89,6 @@ No Critical, Warning, or Info findings.
 
 ---
 
-_Reviewed: 2026-07-15T21:12:10Z_
+_Reviewed: 2026-07-15T21:35:11Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_

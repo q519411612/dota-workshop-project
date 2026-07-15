@@ -1,6 +1,6 @@
 ---
 phase: 05-unified-mcp-and-remote-target-parity
-verified: 2026-07-16T05:14:30+08:00
+verified: 2026-07-16T05:35:11+08:00
 status: passed
 score: 5/5 must-haves verified
 behavior_unverified: 0
@@ -10,9 +10,9 @@ overrides_applied: 0
 # Phase 5: Unified MCP and Remote Target Parity Verification Report
 
 **Phase Goal:** Users can invoke one release-candidate preflight operation across fixture, local Windows adapter, SSH Windows, and PowerShell Remoting contracts with equivalent strict semantics and no fallback.
-**Verified:** 2026-07-16T05:14:30+08:00
+**Verified:** 2026-07-16T05:35:11+08:00
 **Status:** passed
-**Verified HEAD:** `6711edb`
+**Verified HEAD:** `ee5d615`
 
 ## Goal Achievement
 
@@ -47,8 +47,9 @@ The public handler routes each target to its responsible adapter, every result e
 | Check | Result |
 |---|---|
 | Phase 5 focused suite | 16 files, 202/202 tests passed |
-| Independent review focused suite | 8 files, 88/88 tests passed |
-| Complete repository suite | 28 files, 303/303 tests passed |
+| Independent deep-review focused suite | 8 files, 88/88 tests passed |
+| Final remediation re-review suite | 37/37 targeted runtime tests passed |
+| Complete repository suite | 28 files, 307/307 tests passed |
 | Typecheck | passed |
 | Build | passed |
 | Packaged runtime import and invocation | passed |
@@ -60,7 +61,7 @@ The public handler routes each target to its responsible adapter, every result e
 | Handoff verifier | `ok: true` |
 | Existing milestone verifier | `ok: true` |
 | Patch hygiene | passed |
-| Independent deep review | clean, 0 findings |
+| Final independent re-review | clean, 0 blocker and 0 warning findings |
 
 ## Requirements Coverage and Unique Traceability
 
@@ -83,6 +84,9 @@ Plan 05-07 is an enabling packaging plan and owns no requirement. An automated r
 - Temporary/source isolation rejects reparse ancestry and compares leaf-to-root canonical volume GUID plus file ID tuples before creation and cleanup.
 - Cleanup lease observation is side-effect-free; identity-unavailable and lease-invalid outcomes emit exact strict cleanup shapes and matching removal blockers.
 - Remote payloads bind to the requested addon and reject all unknown keys, malformed framing, invariant violations, and false success without retry or fallback.
+- The uninjected public `local-win32` route uses the production PowerShell classifier; file and directory reparse points are rejected, and nonzero, stderr, malformed, or extra-key classifier output fails before candidate creation.
+- The generated remote lifecycle embeds the exported categorized sensitive-material rules, retains every matched category deterministically, and is evaluated directly by the parity test.
+- All 19 v1.14 requirement checkboxes agree with exactly one owning plan and exactly one owning summary.
 
 ## Boundary and Disconfirmation Pass
 

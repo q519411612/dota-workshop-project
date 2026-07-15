@@ -59,12 +59,16 @@ status: complete
   - `4b99be8` / `cb64c3f`
   - `4a114b3` / `fb787f5`
   - `86a23fd` / `f922407`
-- The final independent review in `05-REVIEW.md` reports `status: clean` with zero Critical, Warning, or Info findings.
-- Final independent review evidence: 88/88 focused tests, 303/303 complete tests, typecheck, packaged runtime invocation, and patch hygiene passed.
+- Final cross-phase review remediation added RED coverage and corrective commits for the production local-Windows reparse classifier, shared categorized remote sensitive-material policy, and requirement-status alignment:
+  - `88762a8` / `9209e20`
+  - `35197c8`
+  - `ee5d615`
+- The final independent re-review in `05-REVIEW.md` reports `status: clean` with zero blocker or warning findings.
+- Final independent re-review evidence: 37/37 targeted runtime tests, 307/307 complete tests, 19/19 checked and uniquely owned requirements, typecheck, staged packaged runtime invocation, and patch hygiene passed.
 
 ## Verification
 
-- `npm test`: 28 files, 303/303 tests passed.
+- `npm test`: 28 files, 307/307 tests passed.
 - `npm run typecheck`: passed.
 - `npm run build`: passed.
 - `npm run verify:plugin`: `ok: true`.
