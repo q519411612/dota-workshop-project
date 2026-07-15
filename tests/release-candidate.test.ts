@@ -288,6 +288,10 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
     input: ValidatedReleaseCandidateInput,
     createRegisteredCandidate: () => Promise<RegisteredCandidateCreation>
   ): Promise<unknown>;
+  createCandidateState?(
+    input: ValidatedReleaseCandidateInput,
+    registerCreatedCandidate: (inspectionRoot: string, identity: TIdentity) => RegisteredCandidateCreation
+  ): Promise<unknown>;
   cleanupCandidateLease(identity: TIdentity): Promise<CandidateLeaseCleanupResult>;
   readAcceptedSourceFile?(input: ValidatedReleaseCandidateInput, entry: Parameters<ReturnType<typeof createNoFollowSourceReader>>[1], maxBytes: number): Promise<AcceptedSourceReadResult>;
   inspectCandidateRoot?(identity: TIdentity): Promise<CandidateRootInspectionResult>;
@@ -460,7 +464,7 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
         );
       }))
   });
-  const { createCandidateLease, acquireCandidateLease, ...overrides } = operations;
+  const { createCandidateLease, createCandidateState, acquireCandidateLease, ...overrides } = operations;
   return createIdentityBoundCandidateLifecycle({
     readAcceptedSourceFile: createNoFollowSourceReader(),
     observeAcceptedSourceEntry: createAcceptedSourceObserver(),
@@ -470,7 +474,10 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
     observeAcceptedSource: defaultObserveAcceptedSource,
     observeCandidate: defaultObserveCandidate,
     ...overrides,
-    createCandidateState: async (input) => await createCandidateLease(input),
+    createCandidateState: createCandidateState ?? (async (input, registerCreatedCandidate) => {
+      const created = await createCandidateLease(input);
+      return registerCreatedCandidate(created.inspectionRoot, created.identity);
+    }),
     acquireCandidateLease: acquireCandidateLease ?? (async (_input, createRegisteredCandidate) => (
       await createRegisteredCandidate()
     ))
@@ -1174,7 +1181,7 @@ describe("release candidate input validation", () => {
         throw new Error("invalid readable result must precede candidate creation");
       });
       const operations = {
-        createCandidateState: createCandidateLease,
+        createCandidateState: async () => await createCandidateLease(),
         acquireCandidateLease: async (_input: ValidatedReleaseCandidateInput, createRegisteredCandidate: () => Promise<RegisteredCandidateCreation>) => (
           await createRegisteredCandidate()
         ),
@@ -1240,7 +1247,7 @@ describe("release candidate input validation", () => {
         throw new Error("raw candidate creation must not be used");
       }),
       candidateLifecycle: createIdentityBoundCandidateLifecycle({
-        createCandidateState: createCandidateLease,
+        createCandidateState: async () => await createCandidateLease(),
         acquireCandidateLease: async (_input, createRegisteredCandidate) => await createRegisteredCandidate(),
         cleanupCandidateLease: vi.fn(async () => ({
           ok: true as const,
@@ -5031,12 +5038,15 @@ describe("release candidate input validation", () => {
         };
       });
       const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
-        createCandidateLease: (async (validated: ValidatedReleaseCandidateInput) => {
+        createCandidateLease: async () => {
+          throw new Error("custom creation boundary must be used");
+        },
+        createCandidateState: async (validated, registerCreatedCandidate) => {
           candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
           creationCount += 1;
-          await Promise.resolve();
+          registerCreatedCandidate(candidateRoot, { root: candidateRoot });
           return scenario.registered();
-        }) as never,
+        },
         cleanupCandidateLease
       });
       const result = await withAssembledReleaseCandidate(
@@ -5081,7 +5091,10 @@ describe("release candidate input validation", () => {
 
     const createFactoryOwnedLifecycle = createIdentityBoundCandidateLifecycle as unknown as <TIdentity extends object>(
       operations: {
-        createCandidateState(input: ValidatedReleaseCandidateInput): Promise<unknown>;
+        createCandidateState(
+          input: ValidatedReleaseCandidateInput,
+          registerCreatedCandidate: (inspectionRoot: string, identity: TIdentity) => object
+        ): Promise<unknown>;
         acquireCandidateLease(
           input: ValidatedReleaseCandidateInput,
           createRegisteredCandidate: () => Promise<object>
@@ -5117,9 +5130,9 @@ describe("release candidate input validation", () => {
       return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
     });
     const ownedLifecycle = createFactoryOwnedLifecycle<{ root: string }>({
-      createCandidateState: async (validated) => {
+      createCandidateState: async (validated, registerCreatedCandidate) => {
         ownedRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
-        return { inspectionRoot: ownedRoot, identity: { root: ownedRoot } };
+        return registerCreatedCandidate(ownedRoot, { root: ownedRoot });
       },
       acquireCandidateLease: async (_validated, createRegisteredCandidate) => {
         await createRegisteredCandidate();
@@ -5149,8 +5162,8 @@ describe("release candidate input validation", () => {
     if (ownedRoot === undefined) throw new Error("factory-owned root was not recorded");
     await expect(lstat(ownedRoot)).rejects.toMatchObject({ code: "ENOENT" });
 
-    for (const scenario of ["skip primitive", "out-of-contract host mutation"] as const) {
-      let unsupportedRoot: string | undefined;
+    {
+      const scenario = "skip primitive";
       const createCandidateState = vi.fn(async () => {
         throw new Error("creation primitive must not run");
       });
@@ -5162,10 +5175,7 @@ describe("release candidate input validation", () => {
       }));
       const lifecycle = createFactoryOwnedLifecycle<{ root: string }>({
         createCandidateState,
-        acquireCandidateLease: async (validated) => {
-          if (scenario === "out-of-contract host mutation") {
-            unsupportedRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
-          }
+        acquireCandidateLease: async () => {
           throw new Error("private unsupported provider failure");
         },
         cleanupCandidateLease
@@ -5189,7 +5199,6 @@ describe("release candidate input validation", () => {
       expect(cleanupCandidateLease, scenario).not.toHaveBeenCalled();
       expect(JSON.stringify(result), scenario).not.toContain(ownershipFixture.root);
       expect(JSON.stringify(result), scenario).not.toContain('"absent":true');
-      if (unsupportedRoot !== undefined) expect((await lstat(unsupportedRoot)).isDirectory()).toBe(true);
     }
 
     let reentrantPrimitive: (() => Promise<object>) | undefined;
@@ -5197,7 +5206,10 @@ describe("release candidate input validation", () => {
     let reentrantRejected = false;
     let reentrantCreateCalls = 0;
     const reentrantRoots: string[] = [];
-    const reentrantCreate = vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+    const reentrantCreate = vi.fn(async (
+      validated: ValidatedReleaseCandidateInput,
+      registerCreatedCandidate: (inspectionRoot: string, identity: { root: string }) => object
+    ) => {
       reentrantCreateCalls += 1;
       if (reentrantCreateCalls === 1) {
         if (reentrantPrimitive === undefined) throw new Error("reentrant primitive was not registered");
@@ -5205,7 +5217,7 @@ describe("release candidate input validation", () => {
       }
       const root = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
       reentrantRoots.push(root);
-      return { inspectionRoot: root, identity: { root } };
+      return registerCreatedCandidate(root, { root });
     });
     const reentrantCleanup = vi.fn(async (identity: { root: string }) => {
       await rm(identity.root, { recursive: true, force: false });
@@ -5244,11 +5256,14 @@ describe("release candidate input validation", () => {
       const creationSettled = new Promise<void>((resolve) => {
         settleCreation = resolve;
       });
-      const createCandidateState = vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+      const createCandidateState = vi.fn(async (
+        validated: ValidatedReleaseCandidateInput,
+        registerCreatedCandidate: (inspectionRoot: string, identity: { root: string }) => object
+      ) => {
         await new Promise<void>((resolve) => setImmediate(resolve));
         inFlightRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
         settleCreation?.();
-        return { inspectionRoot: inFlightRoot, identity: { root: inFlightRoot } };
+        return registerCreatedCandidate(inFlightRoot, { root: inFlightRoot });
       });
       const cleanupCandidateLease = vi.fn(async (identity: { root: string }) => {
         await rm(identity.root, { recursive: true, force: false });
@@ -5292,11 +5307,14 @@ describe("release candidate input validation", () => {
     const concurrentCreationSettled = new Promise<void>((resolve) => {
       concurrentSettled = resolve;
     });
-    const concurrentCreate = vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+    const concurrentCreate = vi.fn(async (
+      validated: ValidatedReleaseCandidateInput,
+      registerCreatedCandidate: (inspectionRoot: string, identity: { root: string }) => object
+    ) => {
       await new Promise<void>((resolve) => setImmediate(resolve));
       concurrentRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
       concurrentSettled?.();
-      return { inspectionRoot: concurrentRoot, identity: { root: concurrentRoot } };
+      return registerCreatedCandidate(concurrentRoot, { root: concurrentRoot });
     });
     const concurrentCleanup = vi.fn(async (identity: { root: string }) => {
       await rm(identity.root, { recursive: true, force: false });

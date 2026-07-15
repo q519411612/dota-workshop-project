@@ -579,7 +579,11 @@ export type IdentityBoundCandidateLifecycle = Readonly<{
 
 export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(operations: {
   createCandidateState(
-    input: ValidatedReleaseCandidateInput
+    input: ValidatedReleaseCandidateInput,
+    registerCreatedCandidate: (
+      inspectionRoot: string,
+      identity: TIdentity
+    ) => RegisteredCandidateCreation
   ): Promise<unknown>;
   acquireCandidateLease(
     input: ValidatedReleaseCandidateInput,
@@ -659,20 +663,58 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
         }
         creationStarted = true;
         creationPromise = (async (): Promise<CandidateCreationState> => {
+          let created: Readonly<{
+            inspectionRoot: string;
+            identity: TIdentity;
+            registration: RegisteredCandidateCreation;
+          }> | undefined;
+          const registerCreatedCandidate = (
+            inspectionRoot: string,
+            identity: TIdentity
+          ): RegisteredCandidateCreation => {
+            if (created !== undefined) {
+              contractInvalid = true;
+              throw candidateCreationContractViolation;
+            }
+            if (
+              typeof inspectionRoot !== "string"
+              || inspectionRoot.length === 0
+              || identity === null
+              || typeof identity !== "object"
+            ) {
+              contractInvalid = true;
+              throw candidateCreationContractViolation;
+            }
+            const registration = Object.freeze({ [registeredCandidateCreationBrand]: true as const });
+            created = Object.freeze({ inspectionRoot, identity, registration });
+            return registration;
+          };
           try {
-            const parsed = parseCreatedCandidateIdentity<TIdentity>(await createCandidateState(input));
-            if (parsed === undefined) {
+            const returned = await createCandidateState(input, registerCreatedCandidate);
+            if (created === undefined) {
               contractInvalid = true;
               return Object.freeze({ ok: false as const });
             }
+            if (returned !== created.registration) contractInvalid = true;
             return Object.freeze({
               ok: true as const,
-              created: parsed,
-              registration: Object.freeze({ [registeredCandidateCreationBrand]: true as const })
+              created: Object.freeze({
+                inspectionRoot: created.inspectionRoot,
+                identity: created.identity
+              }),
+              registration: created.registration
             });
           } catch {
             contractInvalid = true;
-            return Object.freeze({ ok: false as const });
+            if (created === undefined) return Object.freeze({ ok: false as const });
+            return Object.freeze({
+              ok: true as const,
+              created: Object.freeze({
+                inspectionRoot: created.inspectionRoot,
+                identity: created.identity
+              }),
+              registration: created.registration
+            });
           }
         })();
         const requested = creationPromise.then((state) => {
@@ -768,21 +810,6 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
       return await reconcileCandidateTree(identity, expected);
     }
   });
-}
-
-function parseCreatedCandidateIdentity<TIdentity extends object>(
-  value: unknown
-): Readonly<{ inspectionRoot: string; identity: TIdentity }> | undefined {
-  try {
-    if (value === null || typeof value !== "object") return undefined;
-    const inspectionRoot = Reflect.get(value, "inspectionRoot");
-    const identity = Reflect.get(value, "identity");
-    if (typeof inspectionRoot !== "string" || inspectionRoot.length === 0) return undefined;
-    if (identity === null || typeof identity !== "object") return undefined;
-    return Object.freeze({ inspectionRoot, identity: identity as TIdentity });
-  } catch {
-    return undefined;
-  }
 }
 
 async function cleanupFailedAcquisition<TIdentity extends object>(
