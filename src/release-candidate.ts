@@ -580,56 +580,76 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
     identityBoundCleanup: true as const,
     identityBoundAssembly,
     createCandidateLease: async (input) => {
-      let creationRequested = false;
+      type CandidateCreationState =
+        | Readonly<{
+            ok: true;
+            created: Readonly<{ inspectionRoot: string; identity: TIdentity }>;
+            registration: RegisteredCandidateCreation;
+          }>
+        | Readonly<{ ok: false }>;
+
+      let primitiveClosed = false;
       let contractInvalid = false;
-      let created: Readonly<{ inspectionRoot: string; identity: TIdentity }> | undefined;
-      let registeredToken: RegisteredCandidateCreation | undefined;
-      const createRegisteredCandidate = async (): Promise<RegisteredCandidateCreation> => {
-        if (creationRequested) {
+      let creationPromise: Promise<CandidateCreationState> | undefined;
+      const rejectedContractPromise = (): Promise<RegisteredCandidateCreation> => {
+        const rejected = Promise.reject<RegisteredCandidateCreation>(candidateCreationContractViolation);
+        void rejected.catch(() => undefined);
+        return rejected;
+      };
+      const createRegisteredCandidate = (): Promise<RegisteredCandidateCreation> => {
+        if (primitiveClosed || creationPromise !== undefined) {
           contractInvalid = true;
-          throw candidateCreationContractViolation;
+          return rejectedContractPromise();
         }
-        creationRequested = true;
-        let rawCreated: unknown;
-        try {
-          rawCreated = await createCandidateState(input);
-        } catch {
-          contractInvalid = true;
-          throw candidateCreationContractViolation;
-        }
-        const parsed = parseCreatedCandidateIdentity<TIdentity>(rawCreated);
-        if (parsed === undefined) {
-          contractInvalid = true;
-          throw candidateCreationContractViolation;
-        }
-        created = parsed;
-        registeredToken = Object.freeze({ [registeredCandidateCreationBrand]: true as const });
-        return registeredToken;
+        creationPromise = (async (): Promise<CandidateCreationState> => {
+          try {
+            const parsed = parseCreatedCandidateIdentity<TIdentity>(await createCandidateState(input));
+            if (parsed === undefined) {
+              contractInvalid = true;
+              return Object.freeze({ ok: false as const });
+            }
+            return Object.freeze({
+              ok: true as const,
+              created: parsed,
+              registration: Object.freeze({ [registeredCandidateCreationBrand]: true as const })
+            });
+          } catch {
+            contractInvalid = true;
+            return Object.freeze({ ok: false as const });
+          }
+        })();
+        const requested = creationPromise.then((state) => {
+          if (!state.ok) throw candidateCreationContractViolation;
+          return state.registration;
+        });
+        void requested.catch(() => undefined);
+        return requested;
       };
 
       let returned: unknown;
+      let acquisitionFailed = false;
       try {
         returned = await acquireCandidateLease(input, createRegisteredCandidate);
       } catch {
-        return created === undefined
-          ? creationContractFailure()
-          : await cleanupFailedAcquisition(created.identity, cleanupCandidateLease);
+        acquisitionFailed = true;
       }
+      primitiveClosed = true;
 
-      if (created === undefined || registeredToken === undefined) {
+      const creation = creationPromise === undefined ? undefined : await creationPromise;
+      if (creation === undefined || !creation.ok) {
         return creationContractFailure();
       }
-      if (contractInvalid || returned !== registeredToken) {
-        return await cleanupFailedAcquisition(created.identity, cleanupCandidateLease);
+      if (acquisitionFailed || contractInvalid || returned !== creation.registration) {
+        return await cleanupFailedAcquisition(creation.created.identity, cleanupCandidateLease);
       }
 
       const lease = Object.freeze({ [releaseCandidateLeaseBrand]: true as const });
-      identities.set(lease, created.identity);
+      identities.set(lease, creation.created.identity);
       return Object.freeze({
         ok: true as const,
         schemaVersion: "1.0" as const,
         state: "acquired" as const,
-        inspectionRoot: created.inspectionRoot,
+        inspectionRoot: creation.created.inspectionRoot,
         lease
       });
     },
