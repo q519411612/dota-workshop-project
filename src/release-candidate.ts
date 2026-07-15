@@ -108,8 +108,29 @@ function createDefaultFilesystem(platform: NodeJS.Platform): ReleaseCandidateFil
 
 export type ReleaseCandidateLifecycleBlocker = Readonly<{
   code: string;
-  category: "assembly" | "creation" | "inspection" | "integrity" | "removal" | "unsafe-isolation" | "unexpected-entry";
+  category:
+    | "assembly"
+    | "creation"
+    | "inspection"
+    | "integrity"
+    | "integrity-duplicate"
+    | "integrity-missing"
+    | "integrity-unexpected"
+    | "integrity-unobserved"
+    | "integrity-wrong-kind"
+    | "integrity-wrong-root"
+    | "removal"
+    | "unsafe-isolation"
+    | "unexpected-entry";
   path?: string;
+  count?: number;
+}>;
+
+export type ReleaseCandidateInclusionLedger = Readonly<{
+  schemaVersion: "1.0";
+  expectedFileCount: number;
+  observedFileCount: number;
+  matchedFileCount: number;
 }>;
 
 export type ReleaseCandidateManifestEntry = Readonly<{
@@ -127,9 +148,15 @@ export type ReleaseCandidateManifest = Readonly<{
 }>;
 
 export type ReleaseCandidateLifecycleResult<T> =
-  | { ok: true; value: T; manifest: ReleaseCandidateManifest }
+  | {
+      ok: true;
+      value: T;
+      manifest: ReleaseCandidateManifest;
+      inclusionLedger: ReleaseCandidateInclusionLedger;
+    }
   | {
       ok: false;
+      inclusionLedger?: ReleaseCandidateInclusionLedger;
       blockers: Array<
         ReleaseCandidateInputBlocker
         | ReleaseCandidateInventoryBlocker
@@ -142,6 +169,18 @@ type ReleaseCandidateLifecycleFailure = Extract<ReleaseCandidateLifecycleResult<
 type AcceptedSourceObservation = Extract<AcceptedSourceObservationResult, { ok: true }>;
 type AcceptedSourceObservations = ReadonlyMap<string, AcceptedSourceObservation>;
 type FileIntegrityObservations = ReadonlyMap<string, FileIntegrityObservation>;
+type CandidateIntegrityCapture = Readonly<{
+  observations: FileIntegrityObservations;
+  inclusionLedger: ReleaseCandidateInclusionLedger;
+}>;
+type CandidateIntegrityOccurrence = Readonly<{
+  root: ReleaseCandidateSourceRoot;
+  path: string;
+  bytes: number;
+  sha256: string;
+  identityMatched: boolean;
+  kindMatched: boolean;
+}>;
 
 export type ReleaseCandidateLease = Readonly<{
   [releaseCandidateLeaseBrand]: true;
@@ -835,9 +874,9 @@ async function inspectCandidateLease<T>(
     const prereviewStability = await verifySourceStability(input, inventory, observations, lifecycle);
     if (prereviewStability !== undefined) return prereviewStability;
     const expected = expectedCandidateTree(input, inventory);
-    const candidateBefore = await captureCandidateIntegrity(lease, expected, sourceBefore, lifecycle);
+    const candidateBefore = await captureCandidateIntegrity(lease, expected, inventory, sourceBefore, lifecycle);
     if (!candidateBefore.ok) return candidateBefore;
-    if (!sameIntegritySets(sourceBefore, candidateBefore.value)) return integrityMismatch();
+    if (!sameIntegritySets(sourceBefore, candidateBefore.value.observations)) return integrityMismatch();
     let value: T | undefined;
     let inspectionFailed = false;
     try {
@@ -846,21 +885,26 @@ async function inspectCandidateLease<T>(
       inspectionFailed = true;
     }
     const finalStability = await verifySourceStability(input, inventory, observations, lifecycle);
-    const candidateAfter = await captureCandidateIntegrity(lease, expected, sourceBefore, lifecycle);
+    const candidateAfter = await captureCandidateIntegrity(lease, expected, inventory, sourceBefore, lifecycle);
     if (!candidateAfter.ok) return candidateAfter;
     const sourceAfter = await captureSourceIntegrity(input, inventory, lifecycle);
     if (!sourceAfter.ok) return sourceAfter;
     if (
-      !sameIntegritySets(sourceBefore, candidateAfter.value)
+      !sameIntegritySets(sourceBefore, candidateAfter.value.observations)
       || !sameIntegritySets(sourceBefore, sourceAfter.value)
     ) return integrityMismatch();
     if (finalStability !== undefined) return finalStability;
     if (inspectionFailed) return lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
-    const manifest = projectReleaseCandidateManifest(inventory, candidateAfter.value);
+    const manifest = projectReleaseCandidateManifest(inventory, candidateAfter.value.observations);
     if (manifest === undefined) {
       return lifecycleBlocked("CANDIDATE_MANIFEST_PROJECTION_FAILED", "integrity");
     }
-    return { ok: true, value: value as T, manifest };
+    return {
+      ok: true,
+      value: value as T,
+      manifest,
+      inclusionLedger: candidateAfter.value.inclusionLedger
+    };
   } catch {
     return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
   }
@@ -1022,7 +1066,7 @@ async function captureSourceIntegrity(
   inventory: ReleaseCandidateSourceEntry[],
   lifecycle: BoundCandidateLifecycle
 ): Promise<{ ok: true; value: FileIntegrityObservations } | ReleaseCandidateLifecycleFailure> {
-  const observations = new Map<string, FileIntegrityObservation>();
+  const occurrences: FileIntegrityObservation[] = [];
   for (const entry of inventory) {
     if (entry.kind !== "file") continue;
     const parsed = await parseFileIntegrityObservation(
@@ -1031,18 +1075,22 @@ async function captureSourceIntegrity(
       "SOURCE_INTEGRITY_RESULT_INVALID"
     );
     if (!parsed.ok) return parsed;
-    observations.set(entry.path, parsed.value);
+    occurrences.push(parsed.value);
   }
-  return { ok: true, value: observations };
+  return {
+    ok: true,
+    value: new Map(occurrences.map((observation) => [observation.path, observation]))
+  };
 }
 
 async function captureCandidateIntegrity(
   lease: ReleaseCandidateLease,
   expectedTree: CandidateExpectedEntry[],
+  inventory: ReleaseCandidateSourceEntry[],
   sourceBefore: FileIntegrityObservations,
   lifecycle: BoundCandidateLifecycle
-): Promise<{ ok: true; value: FileIntegrityObservations } | ReleaseCandidateLifecycleFailure> {
-  const expectedFiles = expectedTree.filter((entry) => entry.kind === "file");
+): Promise<{ ok: true; value: CandidateIntegrityCapture } | ReleaseCandidateLifecycleFailure> {
+  const expectedFiles = inventory.filter((entry) => entry.kind === "file");
   try {
     const result = await lifecycle.observeCandidate(lease, expectedTree);
     if (
@@ -1055,51 +1103,243 @@ async function captureCandidateIntegrity(
     if (!Array.isArray(foreign)) {
       return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
     }
+    if (typeof Reflect.get(foreign, Symbol.iterator) !== "function") {
+      return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+    }
     const length = Reflect.get(foreign, "length");
-    if (!Number.isSafeInteger(length) || length !== expectedFiles.length) {
+    if (!Number.isSafeInteger(length) || (length as number) < 0) {
       return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
     }
 
-    const expectedByPath = new Map(expectedFiles.map((entry) => [entry.path, entry]));
-    const occurrences: FileIntegrityObservation[] = [];
+    const occurrences: CandidateIntegrityOccurrence[] = [];
     for (let index = 0; index < length; index += 1) {
       const foreignObservation = Reflect.get(foreign, String(index));
-      if (foreignObservation === null || typeof foreignObservation !== "object") {
-        return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
-      }
-      const foreignPath = Reflect.get(foreignObservation, "path");
-      const expected = typeof foreignPath === "string" ? expectedByPath.get(foreignPath) : undefined;
-      if (expected === undefined) return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
-      const parsed = parseFileIntegrityObservationValue(
-        foreignObservation,
-        {
-          root: expected.path.startsWith("game/") ? "game" : "content",
-          path: expected.path
-        },
-        "CANDIDATE_INTEGRITY_RESULT_INVALID"
-      );
+      const parsed = parseCandidateIntegrityOccurrence(foreignObservation);
       if (!parsed.ok) return parsed;
       occurrences.push(parsed.value);
     }
-
-    occurrences.sort((left, right) => compareOrdinal(left.path, right.path));
-    const expectedPaths = [...sourceBefore.keys()].sort(compareOrdinal);
-    if (
-      occurrences.length !== expectedPaths.length
-      || occurrences.some((observation, index) => observation.path !== expectedPaths[index])
-    ) return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
-
-    const observations = new Map<string, FileIntegrityObservation>();
-    for (const observation of occurrences) {
-      if (observations.has(observation.path)) {
-        return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
-      }
-      observations.set(observation.path, observation);
-    }
-    return { ok: true, value: observations };
+    return reconcileCandidateIntegrityOccurrences(expectedFiles, sourceBefore, occurrences);
   } catch {
     return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
   }
+}
+
+function parseCandidateIntegrityOccurrence(
+  result: unknown
+): { ok: true; value: CandidateIntegrityOccurrence } | ReleaseCandidateLifecycleFailure {
+  try {
+    if (result === null || typeof result !== "object" || Reflect.get(result, "ok") !== true) {
+      return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+    }
+    const schemaVersion = Reflect.get(result, "schemaVersion");
+    const root = Reflect.get(result, "root");
+    const path = Reflect.get(result, "path");
+    const bytes = Reflect.get(result, "bytes");
+    const sha256 = Reflect.get(result, "sha256");
+    const identityMatched = Reflect.get(result, "identityMatched");
+    const kindMatched = Reflect.get(result, "kindMatched");
+    if (
+      schemaVersion !== "1.0"
+      || (root !== "game" && root !== "content")
+      || typeof path !== "string"
+      || !isSafeCandidateLedgerPath(path)
+      || !Number.isSafeInteger(bytes)
+      || (bytes as number) < 0
+      || typeof sha256 !== "string"
+      || !/^[0-9a-f]{64}$/.test(sha256)
+      || (identityMatched !== true && identityMatched !== false)
+      || (kindMatched !== true && kindMatched !== false)
+      || Reflect.get(result, "contained") !== true
+    ) return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+    return {
+      ok: true,
+      value: {
+        root,
+        path,
+        bytes: bytes as number,
+        sha256,
+        identityMatched,
+        kindMatched
+      }
+    };
+  } catch {
+    return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+  }
+}
+
+function reconcileCandidateIntegrityOccurrences(
+  expectedFiles: ReleaseCandidateSourceEntry[],
+  sourceBefore: FileIntegrityObservations,
+  inputOccurrences: CandidateIntegrityOccurrence[]
+): { ok: true; value: CandidateIntegrityCapture } | ReleaseCandidateLifecycleFailure {
+  const occurrences = [...inputOccurrences].sort((left, right) => (
+    compareOrdinal(left.root, right.root)
+    || compareOrdinal(left.path, right.path)
+    || compareOrdinal(left.sha256, right.sha256)
+    || left.bytes - right.bytes
+  ));
+  const expected = expectedFiles.map((entry) => ({ root: entry.root, path: entry.path }))
+    .sort((left, right) => compareOrdinal(left.root, right.root) || compareOrdinal(left.path, right.path));
+  if (sourceBefore.size !== expected.length) {
+    return lifecycleBlocked("SOURCE_INTEGRITY_RESULT_INVALID", "integrity");
+  }
+  const blockers: ReleaseCandidateLifecycleBlocker[] = [];
+  let matchedFileCount = 0;
+
+  for (const file of expected) {
+    const samePath = occurrences.filter((occurrence) => occurrence.path === file.path);
+    const exact = samePath.filter((occurrence) => occurrence.root === file.root);
+    const wrongRootCount = samePath.filter((occurrence) => occurrence.root !== file.root).length;
+    if (wrongRootCount > 0) {
+      blockers.push(candidateLedgerBlocker(
+        "CANDIDATE_LEDGER_WRONG_ROOT",
+        "integrity-wrong-root",
+        file.path,
+        wrongRootCount
+      ));
+    }
+    if (exact.length === 0 && wrongRootCount === 0) {
+      blockers.push(candidateLedgerBlocker(
+        "CANDIDATE_LEDGER_MISSING",
+        "integrity-missing",
+        file.path,
+        0
+      ));
+      continue;
+    }
+    if (exact.length > 1) {
+      blockers.push(candidateLedgerBlocker(
+        "CANDIDATE_LEDGER_DUPLICATE",
+        "integrity-duplicate",
+        file.path,
+        exact.length
+      ));
+    }
+    const wrongKindCount = exact.filter((occurrence) => !occurrence.kindMatched).length;
+    if (wrongKindCount > 0) {
+      blockers.push(candidateLedgerBlocker(
+        "CANDIDATE_LEDGER_WRONG_KIND",
+        "integrity-wrong-kind",
+        file.path,
+        wrongKindCount
+      ));
+    }
+    const unobservedCount = exact.filter((occurrence) => !occurrence.identityMatched).length;
+    if (unobservedCount > 0) {
+      blockers.push(candidateLedgerBlocker(
+        "CANDIDATE_LEDGER_UNOBSERVED",
+        "integrity-unobserved",
+        file.path,
+        unobservedCount
+      ));
+    }
+    if (
+      samePath.length === 1
+      && exact.length === 1
+      && exact[0]?.kindMatched === true
+      && exact[0].identityMatched === true
+    ) {
+      matchedFileCount += 1;
+    }
+  }
+
+  const unexpected = occurrences.filter((occurrence) => (
+    !expected.some((file) => file.path === occurrence.path)
+  ));
+  for (let index = 0; index < unexpected.length;) {
+    const occurrence = unexpected[index];
+    if (occurrence === undefined) break;
+    let count = 1;
+    while (
+      unexpected[index + count]?.root === occurrence.root
+      && unexpected[index + count]?.path === occurrence.path
+    ) count += 1;
+    blockers.push(candidateLedgerBlocker(
+      "CANDIDATE_LEDGER_UNEXPECTED",
+      "integrity-unexpected",
+      occurrence.path,
+      count
+    ));
+    index += count;
+  }
+
+  blockers.sort(compareCandidateLedgerBlockers);
+  const inclusionLedger = Object.freeze({
+    schemaVersion: "1.0" as const,
+    expectedFileCount: expected.length,
+    observedFileCount: occurrences.length,
+    matchedFileCount
+  });
+  if (blockers.length > 0) return { ok: false, inclusionLedger, blockers };
+  const accepted = new Map<string, FileIntegrityObservation>();
+  for (const file of expected) {
+    const occurrence = occurrences.find((candidate) => (
+      candidate.root === file.root && candidate.path === file.path
+    ));
+    if (occurrence === undefined) {
+      return lifecycleBlocked("CANDIDATE_INTEGRITY_RESULT_INVALID", "integrity");
+    }
+    accepted.set(file.path, {
+      ok: true,
+      schemaVersion: "1.0",
+      root: occurrence.root,
+      path: occurrence.path,
+      bytes: occurrence.bytes,
+      sha256: occurrence.sha256,
+      identityMatched: true,
+      kindMatched: true,
+      contained: true
+    });
+  }
+  return {
+    ok: true,
+    value: Object.freeze({
+      observations: accepted,
+      inclusionLedger
+    })
+  };
+}
+
+function candidateLedgerBlocker(
+  code: string,
+  category: ReleaseCandidateLifecycleBlocker["category"],
+  path: string,
+  count: number
+): ReleaseCandidateLifecycleBlocker {
+  return Object.freeze({
+    code,
+    category,
+    path: safeCandidateTreeIdentity(path),
+    count
+  });
+}
+
+function compareCandidateLedgerBlockers(
+  left: ReleaseCandidateLifecycleBlocker,
+  right: ReleaseCandidateLifecycleBlocker
+): number {
+  const priorities: Record<string, number> = {
+    "integrity-duplicate": 0,
+    "integrity-wrong-root": 1,
+    "integrity-wrong-kind": 2,
+    "integrity-unobserved": 3,
+    "integrity-missing": 4,
+    "integrity-unexpected": 5
+  };
+  return (priorities[left.category] ?? Number.MAX_SAFE_INTEGER)
+    - (priorities[right.category] ?? Number.MAX_SAFE_INTEGER)
+    || compareOrdinal(left.path ?? "", right.path ?? "")
+    || compareOrdinal(left.code, right.code);
+}
+
+function isSafeCandidateLedgerPath(path: string): boolean {
+  if (
+    (!path.startsWith("game/") && !path.startsWith("content/"))
+    || path.startsWith("/")
+    || path.startsWith("\\")
+    || path.includes("\\")
+  ) return false;
+  return path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
 }
 
 async function parseFileIntegrityObservation(
