@@ -31,6 +31,19 @@ const TEXT_SCAN_EXTENSIONS = new Set([
   ".yml"
 ]);
 const PLACEHOLDER_VALUES = new Set(["", "changeme", "change me", "placeholder", "tbd", "todo", "unknown", "your name"]);
+const REQUIRED_PATH_LABELS = new Set([
+  "game addon root",
+  "content addon root",
+  "addon metadata",
+  "lua entry",
+  "localization file",
+  "content maps directory",
+  "hero list",
+  "hero data",
+  "unit support file",
+  "ability support file"
+]);
+const SCAN_ROOT_IDENTITIES = new Set(["game", "content"]);
 const SECRET_PATTERNS = [
   { category: "private key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/i },
   { category: "github token", pattern: /gh[pousr]_[A-Za-z0-9_]{20,}/ },
@@ -88,7 +101,7 @@ export function evaluateReleaseReadiness(input: ReleaseReadinessInput): ReleaseR
       code: requiredPath.present ? "REQUIRED_PATH_PRESENT" : "REQUIRED_PATH_MISSING",
       category: "required-structure",
       disposition: requiredPath.present ? "evidence" : "blocker",
-      field: requiredPath.label
+      ...findingField(requiredPath.label, REQUIRED_PATH_LABELS)
     });
   }
 
@@ -102,7 +115,7 @@ export function evaluateReleaseReadiness(input: ReleaseReadinessInput): ReleaseR
       code: "SECRET_SCAN_COMPLETED",
       category: "sensitive-material",
       disposition: "evidence",
-      field: scanRoot.root
+      ...findingField(scanRoot.root, SCAN_ROOT_IDENTITIES)
     });
   }
 
@@ -192,6 +205,10 @@ function findingPath(path: string): { path: string } | Record<string, never> {
     return {};
   }
   return { path };
+}
+
+function findingField(field: string, allowed: ReadonlySet<string>): { field: string } | Record<string, never> {
+  return allowed.has(field) ? { field } : {};
 }
 
 function parseAddonInfo(content: string): Map<string, string> {

@@ -61,4 +61,42 @@ describe("release readiness policy", () => {
     expect(JSON.stringify(findings)).not.toContain(secretValue);
     expect(JSON.stringify(findings)).not.toContain(privateRoot);
   });
+
+  test("does not serialize unsafe caller-provided finding identities", () => {
+    const tokenShapedLabel = "token = 'private-label-value'";
+    const privateScanRoot = "/Users/private/workshop";
+    const findings = evaluateReleaseReadiness({
+      requiredPaths: [{ label: tokenShapedLabel, present: false }],
+      metadata: {
+        state: "readable",
+        content:
+          '"addonSteamAppID" "570"\n"addontitle" "Demo"\n"addonAuthor" "Team"\n"addonDescription" "Ready"\n"addonVersion" "1.0.0"\n"DefaultMap" "dota"\n"maps" "dota"'
+      },
+      scanRoots: [
+        {
+          root: privateScanRoot,
+          files: [{ relativePath: "scripts/safe.lua", state: "text", content: "token = 'redacted'" }]
+        }
+      ]
+    });
+
+    expect(findings[0]).toEqual({
+      code: "REQUIRED_PATH_MISSING",
+      category: "required-structure",
+      disposition: "blocker"
+    });
+    expect(findings.at(-2)).toEqual({
+      code: "SENSITIVE_MATERIAL",
+      category: "token",
+      disposition: "blocker",
+      path: "scripts/safe.lua"
+    });
+    expect(findings.at(-1)).toEqual({
+      code: "SECRET_SCAN_COMPLETED",
+      category: "sensitive-material",
+      disposition: "evidence"
+    });
+    expect(JSON.stringify(findings)).not.toContain(tokenShapedLabel);
+    expect(JSON.stringify(findings)).not.toContain(privateScanRoot);
+  });
 });
