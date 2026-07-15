@@ -51,6 +51,10 @@ const BLOCKER_CODES = new Set([
     "POLICY_INPUT_INVALID",
     "RELEASE_CANDIDATE_INTEGRITY_MISMATCH",
     "REMOTE_RELEASE_CANDIDATE_TRANSPORT_UNCERTAIN",
+    "REMOTE_DOTA_ROOT_INVALID",
+    "REMOTE_DOTA_ROOT_REQUIRED",
+    "REMOTE_DESTINATION_INVALID",
+    "REMOTE_LIFECYCLE_INTERNAL_FAILURE",
     "REPOSITORY_ROOT",
     "REQUIRED_PATH_MISSING",
     "REQUIRED_PATH_WRONG_KIND",
@@ -74,6 +78,7 @@ const BLOCKER_CODES = new Set([
     "SOURCE_OBSERVATION_RESULT_INVALID",
     "SOURCE_READ_RESULT_INVALID",
     "TEMP_PARENT_NOT_ISOLATED",
+    "WINDOWS_FILE_IDENTITY_REQUIRED",
     "WINDOWS_REPARSE_CLASSIFIER_REQUIRED"
 ]);
 const CLEANUP_FAILURE_CODES = new Set([
@@ -126,16 +131,16 @@ export const RELEASE_CANDIDATE_BOUNDARIES = Object.freeze({
 });
 const MAX_PUBLIC_COLLECTION_ITEMS = 100_000;
 export const computeReleaseCandidateCombinedDigest = computeCanonicalCombinedDigest;
-export function normalizeReleaseCandidateDetail(input) {
+export function normalizeReleaseCandidateDetail(input, options = {}) {
     try {
-        return normalizeValidDetail(input) ?? normalizationFailure();
+        return normalizeValidDetail(input, options) ?? normalizationFailure();
     }
     catch {
         return normalizationFailure();
     }
 }
 export function createReleaseCandidateToolResult(input) {
-    const releaseCandidate = normalizeReleaseCandidateDetail(input.releaseCandidate);
+    const releaseCandidate = normalizeReleaseCandidateDetail(projectNormalizedDetailForValidation(input.releaseCandidate));
     const common = {
         target: input.target,
         operation: input.operation,
@@ -154,8 +159,33 @@ export function createReleaseCandidateToolResult(input) {
         error: { code, message: "Release candidate preflight did not satisfy the required invariants." }
     });
 }
-function normalizeValidDetail(input) {
-    if (!isObject(input) || get(input, "schemaVersion") !== "1.0")
+function projectNormalizedDetailForValidation(input) {
+    if (!isObject(input) || !Object.isFrozen(input))
+        return input;
+    const normalization = get(input, "normalization");
+    if (!isObject(normalization) || get(normalization, "status") !== "valid")
+        return input;
+    const projected = {};
+    for (const key of Reflect.ownKeys(input)) {
+        if (key === "normalization")
+            continue;
+        if (typeof key !== "string")
+            return input;
+        projected[key] = get(input, key);
+    }
+    return projected;
+}
+function normalizeValidDetail(input, options) {
+    if (!isObject(input)
+        || !hasOnlyOwnKeys(input, [
+            "schemaVersion", "ok", "operation", "artifactValidation", "manifest", "inclusionLedger",
+            "scanCoverage", "blockers", "cleanup", "paths", "execution", "warnings", "commands", "logs",
+            "boundaries"
+        ])
+        || get(input, "schemaVersion") !== "1.0")
+        return undefined;
+    const declaredOk = get(input, "ok");
+    if (declaredOk !== undefined && typeof declaredOk !== "boolean")
         return undefined;
     const operation = normalizeOperation(get(input, "operation"));
     const manifest = normalizeOptionalManifest(get(input, "manifest"));
@@ -163,7 +193,7 @@ function normalizeValidDetail(input) {
     const scanCoverage = normalizeOptionalCoverage(get(input, "scanCoverage"));
     const blockers = normalizeBlockers(get(input, "blockers"));
     const cleanup = normalizeCleanup(get(input, "cleanup"));
-    const paths = normalizePaths(get(input, "paths"));
+    const paths = normalizePaths(get(input, "paths"), options.expectedAddonName);
     const execution = normalizeExecution(get(input, "execution"));
     const warnings = normalizeStringArray(get(input, "warnings"));
     const commands = normalizeCommands(get(input, "commands"));
@@ -184,6 +214,8 @@ function normalizeValidDetail(input) {
         return undefined;
     const artifactValidation = normalizeArtifact(get(input, "artifactValidation"));
     if (artifactValidation === undefined)
+        return undefined;
+    if (!validateAddonIdentity(paths, manifest, scanCoverage, artifactValidation))
         return undefined;
     if (!validateDomainConsistency({
         operation,
@@ -213,7 +245,7 @@ function normalizeValidDetail(input) {
         ...(scanCoverage === undefined ? {} : { scanCoverage }),
         blockers,
         cleanup,
-        paths,
+        paths: { gameAddon: paths.gameAddon, contentAddon: paths.contentAddon },
         execution,
         warnings,
         commands,
@@ -225,11 +257,13 @@ function normalizeOperation(input) {
     if (!isObject(input))
         return undefined;
     const status = get(input, "status");
-    if (status === "not-reached" || status === "completed")
+    if ((status === "not-reached" || status === "completed")
+        && hasOnlyOwnKeys(input, ["status"]))
         return { status };
     const code = get(input, "code");
     if (status === "failed"
-        && (code === "CANDIDATE_INSPECTION_FAILED" || code === "CANDIDATE_INSPECTION_VALUE_UNSAFE"))
+        && (code === "CANDIDATE_INSPECTION_FAILED" || code === "CANDIDATE_INSPECTION_VALUE_UNSAFE")
+        && hasOnlyOwnKeys(input, ["status", "code"]))
         return { status, code };
     return undefined;
 }
@@ -237,9 +271,11 @@ function normalizeArtifact(input) {
     if (!isObject(input))
         return undefined;
     const status = get(input, "status");
-    if (status === "not-reached")
+    if (status === "not-reached" && hasOnlyOwnKeys(input, ["status"]))
         return { status };
     if (status === "blocked") {
+        if (!hasOnlyOwnKeys(input, ["status", "blockers", "inclusionLedger", "scanCoverage"]))
+            return undefined;
         const blockers = normalizeBlockers(get(input, "blockers"));
         const inclusionLedger = normalizeOptionalLedger(get(input, "inclusionLedger"));
         const scanCoverage = normalizeOptionalCoverage(get(input, "scanCoverage"));
@@ -256,6 +292,8 @@ function normalizeArtifact(input) {
         };
     }
     if (status === "passed") {
+        if (!hasOnlyOwnKeys(input, ["status", "manifest", "inclusionLedger", "scanCoverage"]))
+            return undefined;
         const manifest = normalizeManifest(get(input, "manifest"));
         const inclusionLedger = normalizeLedger(get(input, "inclusionLedger"));
         const scanCoverage = normalizeCoverage(get(input, "scanCoverage"));
@@ -271,7 +309,9 @@ function normalizeOptionalManifest(input) {
     return input === undefined ? undefined : normalizeManifest(input) ?? false;
 }
 function normalizeManifest(input) {
-    if (!isObject(input) || get(input, "schemaVersion") !== "1.0")
+    if (!isObject(input)
+        || !hasOnlyOwnKeys(input, ["schemaVersion", "entries", "combinedSha256"])
+        || get(input, "schemaVersion") !== "1.0")
         return undefined;
     const rawEntries = snapshotArray(get(input, "entries"));
     const combinedSha256 = get(input, "combinedSha256");
@@ -281,7 +321,9 @@ function normalizeManifest(input) {
     const seen = new Set();
     for (let index = 0; index < rawEntries.length; index += 1) {
         const raw = rawEntries[index];
-        if (!isObject(raw) || get(raw, "schemaVersion") !== "1.0")
+        if (!isObject(raw)
+            || !hasOnlyOwnKeys(raw, ["schemaVersion", "root", "path", "bytes", "sha256"])
+            || get(raw, "schemaVersion") !== "1.0")
             return undefined;
         const root = get(raw, "root");
         const path = get(raw, "path");
@@ -309,7 +351,9 @@ function normalizeOptionalLedger(input) {
     return input === undefined ? undefined : normalizeLedger(input) ?? false;
 }
 function normalizeLedger(input) {
-    if (!isObject(input) || get(input, "schemaVersion") !== "1.0")
+    if (!isObject(input)
+        || !hasOnlyOwnKeys(input, ["schemaVersion", "expectedFileCount", "observedFileCount", "matchedFileCount"])
+        || get(input, "schemaVersion") !== "1.0")
         return undefined;
     const expectedFileCount = get(input, "expectedFileCount");
     const observedFileCount = get(input, "observedFileCount");
@@ -324,7 +368,9 @@ function normalizeOptionalCoverage(input) {
     return input === undefined ? undefined : normalizeCoverage(input) ?? false;
 }
 function normalizeCoverage(input) {
-    if (!isObject(input) || get(input, "schemaVersion") !== "1.0")
+    if (!isObject(input)
+        || !hasOnlyOwnKeys(input, ["schemaVersion", "totalFileCount", "text", "binary", "unreadable", "oversized"])
+        || get(input, "schemaVersion") !== "1.0")
         return undefined;
     const totalFileCount = get(input, "totalFileCount");
     if (!isCount(totalFileCount))
@@ -341,7 +387,7 @@ function normalizeCoverage(input) {
     return { schemaVersion: "1.0", totalFileCount, text, binary, unreadable, oversized };
 }
 function normalizeCoverageCategory(input) {
-    if (!isObject(input))
+    if (!isObject(input) || !hasOnlyOwnKeys(input, ["count", "paths"]))
         return undefined;
     const count = get(input, "count");
     const paths = normalizePathArray(get(input, "paths"));
@@ -371,8 +417,9 @@ function normalizeBlockers(input) {
     const blockers = [];
     for (let index = 0; index < snapshot.length; index += 1) {
         const raw = snapshot[index];
-        if (!isObject(raw))
+        if (!isObject(raw) || !hasOnlyOwnKeys(raw, ["code", "category", "field", "path", "count", "disposition"])) {
             return undefined;
+        }
         const code = get(raw, "code");
         const category = get(raw, "category");
         const field = get(raw, "field");
@@ -407,6 +454,8 @@ function normalizeCleanup(input) {
     const status = get(input, "status");
     const verified = get(input, "verified");
     if (status === "not-reached" && attempted === false && attempts === 0 && verified === false) {
+        if (!hasOnlyOwnKeys(input, ["schemaVersion", "attempted", "attempts", "status", "verified"]))
+            return undefined;
         return { schemaVersion: "1.0", attempted, attempts, status, verified };
     }
     const identityMatched = get(input, "identityMatched");
@@ -418,8 +467,13 @@ function normalizeCleanup(input) {
         && verified === true
         && identityMatched === true
         && removed === true
-        && absent === true)
+        && absent === true) {
+        if (!hasOnlyOwnKeys(input, [
+            "schemaVersion", "attempted", "attempts", "status", "verified", "identityMatched", "removed", "absent"
+        ]))
+            return undefined;
         return { schemaVersion: "1.0", attempted, attempts, status, verified, identityMatched, removed, absent };
+    }
     const code = get(input, "code");
     if (status === "failed"
         && verified === false
@@ -431,6 +485,10 @@ function normalizeCleanup(input) {
         && (identityMatched === undefined || typeof identityMatched === "boolean")
         && (removed === undefined || typeof removed === "boolean")
         && (absent === undefined || typeof absent === "boolean")) {
+        if (!hasOnlyOwnKeys(input, [
+            "schemaVersion", "attempted", "attempts", "status", "verified", "code", "identityMatched", "removed", "absent"
+        ]))
+            return undefined;
         if (attempted === false
             && code === "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE"
             && identityMatched === undefined
@@ -466,12 +524,16 @@ function normalizeCleanup(input) {
         && typeof attempted === "boolean"
         && (attempts === 0 || attempts === 1)
         && attempts === (attempted ? 1 : 0)
-        && code === "REMOTE_RELEASE_CANDIDATE_TRANSPORT_UNCERTAIN")
+        && code === "REMOTE_RELEASE_CANDIDATE_TRANSPORT_UNCERTAIN") {
+        if (!hasOnlyOwnKeys(input, ["schemaVersion", "attempted", "attempts", "status", "verified", "code"])) {
+            return undefined;
+        }
         return { schemaVersion: "1.0", attempted, attempts, status, verified, code };
+    }
     return undefined;
 }
-function normalizePaths(input) {
-    if (!isObject(input))
+function normalizePaths(input, expectedAddonName) {
+    if (!isObject(input) || !hasOnlyOwnKeys(input, ["gameAddon", "contentAddon"]))
         return undefined;
     const gameAddon = get(input, "gameAddon");
     const contentAddon = get(input, "contentAddon");
@@ -479,13 +541,17 @@ function normalizePaths(input) {
         || typeof contentAddon !== "string"
         || !isSafeRelativePath(gameAddon)
         || !isSafeRelativePath(contentAddon)
-        || !gameAddon.startsWith("game/dota_addons/")
-        || !contentAddon.startsWith("content/dota_addons/"))
+        || !/^game\/dota_addons\/[a-z][a-z0-9_]{0,63}$/.test(gameAddon)
+        || !/^content\/dota_addons\/[a-z][a-z0-9_]{0,63}$/.test(contentAddon))
         return undefined;
-    return { gameAddon, contentAddon };
+    const addonName = gameAddon.slice("game/dota_addons/".length);
+    if (contentAddon !== `content/dota_addons/${addonName}`
+        || (expectedAddonName !== undefined && addonName !== expectedAddonName))
+        return undefined;
+    return { gameAddon, contentAddon, addonName };
 }
 function normalizeExecution(input) {
-    if (!isObject(input))
+    if (!isObject(input) || !hasOnlyOwnKeys(input, ["kind", "outcome", "exitCode"]))
         return undefined;
     const kind = get(input, "kind");
     const outcome = get(input, "outcome");
@@ -505,7 +571,7 @@ function normalizeCommands(input) {
     const commands = [];
     for (let index = 0; index < snapshot.length; index += 1) {
         const raw = snapshot[index];
-        if (!isObject(raw))
+        if (!isObject(raw) || !hasOnlyOwnKeys(raw, ["description", "outcome", "exitCode"]))
             return undefined;
         const description = get(raw, "description");
         const outcome = get(raw, "outcome");
@@ -526,7 +592,7 @@ function normalizeLogs(input) {
     const logs = [];
     for (let index = 0; index < snapshot.length; index += 1) {
         const raw = snapshot[index];
-        if (!isObject(raw))
+        if (!isObject(raw) || !hasOnlyOwnKeys(raw, ["source", "lines"]))
             return undefined;
         const source = get(raw, "source");
         const lines = normalizeStringArray(get(raw, "lines"));
@@ -640,6 +706,24 @@ function validatePassedEvidence(manifest, inclusionLedger, scanCoverage) {
     const manifestPaths = manifest.entries.map((entry) => entry.path).sort(compareOrdinal);
     return sameValue(covered, manifestPaths);
 }
+function validateAddonIdentity(paths, manifest, scanCoverage, artifactValidation) {
+    const expectedPrefix = (root) => (`${root === "game" ? paths.gameAddon : paths.contentAddon}/`);
+    const manifestMatches = (value) => (value === undefined
+        || value.entries.every((entry) => entry.path.startsWith(expectedPrefix(entry.root))));
+    const coverageMatches = (value) => {
+        if (value === undefined)
+            return true;
+        return [value.text, value.binary, value.unreadable, value.oversized]
+            .flatMap((category) => category.paths)
+            .every((path) => path.startsWith(expectedPrefix(path.startsWith("game/") ? "game" : "content")));
+    };
+    if (!manifestMatches(manifest) || !coverageMatches(scanCoverage))
+        return false;
+    if (artifactValidation.status === "passed") {
+        return manifestMatches(artifactValidation.manifest) && coverageMatches(artifactValidation.scanCoverage);
+    }
+    return artifactValidation.status !== "blocked" || coverageMatches(artifactValidation.scanCoverage);
+}
 function normalizationFailure() {
     return deepFreeze({
         schemaVersion: "1.0",
@@ -661,11 +745,26 @@ function snapshotArray(input) {
     if (!Number.isSafeInteger(length) || length < 0 || length > MAX_PUBLIC_COLLECTION_ITEMS) {
         return undefined;
     }
+    const keys = Reflect.ownKeys(input);
+    if (keys.length !== length + 1
+        || keys.some((key) => {
+            if (key === "length")
+                return false;
+            if (typeof key !== "string" || !/^(?:0|[1-9][0-9]*)$/.test(key))
+                return true;
+            const index = Number(key);
+            return !Number.isSafeInteger(index) || index < 0 || index >= length;
+        }))
+        return undefined;
     const snapshot = [];
     for (let index = 0; index < length; index += 1) {
         snapshot.push(Reflect.get(input, index));
     }
     return snapshot;
+}
+function hasOnlyOwnKeys(input, allowed) {
+    const allowedSet = new Set(allowed);
+    return Reflect.ownKeys(input).every((key) => typeof key === "string" && allowedSet.has(key));
 }
 function isCount(value) {
     return Number.isSafeInteger(value) && value >= 0;

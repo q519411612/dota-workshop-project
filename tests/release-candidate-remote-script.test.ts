@@ -95,8 +95,10 @@ describe("remote release candidate PowerShell lifecycle", () => {
 
     expect(script).toContain("@('game', 'game/dota_addons', 'game/dota_addons/' + $AddonName");
     expect(script).toContain("'content', 'content/dota_addons', 'content/dota_addons/' + $AddonName)");
-    expect(script).toContain("ConvertTo-Json -InputObject $rows -Depth 4 -Compress");
-    expect(script).toContain("[object[]]@($SchemaVersion, [object[]]$rows)");
+    expect(script).toContain("ConvertTo-Json -InputObject $payload -Depth 4 -Compress");
+    expect(script).toContain("$payload = [object[]]::new(2)");
+    expect(script).toContain("$payload[0] = $SchemaVersion");
+    expect(script).toContain("$payload[1] = [object[]]$rows");
     expect(script).toContain("@($entry.root, $entry.path, [long]$entry.bytes, $entry.sha256)");
     expect(script).not.toContain("@($entry.schemaVersion, $entry.root");
     expect(script).toContain("Get-CanonicalManifestDigest $CanonicalVectorEntries");
@@ -189,7 +191,8 @@ describe("remote release candidate PowerShell lifecycle", () => {
 
     expect(script).toContain("game/dota_addons/$AddonName");
     expect(script).toContain("content/dota_addons/$AddonName");
-    expect(script).toContain("SOURCE_OBSERVATION_FAILED");
+    expect(script).toContain("REMOTE_LIFECYCLE_INTERNAL_FAILURE");
+    expect(script).not.toContain("SOURCE_OBSERVATION_FAILED");
     expect(script).not.toContain("gameAddon = $gameAddonRoot");
     expect(script).not.toContain("contentAddon = $contentAddonRoot");
     expect(script).not.toContain("candidateRoot = $candidateRoot");

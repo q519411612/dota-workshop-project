@@ -36,7 +36,7 @@ export async function preflightRemoteReleaseCandidate(
   const target = publicTarget(outcome.transport);
 
   if (outcome.outcome === "configuration-failed") {
-    return configurationFailure(target, outcome.code);
+    return configurationFailure(target, outcome.code, input.addonName);
   }
   if (outcome.outcome !== "completed") {
     return transportFailure(target, outcome.outcome === "failed" ? outcome.exitCode : undefined);
@@ -66,7 +66,7 @@ export async function preflightRemoteReleaseCandidate(
     commands: [{ description: commandDescription(outcome.transport), outcome: "completed", exitCode: 0 }],
     logs: [{ source: "remote-release-candidate", lines: ["remote evidence normalized"] }]
   };
-  const normalized = normalizeReleaseCandidateDetail(candidate);
+  const normalized = normalizeReleaseCandidateDetail(candidate, { expectedAddonName: input.addonName });
   if (!("operation" in normalized)) {
     const code = hasDigestViolation(parsed)
       ? "REMOTE_RELEASE_CANDIDATE_DIGEST_INVALID"
@@ -82,7 +82,8 @@ export async function preflightRemoteReleaseCandidate(
 
 function configurationFailure(
   target: RemoteTarget,
-  code: "REMOTE_DOTA_ROOT_REQUIRED" | "REMOTE_DOTA_ROOT_INVALID" | "REMOTE_DESTINATION_INVALID" | "INVALID_ADDON_NAME"
+  code: "REMOTE_DOTA_ROOT_REQUIRED" | "REMOTE_DOTA_ROOT_INVALID" | "REMOTE_DESTINATION_INVALID" | "INVALID_ADDON_NAME",
+  addonName: string
 ): ToolResult {
   return createFailureResult({
     target,
@@ -93,7 +94,37 @@ function configurationFailure(
     },
     evidence: ["remote release-candidate invocation was not started"],
     logs: [{ source: "remote-release-candidate", lines: ["remote configuration rejected"] }],
-    releaseCandidate: normalizeReleaseCandidateDetail({})
+    releaseCandidate: precreationDetail(target.transport, addonName, code)
+  });
+}
+
+function precreationDetail(
+  transport: "ssh" | "powershell",
+  addonName: string,
+  code: "REMOTE_DOTA_ROOT_REQUIRED" | "REMOTE_DOTA_ROOT_INVALID" | "REMOTE_DESTINATION_INVALID" | "INVALID_ADDON_NAME"
+): ReleaseCandidateDetail {
+  const safeAddonName = /^[a-z][a-z0-9_]{0,63}$/.test(addonName) ? addonName : "unverified";
+  return normalizeReleaseCandidateDetail({
+    schemaVersion: "1.0",
+    operation: { status: "not-reached" },
+    artifactValidation: { status: "not-reached" },
+    blockers: [{ code, category: "configuration", disposition: "blocker" }],
+    cleanup: {
+      schemaVersion: "1.0",
+      attempted: false,
+      attempts: 0,
+      status: "not-reached",
+      verified: false
+    },
+    paths: {
+      gameAddon: `game/dota_addons/${safeAddonName}`,
+      contentAddon: `content/dota_addons/${safeAddonName}`
+    },
+    execution: { kind: transport, outcome: "failed" },
+    warnings: ["contract evidence only"],
+    commands: [],
+    logs: [],
+    boundaries: RELEASE_CANDIDATE_BOUNDARIES
   });
 }
 

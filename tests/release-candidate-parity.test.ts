@@ -132,6 +132,7 @@ async function runNodeRoute(kind: "fixture" | "local", fixture: Awaited<ReturnTy
 
 async function runRemoteRoute(transport: "ssh" | "powershell", source: ToolResult): Promise<ToolResult> {
   const payload = structuredClone(source.releaseCandidate) as Record<string, unknown>;
+  delete payload.normalization;
   return (handleTool as any)("preflight_release_candidate", {
     target: { kind: "remote", name: "private", transport, host: "example.test", dotaRoot: "C:/Dota" },
     addonName: "fixture_addon"

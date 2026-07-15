@@ -7,7 +7,7 @@ export async function preflightRemoteReleaseCandidate(input) {
     const outcome = await executeRemoteReleaseCandidateScript(input);
     const target = publicTarget(outcome.transport);
     if (outcome.outcome === "configuration-failed") {
-        return configurationFailure(target, outcome.code);
+        return configurationFailure(target, outcome.code, input.addonName);
     }
     if (outcome.outcome !== "completed") {
         return transportFailure(target, outcome.outcome === "failed" ? outcome.exitCode : undefined);
@@ -35,7 +35,7 @@ export async function preflightRemoteReleaseCandidate(input) {
         commands: [{ description: commandDescription(outcome.transport), outcome: "completed", exitCode: 0 }],
         logs: [{ source: "remote-release-candidate", lines: ["remote evidence normalized"] }]
     };
-    const normalized = normalizeReleaseCandidateDetail(candidate);
+    const normalized = normalizeReleaseCandidateDetail(candidate, { expectedAddonName: input.addonName });
     if (!("operation" in normalized)) {
         const code = hasDigestViolation(parsed)
             ? "REMOTE_RELEASE_CANDIDATE_DIGEST_INVALID"
@@ -47,7 +47,7 @@ export async function preflightRemoteReleaseCandidate(input) {
     }
     return completedResult(target, normalized);
 }
-function configurationFailure(target, code) {
+function configurationFailure(target, code, addonName) {
     return createFailureResult({
         target,
         operation: OPERATION,
@@ -57,7 +57,32 @@ function configurationFailure(target, code) {
         },
         evidence: ["remote release-candidate invocation was not started"],
         logs: [{ source: "remote-release-candidate", lines: ["remote configuration rejected"] }],
-        releaseCandidate: normalizeReleaseCandidateDetail({})
+        releaseCandidate: precreationDetail(target.transport, addonName, code)
+    });
+}
+function precreationDetail(transport, addonName, code) {
+    const safeAddonName = /^[a-z][a-z0-9_]{0,63}$/.test(addonName) ? addonName : "unverified";
+    return normalizeReleaseCandidateDetail({
+        schemaVersion: "1.0",
+        operation: { status: "not-reached" },
+        artifactValidation: { status: "not-reached" },
+        blockers: [{ code, category: "configuration", disposition: "blocker" }],
+        cleanup: {
+            schemaVersion: "1.0",
+            attempted: false,
+            attempts: 0,
+            status: "not-reached",
+            verified: false
+        },
+        paths: {
+            gameAddon: `game/dota_addons/${safeAddonName}`,
+            contentAddon: `content/dota_addons/${safeAddonName}`
+        },
+        execution: { kind: transport, outcome: "failed" },
+        warnings: ["contract evidence only"],
+        commands: [],
+        logs: [],
+        boundaries: RELEASE_CANDIDATE_BOUNDARIES
     });
 }
 function completedResult(target, detail) {
