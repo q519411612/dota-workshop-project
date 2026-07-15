@@ -297,4 +297,29 @@ describe("remote release-candidate normalization", () => {
     expect(result.paths).toEqual({});
     expectNoPrivateEvidence(result);
   });
+
+  test.each([
+    ["invalid addon", target("ssh"), "../demo", "INVALID_ADDON_NAME"],
+    ["missing root", { ...target("ssh"), dotaRoot: undefined }, "demo", "REMOTE_DOTA_ROOT_REQUIRED"],
+    ["invalid destination", { ...target("ssh"), host: "-option" }, "demo", "REMOTE_DESTINATION_INVALID"]
+  ])("preserves pre-invocation %s failure without cleanup uncertainty", async (_name, remoteTarget, addonName, code) => {
+    let calls = 0;
+    const result = await preflightRemoteReleaseCandidate({
+      target: remoteTarget as RemoteTarget,
+      addonName,
+      executor: async () => {
+        calls += 1;
+        return { exitCode: 0, stdout: JSON.stringify(successPayload()), stderr: "" };
+      }
+    });
+
+    expect(calls).toBe(0);
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code },
+      releaseCandidate: { normalization: { status: "failed" } }
+    });
+    expect(JSON.stringify(result.releaseCandidate)).not.toContain("cleanup");
+    expectNoPrivateEvidence(result);
+  });
 });
