@@ -5030,9 +5030,10 @@ describe("release candidate input validation", () => {
         scanCoverage: expect.any(Object),
         cleanup: {
           schemaVersion: "1.0",
-          attempted: true,
-          attempts: 1,
+          attempted: false,
+          attempts: 0,
           status: "failed",
+          verified: false,
           code: "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE"
         },
         blockers: [{ code: "CANDIDATE_ACQUISITION_RESULT_INVALID", category: "creation" }]
@@ -5045,6 +5046,119 @@ describe("release candidate input validation", () => {
       expect(JSON.stringify(result), scenario.name).not.toContain('"absent":true');
       if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
       expect((await lstat(candidateRoot)).isDirectory(), scenario.name).toBe(true);
+    }
+
+    const createFactoryOwnedLifecycle = createIdentityBoundCandidateLifecycle as unknown as <TIdentity extends object>(
+      operations: {
+        createCandidateState(input: ValidatedReleaseCandidateInput): Promise<unknown>;
+        acquireCandidateLease(
+          input: ValidatedReleaseCandidateInput,
+          createRegisteredCandidate: () => Promise<object>
+        ): Promise<unknown>;
+        cleanupCandidateLease(identity: TIdentity): Promise<CandidateLeaseCleanupResult>;
+      }
+    ) => IdentityBoundCandidateLifecycle;
+
+    const ownershipFixture = await createFixture();
+    await populateReadyFixture(ownershipFixture);
+    const preparedOwnership = await prepareReleaseCandidateInput(
+      {
+        addonName: "fixture_addon",
+        dotaRoot: ownershipFixture.dotaRoot,
+        tempParent: ownershipFixture.tempParent
+      },
+      {
+        repositoryRoot: ownershipFixture.repositoryRoot,
+        filesystem: {
+          lstat,
+          realpath,
+          readDirectory: async (path) => await readdir(path),
+          classifySourceEntry: classifyFixtureEntry,
+          createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); })
+        }
+      }
+    );
+    if (!preparedOwnership.ok) throw new Error("ownership fixture input was rejected");
+
+    let ownedRoot: string | undefined;
+    const ownedCleanup = vi.fn(async (identity: { root: string }) => {
+      await rm(identity.root, { recursive: true, force: false });
+      return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
+    });
+    const ownedLifecycle = createFactoryOwnedLifecycle<{ root: string }>({
+      createCandidateState: async (validated) => {
+        ownedRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+        return { inspectionRoot: ownedRoot, identity: { root: ownedRoot } };
+      },
+      acquireCandidateLease: async (_validated, createRegisteredCandidate) => {
+        await createRegisteredCandidate();
+        await Promise.resolve();
+        throw new Error("private post-create provider failure");
+      },
+      cleanupCandidateLease: ownedCleanup
+    });
+    const ownedFailure = await ownedLifecycle.createCandidateLease(preparedOwnership.value);
+    expect(ownedFailure).toEqual({
+      ok: false,
+      schemaVersion: "1.0",
+      state: "created-failure",
+      code: "CANDIDATE_ACQUISITION_RESULT_INVALID",
+      cleanup: {
+        schemaVersion: "1.0",
+        attempted: true,
+        attempts: 1,
+        status: "verified",
+        verified: true,
+        identityMatched: true,
+        removed: true,
+        absent: true
+      }
+    });
+    expect(ownedCleanup).toHaveBeenCalledTimes(1);
+    if (ownedRoot === undefined) throw new Error("factory-owned root was not recorded");
+    await expect(lstat(ownedRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    for (const scenario of ["skip primitive", "out-of-contract host mutation"] as const) {
+      let unsupportedRoot: string | undefined;
+      const createCandidateState = vi.fn(async () => {
+        throw new Error("creation primitive must not run");
+      });
+      const cleanupCandidateLease = vi.fn(async () => ({
+        ok: true as const,
+        removed: true as const,
+        absent: true as const,
+        identityMatched: true as const
+      }));
+      const lifecycle = createFactoryOwnedLifecycle<{ root: string }>({
+        createCandidateState,
+        acquireCandidateLease: async (validated) => {
+          if (scenario === "out-of-contract host mutation") {
+            unsupportedRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          }
+          throw new Error("private unsupported provider failure");
+        },
+        cleanupCandidateLease
+      });
+      const result = await lifecycle.createCandidateLease(preparedOwnership.value);
+      expect(result, scenario).toEqual({
+        ok: false,
+        schemaVersion: "1.0",
+        state: "contract-failure",
+        code: "CANDIDATE_CREATION_CONTRACT_FAILED",
+        cleanup: {
+          schemaVersion: "1.0",
+          attempted: false,
+          attempts: 0,
+          status: "failed",
+          verified: false,
+          code: "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE"
+        }
+      });
+      expect(createCandidateState, scenario).not.toHaveBeenCalled();
+      expect(cleanupCandidateLease, scenario).not.toHaveBeenCalled();
+      expect(JSON.stringify(result), scenario).not.toContain(ownershipFixture.root);
+      expect(JSON.stringify(result), scenario).not.toContain('"absent":true');
+      if (unsupportedRoot !== undefined) expect((await lstat(unsupportedRoot)).isDirectory()).toBe(true);
     }
 
     const postLeaseScenarios = [
