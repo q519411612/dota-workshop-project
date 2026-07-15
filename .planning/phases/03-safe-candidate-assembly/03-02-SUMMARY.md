@@ -25,15 +25,17 @@ key-decisions:
   - "Validate and canonicalize all trusted roots before returning the state accepted by later assembly seams."
   - "Normalize filesystem failures to stable code, field, and category triples without raw paths or exception messages."
   - "Keep candidate creation present only as an adapter contract; input preparation never calls it."
+  - "Require a module-private branded validated handle at continuation and creation seams."
 
 patterns-established:
   - "Precreation failures contain only stable code, field, and category evidence."
   - "Derived addon roots are validated independently beneath the canonical Dota root."
   - "Temporary-parent isolation uses canonical containment against Dota, repository, game-addon, and content-addon roots."
+  - "A narrow preparation continuation connects validation to later work without owning candidate creation or lifetime."
 
 requirements-completed: [RCOP-02]
 
-duration: 19min
+duration: 30min
 completed: 2026-07-15
 status: complete
 ---
@@ -44,9 +46,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 19 min
+- **Duration:** 30 min
 - **Started:** 2026-07-15T05:10:24Z
-- **Completed:** 2026-07-15T05:29:01Z
+- **Completed:** 2026-07-15T05:40:01Z
 - **Tasks:** 2
 - **Files created:** 2
 
@@ -56,6 +58,7 @@ status: complete
 - Proved every rejected case records zero `createCandidateRoot` calls and serializes neither fixture-private paths nor injected exception content.
 - Added `prepareReleaseCandidateInput`, which validates the addon first, canonicalizes trusted directories, derives both fixed addon roots, proves temporary-parent isolation, and returns an immutable validated state.
 - Rejected canonical game/content root escapes and canonical temporary-parent aliases with stable field-specific blockers before candidate creation.
+- Made the validated state opaque to normal TypeScript callers and added a real validation-to-continuation seam with zero invalid-path calls and one valid-path call.
 - Kept inventory, traversal, copying, candidate lifetime, inspection, manifest generation, cleanup evidence, MCP registration, and remote behavior outside this plan.
 
 ## Task Commits
@@ -64,6 +67,8 @@ status: complete
 2. **Validate assembly inputs** - `afb3ee5` (feat)
 3. **Expose canonical root escapes** - `7b525f0` (test)
 4. **Contain canonical addon roots** - `59d761d` (fix)
+5. **Require opaque validated continuation** - `1905419` (test)
+6. **Gate continuation with opaque input** - `fe289b1` (fix)
 
 ## Files Created
 
@@ -88,10 +93,18 @@ status: complete
 - **Verification:** Injected canonical-alias RED failed with an accepted validated state; GREEN returns field-specific sanitized blockers with zero creation calls.
 - **Committed in:** `7b525f0`, `59d761d`
 
+**2. [Rule 2 - Validated-state contract] Prevented structural bypass of preparation**
+- **Found during:** Independent quality review
+- **Issue:** The exported validated state was structurally forgeable, and the candidate-creation adapter accepted a raw temporary-parent string, allowing normal TypeScript callers to bypass preparation.
+- **Fix:** Added a module-private unique-symbol brand, changed the creation adapter to require the branded handle, and added a callback-only continuation that invokes later work only after successful preparation.
+- **Files modified:** `src/release-candidate.ts`, `tests/release-candidate.test.ts`
+- **Verification:** Compile-time negative type assertions reject raw structural objects and strings; runtime assertions prove invalid input invokes zero callbacks and valid input invokes one callback with a frozen handle.
+- **Committed in:** `1905419`, `fe289b1`
+
 ---
 
-**Total deviations:** 1 auto-fixed canonical-containment issue
-**Impact on plan:** The correction closes the required source-root trust boundary without adding traversal or candidate lifecycle behavior.
+**Total deviations:** 2 auto-fixed issues (1 canonical-containment issue, 1 validated-state contract issue)
+**Impact on plan:** The corrections close the source-root trust boundary and enforce the validated-state transition without adding traversal or candidate lifecycle behavior.
 
 ## TDD Gate Compliance
 
@@ -99,12 +112,13 @@ status: complete
 - The isolated RED commit `cd744d3` precedes the GREEN implementation commit `afb3ee5`.
 - GREEN passed the exact focused test, typecheck, and build command before the implementation commit.
 - Review RED commit `7b525f0` precedes containment fix commit `59d761d`; the injected alias test failed by returning `ok: true` before the fix.
+- Quality-review RED commit `1905419` precedes opaque-handle fix commit `fe289b1`; runtime import and compile-time seam checks both failed before the fix.
 
 ## Verification Evidence
 
-- Focused candidate-input tests: 2/2 passed.
-- Candidate-domain focused suite: 39/39 passed across six test files.
-- Full suite: 162/162 passed across 20 test files.
+- Focused candidate-input tests: 3/3 passed.
+- Candidate-domain focused suite: 40/40 passed across six test files.
+- Full suite: 163/163 passed across 20 test files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed; the generated candidate module is not yet a packaged runtime dependency and remains untracked until integration owns it.
 - `git diff --check`: passed.
@@ -112,7 +126,7 @@ status: complete
 
 ## Issues Encountered
 
-Independent specification review identified a canonical source-root escape; it was reproduced, corrected, and verified as documented above.
+Independent reviews identified a canonical source-root escape and a structurally forgeable validated-state seam; both were reproduced, corrected, and verified as documented above.
 
 ## User Setup Required
 
