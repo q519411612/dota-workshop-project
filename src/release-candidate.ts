@@ -192,10 +192,14 @@ export type ReleaseCandidateCleanupEvidence =
       code: "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE";
     }>;
 
+export type ReleaseCandidateInspectionFailureCode =
+  | "CANDIDATE_INSPECTION_FAILED"
+  | "CANDIDATE_INSPECTION_VALUE_UNSAFE";
+
 export type ReleaseCandidateOperationEvidence =
   | Readonly<{ status: "not-reached" }>
   | Readonly<{ status: "completed" }>
-  | Readonly<{ status: "failed"; code: "CANDIDATE_INSPECTION_FAILED" }>;
+  | Readonly<{ status: "failed"; code: ReleaseCandidateInspectionFailureCode }>;
 
 export type ReleaseCandidateArtifactValidation =
   | Readonly<{
@@ -1235,14 +1239,14 @@ async function inspectCandidateLease<T extends ReleaseCandidateInspectionValue>(
       return blockedArtifact(
         composeFinalFailure(primaryFailure, candidateAfter),
         scanCoverage,
-        inspectionFailureCode === undefined ? "completed" : "failed"
+        inspectionFailureCode === undefined ? "completed" : inspectionFailureCode
       );
     }
     if (!candidateAfter.ok) {
       return blockedArtifact(
         candidateAfter,
         scanCoverage,
-        inspectionFailureCode === undefined ? "completed" : "failed"
+        inspectionFailureCode === undefined ? "completed" : inspectionFailureCode
       );
     }
     const manifest = projectReleaseCandidateManifest(inventory, candidateAfter.value.observations);
@@ -1250,7 +1254,7 @@ async function inspectCandidateLease<T extends ReleaseCandidateInspectionValue>(
       return blockedArtifact(
         lifecycleBlocked("CANDIDATE_MANIFEST_PROJECTION_FAILED", "integrity"),
         scanCoverage,
-        inspectionFailureCode === undefined ? "completed" : "failed"
+        inspectionFailureCode === undefined ? "completed" : inspectionFailureCode
       );
     }
     const artifactValidation = freezePassedArtifact(
@@ -1260,7 +1264,7 @@ async function inspectCandidateLease<T extends ReleaseCandidateInspectionValue>(
     );
     if (inspectionFailureCode !== undefined) {
       return Object.freeze({
-        operation: operationFailed(),
+        operation: operationFailed(inspectionFailureCode),
         artifactValidation,
         blockers: [Object.freeze({ code: inspectionFailureCode, category: "inspection" as const })]
       });
@@ -2319,8 +2323,10 @@ function operationCompleted(): Extract<ReleaseCandidateOperationEvidence, { stat
   return Object.freeze({ status: "completed" });
 }
 
-function operationFailed(): Extract<ReleaseCandidateOperationEvidence, { status: "failed" }> {
-  return Object.freeze({ status: "failed", code: "CANDIDATE_INSPECTION_FAILED" });
+function operationFailed(
+  code: ReleaseCandidateInspectionFailureCode = "CANDIDATE_INSPECTION_FAILED"
+): Extract<ReleaseCandidateOperationEvidence, { status: "failed" }> {
+  return Object.freeze({ status: "failed", code });
 }
 
 function artifactNotReached(): Extract<ReleaseCandidateArtifactValidation, { status: "not-reached" }> {
@@ -2371,15 +2377,15 @@ function snapshotBlockers(
 function blockedArtifact<T>(
   failure: ReleaseCandidateLifecycleFailure,
   scanCoverage: ReleaseScanCoverage,
-  operation: "not-reached" | "completed" | "failed" = "not-reached"
+  operation: "not-reached" | "completed" | ReleaseCandidateInspectionFailureCode = "not-reached"
 ): ReleaseCandidateInspectionOutcome<T> {
   const artifactBlockers = snapshotBlockers(failure.blockers);
   const outcomeBlockers = snapshotBlockers(failure.blockers);
   return Object.freeze({
     operation: operation === "completed"
       ? operationCompleted()
-      : operation === "failed"
-        ? operationFailed()
+      : operation !== "not-reached"
+        ? operationFailed(operation)
         : operationNotReached(),
     artifactValidation: Object.freeze({
       status: "blocked" as const,
