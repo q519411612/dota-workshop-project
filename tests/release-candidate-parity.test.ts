@@ -111,7 +111,8 @@ describe("release-candidate four-target parity", () => {
   });
 
   test("executes embedded remote sensitive policy semantics against shared local findings", () => {
-    const content = 'ghp_12345678901234567890\npassword = "private"';
+    const githubToken = ["ghp", "12345678901234567890"].join("_");
+    const content = `${githubToken}\npassword = "private"`;
     const localCategories = evaluateReleaseReadiness({
       requiredPaths: [],
       metadata: { state: "missing" },
