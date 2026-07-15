@@ -61,6 +61,47 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).not.toContain("Get-ChildItem -LiteralPath ([IO.Path]::GetTempPath())");
   });
 
+  test("matches required readiness paths and revalidates source identity at every use", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).toContain("resource/addon_' + $AddonName + '_english.txt");
+    expect(script).toContain("scripts/npc/herolist.txt");
+    expect(script).not.toContain("resource/addon_english.txt");
+    expect(script).not.toContain("scripts/npc/npc_heroes.txt");
+    for (const requiredText of [
+      "addoninfo.txt",
+      "scripts/vscripts/addon_game_mode.lua",
+      "resource/addon_' + $AddonName + '_english.txt",
+      "scripts/npc/herolist.txt",
+      "scripts/npc/npc_heroes_custom.txt",
+      "scripts/npc/npc_units_custom.txt",
+      "scripts/npc/npc_abilities_custom.txt"
+    ]) expect(script).toContain(requiredText);
+    expect(script).toContain("function Assert-SafeSourceRoot");
+    expect(script).toContain("function Assert-SafeSourceFile");
+    expect(script.match(/Assert-SafeSourceFile \$file/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(script).toContain("host|username");
+  });
+
+  test("reconciles structural ancestors and preserves canonical single-entry shape", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).toContain("@('game', 'game/dota_addons', 'game/dota_addons/' + $AddonName");
+    expect(script).toContain("'content', 'content/dota_addons', 'content/dota_addons/' + $AddonName)");
+    expect(script).toContain("ConvertTo-Json -InputObject $rows -Depth 4 -Compress");
+    expect(script).toContain("ConvertTo-Json -InputObject $expected -Compress");
+    expect(script).toContain("ConvertTo-Json -InputObject $observed -Compress");
+  });
+
+  test("keeps blocked domains complete and cleanup codes fact-consistent", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).toContain("status = 'blocked'; blockers = @($result.blockers); scanCoverage = $result.scanCoverage");
+    expect(script).toContain("$result.cleanup.code = 'CANDIDATE_IDENTITY_MISMATCH'");
+    expect(script).toContain("function Assert-CandidateRoot");
+    expect(script).toContain("Assert-CandidateRoot $candidateRoot $candidateIdentity");
+  });
+
   test("has one compact JSON stdout path and suppresses incidental cmdlet output", () => {
     const script = buildRemoteReleaseCandidateScript(input);
 

@@ -105,6 +105,22 @@ describe("remote release candidate transport binding", () => {
     expect(JSON.stringify(result)).not.toContain("secret host failure");
   });
 
+  test("preserves a numeric process exit as failure without exposing process output", async () => {
+    const processError = Object.assign(new Error("private process failure"), {
+      code: 31,
+      stdout: "private stdout",
+      stderr: "private stderr"
+    });
+    const result = await executeRemoteReleaseCandidateScript({
+      target: targets[0]!,
+      addonName: "demo_addon",
+      executor: async () => { throw processError; }
+    });
+
+    expect(result).toEqual({ transport: "ssh", outcome: "failed", exitCode: 31 });
+    expect(JSON.stringify(result)).not.toContain("private");
+  });
+
   test("fails before invocation when required runtime destination configuration is absent", async () => {
     let called = false;
     const result = await executeRemoteReleaseCandidateScript({
