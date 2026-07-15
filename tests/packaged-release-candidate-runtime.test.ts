@@ -30,7 +30,7 @@ afterEach(async () => {
 describe("packaged release-candidate runtime", () => {
   test("loads and invokes the exact staged server import closure", async () => {
     const buildRoot = await temporaryDirectory("dota-rc-build-");
-    const exportRoot = await temporaryDirectory("dota-rc-index-");
+    const exportRoot = await workspaceTemporaryDirectory(".dota-rc-index-");
 
     await execFileAsync(process.execPath, [
       join(root, "node_modules/typescript/bin/tsc"),
@@ -110,6 +110,12 @@ describe("packaged release-candidate runtime", () => {
 
 async function temporaryDirectory(prefix: string): Promise<string> {
   const path = await mkdtemp(join(tmpdir(), prefix));
+  temporaryRoots.push(path);
+  return path;
+}
+
+async function workspaceTemporaryDirectory(prefix: string): Promise<string> {
+  const path = await mkdtemp(join(root, prefix));
   temporaryRoots.push(path);
   return path;
 }
