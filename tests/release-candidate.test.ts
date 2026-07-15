@@ -402,11 +402,11 @@ describe("release candidate input validation", () => {
       },
       async () => {
         mutableOperations.cleanupCandidateLease = vi.fn(async () => ({
-          ok: false,
+          ok: false as const,
           removed: false,
           absent: false,
           identityMatched: false,
-          code: "CANDIDATE_IDENTITY_MISMATCH"
+          code: "CANDIDATE_IDENTITY_MISMATCH" as const
         }));
         mutableFilesystem.candidateLifecycle = createIdentityBoundCandidateLifecycle({
           createCandidateLease: vi.fn(async () => {

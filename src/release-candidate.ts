@@ -1,4 +1,4 @@
-import { lstat, mkdtemp, readdir, realpath, rm } from "node:fs/promises";
+import { lstat, mkdtemp, readdir, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Stats } from "node:fs";
 import { validateAddonName } from "./addon.js";
@@ -25,7 +25,8 @@ export type ReleaseCandidateInputBlocker = {
 
 const validatedReleaseCandidateInputBrand: unique symbol = Symbol("validatedReleaseCandidateInput");
 const releaseCandidateFilesystemCapability: unique symbol = Symbol("releaseCandidateFilesystemCapability");
-const ownedCandidateLeaseBrand: unique symbol = Symbol("ownedCandidateLease");
+const releaseCandidateLeaseBrand: unique symbol = Symbol("releaseCandidateLease");
+const identityBoundCandidateLifecycleBrand: unique symbol = Symbol("identityBoundCandidateLifecycle");
 
 export type ValidatedReleaseCandidateInput = Readonly<{
   [validatedReleaseCandidateInputBrand]: true;
@@ -75,7 +76,7 @@ export type ReleaseCandidateFilesystem = {
   readDirectory(path: string): Promise<string[]>;
   classifySourceEntry(path: string): Promise<ReleaseCandidateEntryKind>;
   createCandidateRoot(input: ValidatedReleaseCandidateInput): Promise<string>;
-  removeCandidateRoot?(path: string): Promise<void>;
+  candidateLifecycle?: IdentityBoundCandidateLifecycle;
 };
 
 export type ReleaseCandidateDependencies = {
@@ -92,8 +93,7 @@ function createDefaultFilesystem(platform: NodeJS.Platform): ReleaseCandidateFil
     classifySourceEntry: platform === "win32"
       ? async () => "unknown"
       : classifySourceEntry,
-    createCandidateRoot: async (input) => await mkdtemp(join(input.tempParent, "dota-release-candidate-")),
-    removeCandidateRoot: async (path) => await rm(path, { recursive: true, force: false })
+    createCandidateRoot: async (input) => await mkdtemp(join(input.tempParent, "dota-release-candidate-"))
   };
 }
 
@@ -113,19 +113,82 @@ export type ReleaseCandidateLifecycleResult<T> =
       >;
     };
 
-type CandidateLifecycleAdapter = Readonly<{
-  lstat: ReleaseCandidateFilesystem["lstat"];
-  realpath: ReleaseCandidateFilesystem["realpath"];
-  createCandidateRoot: ReleaseCandidateFilesystem["createCandidateRoot"];
-  removeCandidateRoot: NonNullable<ReleaseCandidateFilesystem["removeCandidateRoot"]>;
+export type ReleaseCandidateLease = Readonly<{
+  [releaseCandidateLeaseBrand]: true;
 }>;
 
-type OwnedCandidateLease = Readonly<{
-  [ownedCandidateLeaseBrand]: true;
-  root: string;
-  canonicalRoot: string;
-  adapter: CandidateLifecycleAdapter;
-  remove: () => Promise<void>;
+export type CandidateLeaseCleanupFailureCode =
+  | "CANDIDATE_IDENTITY_MISMATCH"
+  | "CANDIDATE_REMOVAL_FAILED"
+  | "CANDIDATE_ABSENCE_UNVERIFIED"
+  | "CANDIDATE_LEASE_INVALID";
+
+export type CandidateLeaseCleanupResult =
+  | Readonly<{
+      ok: true;
+      removed: true;
+      absent: true;
+      identityMatched: true;
+    }>
+  | Readonly<{
+      ok: false;
+      removed: boolean;
+      absent: boolean;
+      identityMatched: boolean;
+      code: CandidateLeaseCleanupFailureCode;
+    }>;
+
+export type IdentityBoundCandidateLifecycle = Readonly<{
+  [identityBoundCandidateLifecycleBrand]: true;
+  identityBoundCleanup: true;
+  createCandidateLease(input: ValidatedReleaseCandidateInput): Promise<Readonly<{
+    inspectionRoot: string;
+    lease: ReleaseCandidateLease;
+  }>>;
+  cleanupCandidateLease(lease: ReleaseCandidateLease): Promise<CandidateLeaseCleanupResult>;
+}>;
+
+export function createIdentityBoundCandidateLifecycle<TIdentity>(operations: {
+  createCandidateLease(input: ValidatedReleaseCandidateInput): Promise<Readonly<{
+    inspectionRoot: string;
+    identity: TIdentity;
+  }>>;
+  cleanupCandidateLease(identity: TIdentity): Promise<CandidateLeaseCleanupResult>;
+}): IdentityBoundCandidateLifecycle {
+  const identities = new WeakMap<ReleaseCandidateLease, TIdentity>();
+  const createCandidateLease = operations.createCandidateLease.bind(operations);
+  const cleanupCandidateLease = operations.cleanupCandidateLease.bind(operations);
+  return Object.freeze({
+    [identityBoundCandidateLifecycleBrand]: true as const,
+    identityBoundCleanup: true as const,
+    createCandidateLease: async (input) => {
+      const created = await createCandidateLease(input);
+      const lease = Object.freeze({ [releaseCandidateLeaseBrand]: true as const });
+      identities.set(lease, created.identity);
+      return Object.freeze({ inspectionRoot: created.inspectionRoot, lease });
+    },
+    cleanupCandidateLease: async (lease) => {
+      const identity = identities.get(lease);
+      if (identity === undefined) {
+        return {
+          ok: false,
+          removed: false,
+          absent: false,
+          identityMatched: false,
+          code: "CANDIDATE_LEASE_INVALID"
+        };
+      }
+      identities.delete(lease);
+      return await cleanupCandidateLease(identity);
+    }
+  });
+}
+
+type BoundCandidateLifecycle = Readonly<{
+  lstat: ReleaseCandidateFilesystem["lstat"];
+  realpath: ReleaseCandidateFilesystem["realpath"];
+  createCandidateLease: IdentityBoundCandidateLifecycle["createCandidateLease"];
+  cleanupCandidateLease: IdentityBoundCandidateLifecycle["cleanupCandidateLease"];
 }>;
 
 export type ReleaseCandidateContinuationResult<T> =
@@ -270,118 +333,100 @@ export async function withAssembledReleaseCandidate<T>(
   if (!inventory.ok) return inventory;
 
   const filesystem = prepared.value[releaseCandidateFilesystemCapability];
-  const adapter = bindCandidateLifecycleAdapter(filesystem);
-  if (adapter === undefined) {
-    return lifecycleBlocked("CANDIDATE_LIFECYCLE_ADAPTER_REQUIRED", "creation");
+  const lifecycle = bindIdentityBoundCandidateLifecycle(filesystem);
+  if (lifecycle === undefined) {
+    return lifecycleBlocked("IDENTITY_BOUND_CLEANUP_REQUIRED", "creation");
   }
 
-  const leased = await createOwnedCandidateLease(prepared.value, adapter);
-  if (!leased.ok) return leased.result;
+  let created: Awaited<ReturnType<BoundCandidateLifecycle["createCandidateLease"]>>;
+  try {
+    created = await lifecycle.createCandidateLease(prepared.value);
+  } catch {
+    return lifecycleBlocked("CANDIDATE_CREATION_FAILED", "creation");
+  }
 
   let outcome: ReleaseCandidateLifecycleResult<T>;
-  let cleanupFailure: ReleaseCandidateLifecycleResult<never> | undefined;
+  let cleanupResult: CandidateLeaseCleanupResult | undefined;
   try {
-    try {
-      outcome = { ok: true, value: await inspect(leased.value.canonicalRoot) };
-    } catch {
-      outcome = lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
-    }
+    outcome = await inspectCandidateLease(created.inspectionRoot, prepared.value, lifecycle, inspect);
   } finally {
-    cleanupFailure = await removeOwnedCandidate(leased.value, prepared.value);
+    try {
+      cleanupResult = await lifecycle.cleanupCandidateLease(created.lease);
+    } catch {
+      cleanupResult = undefined;
+    }
   }
+  const cleanupFailure = candidateCleanupFailure(cleanupResult);
   return cleanupFailure ?? outcome;
 }
 
-function bindCandidateLifecycleAdapter(
+function bindIdentityBoundCandidateLifecycle(
   filesystem: ReleaseCandidateFilesystem
-): CandidateLifecycleAdapter | undefined {
-  const removeCandidateRoot = filesystem.removeCandidateRoot;
-  if (removeCandidateRoot === undefined) return undefined;
+): BoundCandidateLifecycle | undefined {
+  const capability = filesystem.candidateLifecycle;
+  if (
+    capability?.identityBoundCleanup !== true
+    || capability[identityBoundCandidateLifecycleBrand] !== true
+  ) {
+    return undefined;
+  }
   return Object.freeze({
     lstat: filesystem.lstat.bind(filesystem),
     realpath: filesystem.realpath.bind(filesystem),
-    createCandidateRoot: filesystem.createCandidateRoot.bind(filesystem),
-    removeCandidateRoot: removeCandidateRoot.bind(filesystem)
+    createCandidateLease: capability.createCandidateLease.bind(capability),
+    cleanupCandidateLease: capability.cleanupCandidateLease.bind(capability)
   });
 }
 
-type CandidateLeaseResult =
-  | { ok: true; value: OwnedCandidateLease }
-  | { ok: false; result: ReleaseCandidateLifecycleResult<never> };
-
-async function createOwnedCandidateLease(
+async function inspectCandidateLease<T>(
+  inspectionRoot: string,
   input: ValidatedReleaseCandidateInput,
-  adapter: CandidateLifecycleAdapter
-): Promise<CandidateLeaseResult> {
+  lifecycle: BoundCandidateLifecycle,
+  inspect: (candidateRoot: string) => Promise<T>
+): Promise<ReleaseCandidateLifecycleResult<T>> {
   let root: string;
   try {
-    root = resolve(await adapter.createCandidateRoot(input));
+    root = resolve(inspectionRoot);
   } catch {
-    return { ok: false, result: lifecycleBlocked("CANDIDATE_CREATION_FAILED", "creation") };
+    return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
   }
 
   if (!isPathInside(root, input.tempParent)) {
-    return { ok: false, result: lifecycleBlocked("CANDIDATE_ROOT_NOT_OWNED", "unsafe-isolation") };
+    return lifecycleBlocked("CANDIDATE_ROOT_NOT_OWNED", "unsafe-isolation");
   }
 
   try {
-    const stats = await adapter.lstat(root);
+    const stats = await lifecycle.lstat(root);
     if (!stats.isDirectory()) {
-      return { ok: false, result: lifecycleBlocked("CANDIDATE_ROOT_NOT_OWNED", "unsafe-isolation") };
+      return lifecycleBlocked("CANDIDATE_ROOT_NOT_OWNED", "unsafe-isolation");
     }
-    const canonicalRoot = await adapter.realpath(root);
+    const canonicalRoot = await lifecycle.realpath(root);
     if (!isCandidateRootIsolated(canonicalRoot, input)) {
-      return { ok: false, result: lifecycleBlocked("CANDIDATE_ROOT_NOT_ISOLATED", "unsafe-isolation") };
+      return lifecycleBlocked("CANDIDATE_ROOT_NOT_ISOLATED", "unsafe-isolation");
     }
-    return {
-      ok: true,
-      value: Object.freeze({
-        [ownedCandidateLeaseBrand]: true as const,
-        root,
-        canonicalRoot,
-        adapter,
-        remove: async () => await adapter.removeCandidateRoot(root)
-      })
-    };
+    try {
+      return { ok: true, value: await inspect(canonicalRoot) };
+    } catch {
+      return lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
+    }
   } catch {
-    return { ok: false, result: lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation") };
+    return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
   }
 }
 
-async function removeOwnedCandidate(
-  lease: OwnedCandidateLease,
-  input: ValidatedReleaseCandidateInput
-): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
-  try {
-    const stats = await lease.adapter.lstat(lease.root);
-    if (!stats.isDirectory()) {
-      return lifecycleBlocked("CANDIDATE_REMOVAL_UNVERIFIED", "removal");
-    }
-    const currentCanonicalRoot = await lease.adapter.realpath(lease.root);
-    if (
-      currentCanonicalRoot !== lease.canonicalRoot
-      || !isCandidateRootIsolated(currentCanonicalRoot, input)
-    ) {
-      return lifecycleBlocked("CANDIDATE_REMOVAL_UNVERIFIED", "removal");
-    }
-  } catch {
-    return lifecycleBlocked("CANDIDATE_REMOVAL_UNVERIFIED", "removal");
+function candidateCleanupFailure(
+  result: CandidateLeaseCleanupResult | undefined
+): ReleaseCandidateLifecycleResult<never> | undefined {
+  if (
+    result?.ok === true
+    && result.removed === true
+    && result.absent === true
+    && result.identityMatched === true
+  ) {
+    return undefined;
   }
-
-  try {
-    await lease.remove();
-  } catch {
-    return lifecycleBlocked("CANDIDATE_REMOVAL_FAILED", "removal");
-  }
-
-  try {
-    await lease.adapter.lstat(lease.root);
-    return lifecycleBlocked("CANDIDATE_REMOVAL_UNVERIFIED", "removal");
-  } catch (error) {
-    return errorCode(error) === "ENOENT"
-      ? undefined
-      : lifecycleBlocked("CANDIDATE_REMOVAL_UNVERIFIED", "removal");
-  }
+  const code = result?.ok === false ? result.code : "CANDIDATE_CLEANUP_RESULT_INVALID";
+  return lifecycleBlocked(code, "removal");
 }
 
 function isCandidateRootIsolated(
