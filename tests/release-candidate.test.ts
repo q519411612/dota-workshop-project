@@ -3880,7 +3880,7 @@ describe("release candidate input validation", () => {
 
       expect(result, candidateFailure).toEqual({
         ok: false,
-        blockers: [{ code: "SOURCE_CHANGED_DURING_ASSEMBLY", category: "assembly" }]
+        blockers: [{ code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" }]
       });
       expect(events, candidateFailure).toEqual([
         "callback",
