@@ -33,7 +33,7 @@ patterns-established:
 
 requirements-completed: [RCFS-03]
 
-duration: 11min
+duration: 17min
 completed: 2026-07-15
 status: complete
 ---
@@ -44,9 +44,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 11 min
+- **Duration:** 17 min
 - **Started:** 2026-07-15T05:44:02Z
-- **Completed:** 2026-07-15T05:55:00Z
+- **Completed:** 2026-07-15T06:01:30Z
 - **Tasks:** 2 plus independent review remediation
 - **Files modified:** 2
 
@@ -57,6 +57,8 @@ status: complete
 - Ensured rejected entry kinds are never canonicalized through their targets, copied, repaired, retried, or followed by candidate creation.
 - Required enumeration and classification through the injected filesystem adapter, preventing host-filesystem fallthrough in fixture or target contracts.
 - Preserved full unsafe-entry reporting beneath colliding directories while keeping the colliding identities rejected.
+- Proved case-varied names in different fixed roots retain distinct provenance and one stable global ordinal order across enumeration permutations.
+- Recorded adapter traces proving reparse, special, and unknown entries receive exactly one classification with no canonicalization, descendant traversal, or retry.
 
 ## Task Commits
 
@@ -64,6 +66,7 @@ status: complete
 2. **Implement deterministic classification and collision inventory** - `4409b85` (feat)
 3. **Expose nested unsafe entries beneath colliding directories** - `c5110af` (test)
 4. **Inventory colliding directories through the required adapter** - `7842e4a` (fix)
+5. **Prove cross-root provenance and unsafe-kind operation boundaries** - `29c068a` (test)
 
 ## Files Created/Modified
 
@@ -76,6 +79,7 @@ status: complete
 - The adapter supplies names only during enumeration and authoritative entry kinds through `classifySourceEntry`; missing adapter operations are compile-time contract failures rather than host fallbacks.
 - Case-colliding directories remain rejected but are traversed for blocker discovery, so a nested link or reparse point cannot disappear from the complete unsafe-entry report.
 - Candidate layout creation, copying, source-mutation revalidation, manifests, cleanup evidence, MCP registration, and remote execution remain outside this plan.
+- Cross-root case variants do not collide because the fixed `game/...` and `content/...` prefixes remain part of every fold key; within-root ordering still uses the same ordinal comparator.
 
 ## Deviations from Plan
 
@@ -108,21 +112,23 @@ status: complete
 - The isolated test commit `2d19330` precedes the GREEN implementation commit `4409b85`.
 - Review RED `c5110af` reproduced the missing nested unsafe blocker before fix commit `7842e4a`.
 - Every GREEN transition was followed by the focused test, typecheck, and build checks.
+- Spec-review evidence commit `29c068a` was characterization GREEN: no implementation correction was necessary.
 
 ## Verification Evidence
 
 - Focused source-identity test: 1/1 passed.
-- Candidate input and inventory suite: 4/4 passed.
-- Full repository suite: 164/164 passed across 20 files.
+- Candidate input and inventory suite: 5/5 passed.
+- Full repository suite: 165/165 passed across 20 files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed; generated untracked `dist/release-candidate.js` was removed because this module is not yet a tracked package artifact.
 - `git diff --check`: passed.
 - Independent re-review: both confirmed warnings resolved; no remaining blocker or warning.
+- Spec-review follow-up: cross-root provenance and exact unsafe-kind adapter operation boundaries are now directly asserted.
 - Staged-path checks contained only the intended task file for every code commit; `.planning/graphs/` remained unstaged and unchanged by this plan.
 
 ## Issues Encountered
 
-The first implementation passed the planned focused tests but independent review identified incomplete nested blocker discovery and an optional adapter fallback. Both were reproduced, corrected with a second RED/GREEN cycle, and re-reviewed successfully.
+The first implementation passed the planned focused tests but independent review identified incomplete nested blocker discovery and an optional adapter fallback. Both were reproduced, corrected with a second RED/GREEN cycle, and re-reviewed successfully. A later spec review found two evidence gaps; both new tests passed immediately as characterization evidence.
 
 ## User Setup Required
 
@@ -137,7 +143,7 @@ None.
 ## Self-Check: PASSED
 
 - Required source and test files exist.
-- All four plan commits are present in order.
+- All five plan commits are present in order.
 - RCFS-03 behavior, verification commands, and independent review remediation are recorded.
 - No `.planning/graphs/` file is staged or included in a plan commit.
 
