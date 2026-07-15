@@ -26,16 +26,18 @@ key-decisions:
   - "Redact any credential-bearing evidence-path segment through the same classifier used for sensitive content."
   - "Classify filesystem read/stat failures at the observation boundary without serializing raw exceptions."
   - "Use literal policy identities, explicit runtime invariant blockers, and canonical observation ordering."
+  - "Break redacted-path ordering collisions with safe classification keys and a non-serialized original-identity key."
 
 patterns-established:
   - "Policy findings contain stable code, category, disposition, and only safe field or relative-path identity."
   - "Legacy operations render structured findings through an explicit compatibility seam."
   - "Structurally safe evidence paths pass through one segment-level credential redaction boundary before serialization."
   - "Policy callers cannot influence finding order; required labels, scan roots, and file paths are canonicalized before evaluation."
+  - "Distinct raw paths that collapse to one redacted identity still produce byte-equivalent finding order across input permutations."
 
 requirements-completed: [RCFS-04]
 
-duration: 30min
+duration: 35min
 completed: 2026-07-15
 status: complete
 ---
@@ -46,9 +48,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 30 min
+- **Duration:** 35 min
 - **Started:** 2026-07-15T04:20:00Z
-- **Completed:** 2026-07-15T04:56:00Z
+- **Completed:** 2026-07-15T05:02:00Z
 - **Tasks:** 2
 - **Files modified:** 6
 
@@ -62,6 +64,7 @@ status: complete
 - Redacted credential-bearing segments in metadata and scanned-file paths without hiding ordinary safe relative paths.
 - Converted real read/stat failures into stable unreadable findings and explicit dry-run blockers without raw filesystem errors.
 - Added literal/discriminated policy types, runtime invariant blockers, exhaustive rendering, and shuffled-input parity.
+- Stabilized ordering when distinct credential-bearing paths redact to the same serialized identity.
 
 ## Task Commits
 
@@ -74,6 +77,8 @@ status: complete
 7. **Synchronize segment-redaction runtime build** - `942c98d` (chore)
 8. **Fail closed on filesystem and policy invariants** - `22c785f` (fix)
 9. **Synchronize invariant-safe runtime build** - `f46bbfc` (chore)
+10. **Order redacted path collisions deterministically** - `edfc75c` (fix)
+11. **Synchronize collision-order runtime build** - `0cf2735` (chore)
 
 ## Files Created/Modified
 
@@ -150,9 +155,17 @@ status: complete
 - **Verification:** Shuffled-input parity RED showed reordered findings; GREEN produces complete equality.
 - **Committed in:** `22c785f`, `f46bbfc`
 
+**8. [Rule 1 - Determinism] Stabilized redacted-path collisions**
+- **Found during:** Final specification review
+- **Issue:** Distinct credential-bearing paths could redact to the same safe identity, leaving distinguishable finding order dependent on caller input.
+- **Fix:** Added safe state/category/required keys and the original relative identity as a final internal ordinal tie-break; raw identities never enter findings or evidence.
+- **Files modified:** `src/release-readiness.ts`, `tests/release-readiness.test.ts`, `dist/release-readiness.js`
+- **Verification:** RED reversed password/token findings at the shared redacted path; GREEN produced complete equality and serialized neither credential.
+- **Committed in:** `edfc75c`, `0cf2735`
+
 ---
 
-**Total deviations:** 7 auto-fixed issues (4 information-disclosure controls, 2 policy/determinism controls, 1 runtime synchronization requirement)
+**Total deviations:** 8 auto-fixed issues (4 information-disclosure controls, 3 policy/determinism controls, 1 runtime synchronization requirement)
 **Impact on plan:** The changes strengthen redaction and keep the packaged runtime synchronized without expanding candidate lifecycle or public MCP scope.
 
 ## Issues Encountered
