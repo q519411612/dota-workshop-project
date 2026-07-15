@@ -210,10 +210,26 @@ function scanRootOrder(value) {
 }
 function canonicalScanFiles(input) {
     return [...input].sort((left, right) => {
-        const leftPath = typeof left?.relativePath === "string" ? safeFindingPath(left.relativePath) ?? "\uffff" : "\uffff";
-        const rightPath = typeof right?.relativePath === "string" ? safeFindingPath(right.relativePath) ?? "\uffff" : "\uffff";
-        return leftPath < rightPath ? -1 : leftPath > rightPath ? 1 : 0;
+        const leftKey = scanFileSortKey(left);
+        const rightKey = scanFileSortKey(right);
+        for (let index = 0; index < leftKey.length; index += 1) {
+            const comparison = compareOrdinal(leftKey[index], rightKey[index]);
+            if (comparison !== 0)
+                return comparison;
+        }
+        return 0;
     });
+}
+function scanFileSortKey(file) {
+    const relativePath = typeof file?.relativePath === "string" ? file.relativePath : "";
+    const safePath = safeFindingPath(relativePath) ?? "\uffff";
+    const state = typeof file?.state === "string" ? file.state : "\uffff";
+    const categories = file?.state === "text" && typeof file.content === "string" ? sensitiveCategories(file.content).join("\u0000") : "";
+    const required = file !== undefined && "requiredText" in file && file.requiredText === true ? "required" : "optional";
+    return [safePath, state, categories, required, relativePath];
+}
+function compareOrdinal(left, right) {
+    return left < right ? -1 : left > right ? 1 : 0;
 }
 function parseAddonInfo(content) {
     const values = new Map();
