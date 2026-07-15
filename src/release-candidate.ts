@@ -1,4 +1,5 @@
 import { lstat, mkdtemp, readdir, realpath } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Stats } from "node:fs";
 import { validateAddonName } from "./addon.js";
@@ -210,6 +211,109 @@ export type CandidateIntegrityObservationResult =
       observations: FileIntegrityObservation[];
     }>
   | Readonly<{ ok: false; code: "CANDIDATE_INTEGRITY_OBSERVATION_FAILED" | "CANDIDATE_INTEGRITY_IDENTITY_CHANGED" }>;
+
+export type IdentityBoundIntegrityStreamInput = Readonly<{
+  root: ReleaseCandidateSourceRoot;
+  path: string;
+  identityMatched: true;
+  kindMatched: true;
+  contained: true;
+  openByteStream(): Promise<unknown> | unknown;
+}>;
+
+export type IdentityBoundIntegrityStreamResult =
+  | FileIntegrityObservation
+  | Readonly<{ ok: false; code: "INTEGRITY_STREAM_RESULT_INVALID" }>;
+
+const MAX_INTEGRITY_STREAM_CHUNK_BYTES = 64 * 1024;
+
+export async function observeIdentityBoundIntegrityStream(
+  input: unknown
+): Promise<IdentityBoundIntegrityStreamResult> {
+  let iterator: object | undefined;
+  let completed = false;
+  try {
+    if (input === null || typeof input !== "object") return invalidIntegrityStream();
+    const root = Reflect.get(input, "root");
+    const path = Reflect.get(input, "path");
+    if (
+      (root !== "game" && root !== "content")
+      || typeof path !== "string"
+      || !isSafeIntegrityIdentity(root, path)
+      || Reflect.get(input, "identityMatched") !== true
+      || Reflect.get(input, "kindMatched") !== true
+      || Reflect.get(input, "contained") !== true
+    ) return invalidIntegrityStream();
+    const openByteStream = Reflect.get(input, "openByteStream");
+    if (typeof openByteStream !== "function") return invalidIntegrityStream();
+    const stream = await Reflect.apply(openByteStream, input, []);
+    if (stream === null || typeof stream !== "object") return invalidIntegrityStream();
+    const createIterator = Reflect.get(stream, Symbol.asyncIterator);
+    if (typeof createIterator !== "function") return invalidIntegrityStream();
+    const foreignIterator = Reflect.apply(createIterator, stream, []);
+    if (foreignIterator === null || typeof foreignIterator !== "object") return invalidIntegrityStream();
+    iterator = foreignIterator;
+    const next = Reflect.get(iterator, "next");
+    if (typeof next !== "function") return invalidIntegrityStream();
+
+    const hash = createHash("sha256");
+    let bytes = 0;
+    for (;;) {
+      const step = await Reflect.apply(next, iterator, []);
+      if (step === null || typeof step !== "object") return invalidIntegrityStream();
+      const done = Reflect.get(step, "done");
+      if (done === true) {
+        completed = true;
+        return {
+          ok: true,
+          schemaVersion: "1.0",
+          root,
+          path,
+          bytes,
+          sha256: hash.digest("hex"),
+          identityMatched: true,
+          kindMatched: true,
+          contained: true
+        };
+      }
+      if (done !== false) return invalidIntegrityStream();
+      const chunk = Reflect.get(step, "value");
+      if (!(chunk instanceof Uint8Array)) return invalidIntegrityStream();
+      const chunkBytes = chunk.byteLength;
+      if (chunkBytes <= 0 || chunkBytes > MAX_INTEGRITY_STREAM_CHUNK_BYTES) {
+        return invalidIntegrityStream();
+      }
+      if (!Number.isSafeInteger(bytes + chunkBytes)) return invalidIntegrityStream();
+      bytes += chunkBytes;
+      hash.update(chunk);
+    }
+  } catch {
+    return invalidIntegrityStream();
+  } finally {
+    if (!completed && iterator !== undefined) await closeIntegrityIterator(iterator);
+  }
+}
+
+function isSafeIntegrityIdentity(root: ReleaseCandidateSourceRoot, path: string): boolean {
+  if (!path.startsWith(`${root}/`) || path.startsWith("/") || path.startsWith("\\") || path.includes("\\")) {
+    return false;
+  }
+  const segments = path.split("/");
+  return segments.every((segment) => segment !== "" && segment !== "." && segment !== "..");
+}
+
+function invalidIntegrityStream(): Extract<IdentityBoundIntegrityStreamResult, { ok: false }> {
+  return { ok: false, code: "INTEGRITY_STREAM_RESULT_INVALID" };
+}
+
+async function closeIntegrityIterator(iterator: object): Promise<void> {
+  try {
+    const close = Reflect.get(iterator, "return");
+    if (typeof close === "function") await Reflect.apply(close, iterator, []);
+  } catch {
+    // 失败结果已屏蔽外部异常，关闭异常不得覆盖稳定证据。
+  }
+}
 
 export type CandidateMaterializationOperation = Readonly<{
   destination: string;
