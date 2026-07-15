@@ -292,6 +292,8 @@ const BOUNDARY_KEYS = [
   "realWindowsRuntimeProven"
 ] as const;
 
+const MAX_PUBLIC_COLLECTION_ITEMS = 100_000;
+
 export const computeReleaseCandidateCombinedDigest = computeCanonicalCombinedDigest;
 
 export function normalizeReleaseCandidateDetail(input: unknown): ReleaseCandidateDetail {
@@ -448,9 +450,9 @@ function normalizeOptionalManifest(input: unknown): ReleaseCandidateManifestDeta
 
 function normalizeManifest(input: unknown): ReleaseCandidateManifestDetail | undefined {
   if (!isObject(input) || get(input, "schemaVersion") !== "1.0") return undefined;
-  const rawEntries = get(input, "entries");
+  const rawEntries = snapshotArray(get(input, "entries"));
   const combinedSha256 = get(input, "combinedSha256");
-  if (!Array.isArray(rawEntries) || !isDigest(combinedSha256)) return undefined;
+  if (rawEntries === undefined || !isDigest(combinedSha256)) return undefined;
   const entries: ReleaseCandidateManifestEntryDetail[] = [];
   const seen = new Set<string>();
   for (let index = 0; index < rawEntries.length; index += 1) {
@@ -519,10 +521,11 @@ function normalizeCoverageCategory(input: unknown): ReleaseCandidateCoverageCate
 }
 
 function normalizePathArray(input: unknown): string[] | undefined {
-  if (!Array.isArray(input)) return undefined;
+  const snapshot = snapshotArray(input);
+  if (snapshot === undefined) return undefined;
   const paths: string[] = [];
-  for (let index = 0; index < input.length; index += 1) {
-    const path = input[index];
+  for (let index = 0; index < snapshot.length; index += 1) {
+    const path = snapshot[index];
     if (typeof path !== "string" || !isSafeRelativePath(path)) return undefined;
     if (index > 0 && paths[index - 1]! >= path) return undefined;
     paths.push(path);
@@ -531,10 +534,11 @@ function normalizePathArray(input: unknown): string[] | undefined {
 }
 
 function normalizeBlockers(input: unknown): ReleaseCandidateBlockerDetail[] | undefined {
-  if (!Array.isArray(input)) return undefined;
+  const snapshot = snapshotArray(input);
+  if (snapshot === undefined) return undefined;
   const blockers: ReleaseCandidateBlockerDetail[] = [];
-  for (let index = 0; index < input.length; index += 1) {
-    const raw = input[index];
+  for (let index = 0; index < snapshot.length; index += 1) {
+    const raw = snapshot[index];
     if (!isObject(raw)) return undefined;
     const code = get(raw, "code");
     const category = get(raw, "category");
@@ -671,10 +675,11 @@ function normalizeExecution(input: unknown): ReleaseCandidateExecutionDetail | u
 }
 
 function normalizeCommands(input: unknown): ReleaseCandidateCommandDetail[] | undefined {
-  if (!Array.isArray(input)) return undefined;
+  const snapshot = snapshotArray(input);
+  if (snapshot === undefined) return undefined;
   const commands: ReleaseCandidateCommandDetail[] = [];
-  for (let index = 0; index < input.length; index += 1) {
-    const raw = input[index];
+  for (let index = 0; index < snapshot.length; index += 1) {
+    const raw = snapshot[index];
     if (!isObject(raw)) return undefined;
     const description = get(raw, "description");
     const outcome = get(raw, "outcome");
@@ -691,10 +696,11 @@ function normalizeCommands(input: unknown): ReleaseCandidateCommandDetail[] | un
 }
 
 function normalizeLogs(input: unknown): ReleaseCandidateLogDetail[] | undefined {
-  if (!Array.isArray(input)) return undefined;
+  const snapshot = snapshotArray(input);
+  if (snapshot === undefined) return undefined;
   const logs: ReleaseCandidateLogDetail[] = [];
-  for (let index = 0; index < input.length; index += 1) {
-    const raw = input[index];
+  for (let index = 0; index < snapshot.length; index += 1) {
+    const raw = snapshot[index];
     if (!isObject(raw)) return undefined;
     const source = get(raw, "source");
     const lines = normalizeStringArray(get(raw, "lines"));
@@ -705,10 +711,11 @@ function normalizeLogs(input: unknown): ReleaseCandidateLogDetail[] | undefined 
 }
 
 function normalizeStringArray(input: unknown): string[] | undefined {
-  if (!Array.isArray(input)) return undefined;
+  const snapshot = snapshotArray(input);
+  if (snapshot === undefined) return undefined;
   const values: string[] = [];
-  for (let index = 0; index < input.length; index += 1) {
-    const value = input[index];
+  for (let index = 0; index < snapshot.length; index += 1) {
+    const value = snapshot[index];
     if (typeof value !== "string" || !isSafeText(value)) return undefined;
     values.push(value);
   }
@@ -819,6 +826,19 @@ function isObject(value: unknown): value is object {
 
 function get(input: object, key: PropertyKey): unknown {
   return Reflect.get(input, key);
+}
+
+function snapshotArray(input: unknown): unknown[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+  const length = Reflect.get(input, "length");
+  if (!Number.isSafeInteger(length) || (length as number) < 0 || (length as number) > MAX_PUBLIC_COLLECTION_ITEMS) {
+    return undefined;
+  }
+  const snapshot: unknown[] = [];
+  for (let index = 0; index < (length as number); index += 1) {
+    snapshot.push(Reflect.get(input, index));
+  }
+  return snapshot;
 }
 
 function isCount(value: unknown): value is number {
