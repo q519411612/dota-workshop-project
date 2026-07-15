@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.14
 milestone_name: Workshop Addon Release Candidate Preflight
-current_phase: 5
-current_phase_name: Unified MCP and Remote Target Parity
-status: phase_complete
-last_updated: "2026-07-16T05:35:11+08:00"
-last_activity: 2026-07-16
-last_activity_desc: Phase 5 verified complete with clean independent review and 19/19 unique requirement ownership
+current_phase: null
+status: Awaiting next milestone
+last_updated: "2026-07-15T22:20:09.318Z"
+last_activity: 2026-07-15
+last_activity_desc: Milestone v1.14 completed and archived
 progress:
   total_phases: 3
   completed_phases: 3
   total_plans: 19
   completed_plans: 19
   percent: 100
+current_phase_name: null
 ---
 
 # Project State: Dota Workshop Project
@@ -22,24 +22,24 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-07-15)
+See: `.planning/PROJECT.md` (updated 2026-07-16)
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** Phase 5 unified MCP registration and fixture/local/remote target parity.
+**Current focus:** Planning the next milestone from fresh requirements.
 
 ## Archived Roadmap
 
 | Milestone | Phases | Status | Archive |
 |---|---|---|---|
 | v1.13 Local Install Simulation | 1-2 | Shipped | `.planning/milestones/v1.13-ROADMAP.md` |
+| v1.14 Workshop Addon Release Candidate Preflight | 3-5 | Shipped | `.planning/milestones/v1.14-ROADMAP.md` |
 
 ## Current Position
 
-Phase: 5 of 5 (Unified MCP and Remote Target Parity)
-Plan: 7 of 7
-Status: Verified complete; ready for milestone audit
-Progress: [████████████████████] 19/19 plans (100%)
-Last activity: 2026-07-16 — Phase 5 passed verification with a clean independent review
+Phase: Milestone v1.14 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-15 — Milestone v1.14 completed and archived
 
 ## Performance Metrics
 
@@ -103,8 +103,7 @@ Last activity: 2026-07-16 — Phase 5 passed verification with a clean independe
 
 ### Todos
 
-- Run the v1.14 milestone audit against all 19 uniquely owned requirements and the three phase verification artifacts.
-- Complete and clean up the milestone only if audit, integration, end-to-end, and cleanup evidence all pass.
+- Define the next milestone with fresh requirements when ready.
 
 ### Blockers
 
@@ -112,9 +111,13 @@ Last activity: 2026-07-16 — Phase 5 passed verification with a clean independe
 
 ## Session Continuity
 
-**Last completed action:** Verified Phase 5 with 202 phase-focused tests, 37 final re-review tests, 307 complete tests, 19/19 checked and unique requirement owners, and a clean independent re-review.
-**Next action:** Run the v1.14 milestone audit; do not archive until it passes.
-**Resume context:** Audit Phases 3-5 and the complete v1.14 boundary, then complete and clean up the milestone only on a passing result.
+**Last completed action:** Audited and archived v1.14 with 19/19 requirements, 17/17 integration links, 9/9 end-to-end flows, and verified cleanup evidence.
+**Next action:** Start a fresh milestone only when a new requirement slice is approved.
+**Resume context:** v1.14 is shipped and archived; use `$gsd-new-milestone` for future planning.
 
 ---
-*Last updated: 2026-07-16 after Phase 5 verification*
+*Last updated: 2026-07-16 after v1.14 milestone completion*
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

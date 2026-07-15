@@ -10,11 +10,11 @@ The v1.1 Workshop MVP milestone is complete and archived. The project now has a 
 
 AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
 
-## Current Milestone: v1.14 Workshop Addon Release Candidate Preflight
+## Latest Shipped Milestone: v1.14 Workshop Addon Release Candidate Preflight
 
-**Goal:** Assemble and strictly validate an isolated, temporary, and auditable Dota Workshop addon release candidate through the unified MCP interface without performing any Steam or Workshop mutation.
+**Delivered:** An isolated, temporary, and auditable Dota Workshop addon release-candidate preflight through one unified fixture, local Windows, SSH Windows, and PowerShell Remoting MCP operation without Steam or Workshop mutation.
 
-**Target features:**
+**Validated features:**
 - Add a dedicated MCP operation for release-candidate preflight across fixture, local Windows, and remote Windows target contracts.
 - Assemble the addon's `game` and `content` trees in an isolated temporary candidate directory.
 - Produce a deterministic file manifest with SHA-256 evidence.
@@ -70,11 +70,13 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 - [x] Closed v1.13 with case-insensitive YAML/YML scanning, fail-closed symbolic-link and isolation checks, exact requirement traceability, and a passing milestone audit.
 - [x] Added safe temporary two-root candidate assembly with complete regular-file and empty-directory coverage, explicit unsafe-entry blockers, source-change detection, and source-tree immutability.
 - [x] Added deterministic streamed integrity evidence, exact occurrence reconciliation, versioned manifests, canonical combined digests, exhaustive scan coverage, exactly-once cleanup ownership, and verified-cleanup precedence.
+- [x] Added one strict `preflight_release_candidate` MCP operation across fixture, local Windows, SSH Windows, and PowerShell Remoting without changing `dry_run_release_report`.
+- [x] Added production local Windows reparse classification and one target-native remote lifecycle with no candidate transfer or local fallback.
+- [x] Proved four-target semantic parity, identity-bound final remote observations, source immutability, exact manifest identity, and verified cleanup through macOS fixture and adapter-contract evidence.
+- [x] Closed v1.14 with 19/19 uniquely owned requirements, 318/318 tests, a clean independent review, and a passing 17/17 integration and 9/9 flow audit.
 
 ### Active
 
-- [ ] Assemble and validate a temporary Dota Workshop addon release candidate through a dedicated unified MCP operation.
-- [ ] Preserve fixture, local Windows, and remote Windows contract parity without requiring real Windows evidence for completion.
 - [ ] Collect real same-machine Windows runtime marker evidence if a Windows machine is available.
 - [ ] Collect real Windows ability proof marker evidence if a Windows runtime is available and the proof unit is spawned.
 
@@ -96,22 +98,22 @@ The first target environment is Windows with Dota 2 Workshop Tools installed. Re
 
 The skill and MCP server should have separate responsibilities. The skill teaches the agent how to reason about Dota 2 Workshop Tools tasks and when to use references or scripts. The MCP server exposes deterministic operations such as creating an addon, opening tools, running validation commands, reading console output, and inspecting generated files.
 
-Milestones v1.1 and v1.13 are archived under `.planning/milestones/`. Current planning should start from a fresh requirement slice rather than editing an archived roadmap directly.
+Milestones v1.1, v1.13, and v1.14 are archived under `.planning/milestones/`. Current planning should start from a fresh requirement slice rather than editing an archived roadmap directly.
 
 ## Current State
 
-- **Shipped version:** v1.13 Local Install Simulation on 2026-07-13.
-- **Verification:** 150/150 tests, clean independent review, 9/9 goal verification, and 6/6 milestone requirements/integration/flows.
-- **Install readiness:** plugin-facing files can be consumed from an isolated temporary layout with explicit cleanup, environment, sensitive-material, and path-safety evidence.
-- **Planning state:** v1.14 safe assembly plus integrity and verified cleanup are complete; unified MCP registration and fixture/local/remote parity remain in Phase 5. v1.13 requirements, audit, roadmap detail, and execution history are archived.
-- **Known follow-ups:** real same-machine Windows runtime evidence and real ability marker evidence remain outside the v1.14 completion gate.
+- **Shipped version:** v1.14 Workshop Addon Release Candidate Preflight on 2026-07-16.
+- **Verification:** 318/318 tests, clean independent review, 19/19 requirements, 17/17 integration links, and 9/9 end-to-end flows.
+- **Release-candidate readiness:** one strict MCP operation assembles, validates, hashes, reconciles, and removes temporary candidates across fixture/local/remote contracts while returning evidence only.
+- **Planning state:** v1.14 requirements, audit, roadmap detail, and execution history are archived; the project is awaiting a fresh next-milestone requirement slice.
+- **Known follow-ups:** real same-machine Windows runtime evidence, real ability marker evidence, and optional real Windows candidate parity evidence remain outside the v1.14 completion gate.
 
 ## Next Milestone Goals
 
-- Assemble a temporary Workshop addon release candidate from the `game` and `content` addon roots.
-- Produce deterministic manifest, hash, blocker, and cleanup evidence through a dedicated unified MCP operation.
-- Keep Steam login, Workshop mutation, upload, archives, signing, encryption, and credential handling out of scope.
-- Preserve explicit evidence, no-credential storage, and no-silent-fallback behavior.
+- Define the next focused requirement slice before implementation.
+- Preserve explicit evidence, source immutability, verified cleanup, no credential storage, and no silent fallback.
+- Keep Steam login, Workshop mutation/upload, and retained candidate behavior outside scope until separately approved.
+- Consider optional sanitized real Windows candidate parity evidence without making it a prerequisite for already shipped v1.14 behavior.
 
 ## Constraints
 
@@ -157,7 +159,7 @@ Milestones v1.1 and v1.13 are archived under `.planning/milestones/`. Current pl
 | Simulate install before global install | A temporary local layout proves plugin consumption readiness without mutating user config or global install state | Implemented |
 | Reject symbolic links in simulated install inputs | Dereferencing links could copy or scan content outside the repository boundary | Implemented |
 | Treat the v1.13 audit as milestone authority | The existing `verify:milestone` command remains intentionally scoped to v1.8 closeout evidence | Implemented |
-| Preflight a temporary addon release candidate before upload automation | An isolated candidate with deterministic manifest, hash, blocker, and cleanup evidence proves artifact boundaries without Steam credentials or Workshop mutation | Assembly, integrity, and cleanup implemented; unified target integration pending |
+| Preflight a temporary addon release candidate before upload automation | An isolated candidate with deterministic manifest, hash, blocker, and cleanup evidence proves artifact boundaries without Steam credentials or Workshop mutation | Implemented |
 | Register cleanup identity synchronously at the creation boundary | Post-create exceptions or malformed results must never lose cleanup ownership | Implemented |
 | Return only normalized inert inspection evidence | A deleted candidate path or live capability must not escape successful cleanup | Implemented |
 | Reject sensitive source identities before manifest projection | Caller-visible manifest evidence must never expose credential-shaped filename segments | Implemented |
@@ -180,4 +182,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-15 after Phase 4*
+*Last updated: 2026-07-16 after v1.14 milestone*

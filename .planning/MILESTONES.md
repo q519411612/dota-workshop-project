@@ -1,5 +1,55 @@
 # Milestones: Dota Workshop Project
 
+## v1.14 Workshop Addon Release Candidate Preflight (Shipped: 2026-07-15)
+
+**Delivered:** One strict evidence-only release-candidate preflight across fixture, local Windows, SSH Windows, and PowerShell Remoting with deterministic manifests, source immutability, explicit failures, and verified cleanup.
+
+**Phases completed:** 3 phases, 19 plans, 25 tasks
+
+**Key accomplishments:**
+
+- One structured readiness authority now serves future candidate assembly while preserving complete dry-run release results.
+- Invalid or unsafe candidate inputs now stop at a typed, canonical precreation gate without creating temporary state.
+- Both addon roots now produce one deterministic, collision-checked inventory that rejects unsafe identities and entry kinds before candidate creation.
+- One canonically isolated target-local candidate now exists only inside an owned inspection callback and is removed after callback success or failure.
+- Every accepted game and content source entry is explicitly reproduced under the fixed temporary candidate layout before callback inspection, with readiness and per-write safety gates.
+- Candidate assembly now fails explicitly on observable source topology, identity, stat, kind, or byte drift while all candidate writes and cleanup remain outside the two source roots.
+- Every accepted regular file now requires identity-bound streamed source-before, candidate, and source-after byte-count and SHA-256 equality at the final pre-cleanup boundary.
+- Validated final candidate integrity facts now produce one deterministic versioned file manifest and one collision-free host-independent combined SHA-256.
+- Final candidate observations now prove a deterministic one-to-one mapping from every accepted source file to exactly one manifest entry without losing duplicate occurrences.
+- Every accepted regular file now has one deterministic scan class, while fatal text validation and binary-preserving manifest inclusion remain separate proof domains.
+- Factory-owned candidate creation transfers cleanup ownership before provider post-create work, with exact one-attempt or truthful zero-attempt evidence.
+- Final post-callback artifact truth now remains independently observable while verified cleanup is mandatory for overall success.
+- The MCP server now exposes exactly one strict `preflight_release_candidate` operation across fixture, local, SSH, and PowerShell targets without changing the adjacent dry-run inspection route.
+- Release-candidate preflight now has one strict immutable detail whose public success is computed from evidence rather than adapter narration.
+- Release-candidate preflight now uses an exact safe input and boundary contract around one production fixture/local Node lifecycle with identity-bound creation, immutable sources, and truthful cleanup evidence.
+- SSH and PowerShell Remoting now execute one target-local PowerShell lifecycle that inventories, validates, copies, hashes, reconciles, reports, and removes a temporary release candidate without transferring addon state to the MCP host.
+- Remote release-candidate evidence now crosses the transport boundary only after exact framing, strict shared normalization, invariant recomputation, and whole-result disclosure checks.
+- The public release-candidate preflight now has one strict evidence contract across fixture, local adapter, mocked SSH, and mocked PowerShell targets.
+- The tracked MCP runtime now contains the minimal executable release-candidate import closure and is proven byte-identical to an isolated build before loading and invoking the operation from a Git-index-only export.
+
+**Stats:**
+
+- 103 files changed across the milestone commit range.
+- 28,593 lines added and 324 lines removed.
+- 26,574 TypeScript lines in `src/` and `tests/` at ship time.
+- 3 phases, 19 plans, 25 tasks completed across 2026-07-15 and 2026-07-16.
+
+**Git range:** `75e676e` → `a8f671c`
+
+**Archives:**
+
+- Roadmap: `.planning/milestones/v1.14-ROADMAP.md`
+- Requirements: `.planning/milestones/v1.14-REQUIREMENTS.md`
+- Audit: `.planning/milestones/v1.14-MILESTONE-AUDIT.md`
+- Execution history: `.planning/milestones/v1.14-phases/`
+
+**Verification:** 318/318 tests, 19/19 requirements, 17/17 integration links, 9/9 end-to-end flows, and a clean independent final review.
+
+**What's next:** Define the next focused milestone with fresh requirements through `$gsd-new-milestone`.
+
+---
+
 ## v1.13 Local Install Simulation (Shipped: 2026-07-13)
 
 **Delivered:** An isolated local plugin install simulation with consumer-contract validation, fail-closed path safety, redacted YAML/YML scanning, deterministic cleanup, and complete milestone evidence.

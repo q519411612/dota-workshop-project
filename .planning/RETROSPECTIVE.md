@@ -86,6 +86,53 @@
 
 ---
 
+## Milestone: v1.14 — Workshop Addon Release Candidate Preflight
+
+**Shipped:** 2026-07-16
+**Phases:** 3 | **Plans:** 19 | **Tasks:** 25
+
+### What Was Built
+
+- Exact two-root temporary candidate assembly with no heuristic omissions and no source writes.
+- Streamed triple-integrity checks, canonical manifests, occurrence reconciliation, complete scan coverage, and verified cleanup precedence.
+- One strict MCP operation across fixture, local Windows, SSH Windows, and PowerShell Remoting with no fallback or candidate transfer.
+- A staged-index runtime closure plus checked examples and evidence-only operator guidance.
+
+### What Worked
+
+- Atomic RED→GREEN commits made every correctness change traceable.
+- Independent review and integration-audit loops found path identity, cleanup, hostile normalization, final remote observation, and parity-oracle gaps that green suites initially missed.
+- Fixed graph guards preserved unrelated user-owned planning graph changes through a long multi-plan execution.
+- Fixture and adapter-contract evidence kept the milestone testable on macOS without overstating real Windows proof.
+
+### What Was Inefficient
+
+- Phase 5 required multiple re-review loops because Windows identity, final remote observation, and cleanup invariants were not modeled deeply enough in the initial tests.
+- An inline integration audit was started before the mandated independent checker returned and had to be superseded by a gaps-found audit.
+- Generic roadmap plan counting treated a non-execution planning artifact as a plan, requiring authoritative STATE and verification counts during closeout.
+
+### Patterns Established
+
+- Register cleanup ownership immediately at creation, before any fallible identity observation.
+- Bind Windows path isolation and final candidate reads to volume GUID plus file ID identities; lexical paths and path-only reopen are insufficient.
+- Keep one exported categorized sensitive-material policy authority for fixture, local, and generated remote behavior.
+- Prove packaged behavior from staged Git-index bytes, not freshly generated worktree output.
+
+### Key Lessons
+
+- A passing full suite is not a substitute for adversarial integration review; every review finding needs its own RED evidence.
+- Cleanup facts must be modeled as a separate strict domain and composed only after the single cleanup attempt settles.
+- Contract evidence and real-runtime evidence must remain explicitly separate in both results and documentation.
+- Milestone completion must wait for the independent integration checker, not only phase verification and local review.
+
+### Cost Observations
+
+- Model mix: not recorded.
+- Sessions: one autonomous goal run with independent implementation, review, gap-review, and integration-checker agents.
+- Notable: review-driven rework was substantial but closed every confirmed blocker before archival, ending at 318/318 tests and a clean 17/17 integration audit.
+
+---
+
 ## Cross-Milestone Trends
 
 | Trend | Observation |
@@ -94,3 +141,5 @@
 | Scope | Small MCP-visible capability slices were easier to verify than broad Workshop automation. |
 | Risk | Real publishing, encryption, Steam credentials, and UI generation remain high-risk boundaries. |
 | Audit | Exact traceability plus adversarial integration checks catch gaps that green standard suites can miss. |
+| Identity | Filesystem safety increasingly depends on canonical, target-native identity rather than lexical path checks. |
+| Packaging | Executable runtime closure is strongest when verified from staged index bytes. |
