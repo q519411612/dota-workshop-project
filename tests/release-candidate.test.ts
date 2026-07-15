@@ -558,7 +558,7 @@ describe("release candidate input validation", () => {
       inspect,
       { repositoryRoot: fixture.repositoryRoot, filesystem: createFilesystem() }
     );
-    expect(success).toEqual({ ok: true, value: "complete" });
+    expect(success).toMatchObject({ ok: true, value: "complete" });
     expect(inspect).toHaveBeenCalledTimes(1);
     if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
     expect(copiedDestinations.every((path) => path.startsWith(`${candidateRoot}/`))).toBe(true);
@@ -1296,7 +1296,7 @@ describe("release candidate input validation", () => {
       }
     );
 
-    expect(successfulResult).toEqual({ ok: true, value: "inspected" });
+    expect(successfulResult).toMatchObject({ ok: true, value: "inspected" });
     expect(successfulLifecycle.createCandidateLease).toHaveBeenCalledTimes(1);
     expect(successfulLifecycle.cleanupCandidateLease).toHaveBeenCalledTimes(1);
     expect(inspectSuccess).toHaveBeenCalledTimes(1);
@@ -1591,7 +1591,7 @@ describe("release candidate input validation", () => {
       { repositoryRoot: mutableFixture.repositoryRoot, filesystem: mutableFilesystem }
     );
 
-    expect(mutableResult).toEqual({ ok: true, value: "inspected" });
+    expect(mutableResult).toMatchObject({ ok: true, value: "inspected" });
     expect(capturedCleanup).toHaveBeenCalledTimes(1);
     if (mutableRoot === undefined) throw new Error("mutable candidate root was not recorded");
     await expect(lstat(mutableRoot)).rejects.toMatchObject({ code: "ENOENT" });
@@ -3125,7 +3125,7 @@ describe("release candidate input validation", () => {
       expect(await snapshotSourceTrees(fixture), outcome).toEqual(before);
       expect(materializedDestinations.every((path) => !path.startsWith(`${fixture.gameAddonRoot}/`) && !path.startsWith(`${fixture.contentAddonRoot}/`)), outcome).toBe(true);
       expect(cleanupCandidateLease, outcome).toHaveBeenCalledTimes(1);
-      if (outcome === "success") expect(result).toEqual({ ok: true, value: "inspected" });
+      if (outcome === "success") expect(result).toMatchObject({ ok: true, value: "inspected" });
       else expect(result.ok, outcome).toBe(false);
     }
   });
@@ -3441,7 +3441,7 @@ describe("release candidate input validation", () => {
       ]);
       expect(cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
       if (scenario.expectedCode === undefined) {
-        expect(result, scenario.name).toEqual({ ok: true, value: "validated" });
+        expect(result, scenario.name).toMatchObject({ ok: true, value: "validated" });
       } else {
         expect(result, scenario.name).toEqual({
           ok: false,
@@ -3452,6 +3452,109 @@ describe("release candidate input validation", () => {
       if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
       await expect(lstat(candidateRoot), scenario.name).rejects.toMatchObject({ code: "ENOENT" });
     }
+  });
+
+  test("builds deterministic canonical release candidate manifests", async () => {
+    const manifestEntries = [
+      { schemaVersion: "1.0", root: "content", path: "content/dota_addons/fixture_addon/materials/alpha|beta.bin", bytes: 3, sha256: "0".repeat(64) },
+      { schemaVersion: "1.0", root: "content", path: "content/dota_addons/fixture_addon/materials/quote\"\n.bin", bytes: 5, sha256: "1".repeat(64) },
+      { schemaVersion: "1.0", root: "content", path: "content/dota_addons/fixture_addon/materials/控制-é.bin", bytes: 7, sha256: "2".repeat(64) },
+      { schemaVersion: "1.0", root: "game", path: "game/dota_addons/fixture_addon/addoninfo.txt", bytes: 11, sha256: "3".repeat(64) },
+      { schemaVersion: "1.0", root: "game", path: "game/dota_addons/fixture_addon/resource/addon_fixture_addon_english.txt", bytes: 13, sha256: "4".repeat(64) },
+      { schemaVersion: "1.0", root: "game", path: "game/dota_addons/fixture_addon/scripts/npc/herolist.txt", bytes: 17, sha256: "5".repeat(64) },
+      { schemaVersion: "1.0", root: "game", path: "game/dota_addons/fixture_addon/scripts/npc/npc_abilities_custom.txt", bytes: 19, sha256: "6".repeat(64) },
+      { schemaVersion: "1.0", root: "game", path: "game/dota_addons/fixture_addon/scripts/npc/npc_heroes_custom.txt", bytes: 23, sha256: "7".repeat(64) },
+      { schemaVersion: "1.0", root: "game", path: "game/dota_addons/fixture_addon/scripts/npc/npc_units_custom.txt", bytes: 29, sha256: "8".repeat(64) },
+      { schemaVersion: "1.0", root: "game", path: "game/dota_addons/fixture_addon/scripts/vscripts/addon_game_mode.lua", bytes: 31, sha256: "9".repeat(64) }
+    ] as const;
+    const expectedCanonical = "[\"1.0\",[[\"content\",\"content/dota_addons/fixture_addon/materials/alpha|beta.bin\",3,\"0000000000000000000000000000000000000000000000000000000000000000\"],[\"content\",\"content/dota_addons/fixture_addon/materials/quote\\\"\\n.bin\",5,\"1111111111111111111111111111111111111111111111111111111111111111\"],[\"content\",\"content/dota_addons/fixture_addon/materials/控制-é.bin\",7,\"2222222222222222222222222222222222222222222222222222222222222222\"],[\"game\",\"game/dota_addons/fixture_addon/addoninfo.txt\",11,\"3333333333333333333333333333333333333333333333333333333333333333\"],[\"game\",\"game/dota_addons/fixture_addon/resource/addon_fixture_addon_english.txt\",13,\"4444444444444444444444444444444444444444444444444444444444444444\"],[\"game\",\"game/dota_addons/fixture_addon/scripts/npc/herolist.txt\",17,\"5555555555555555555555555555555555555555555555555555555555555555\"],[\"game\",\"game/dota_addons/fixture_addon/scripts/npc/npc_abilities_custom.txt\",19,\"6666666666666666666666666666666666666666666666666666666666666666\"],[\"game\",\"game/dota_addons/fixture_addon/scripts/npc/npc_heroes_custom.txt\",23,\"7777777777777777777777777777777777777777777777777777777777777777\"],[\"game\",\"game/dota_addons/fixture_addon/scripts/npc/npc_units_custom.txt\",29,\"8888888888888888888888888888888888888888888888888888888888888888\"],[\"game\",\"game/dota_addons/fixture_addon/scripts/vscripts/addon_game_mode.lua\",31,\"9999999999999999999999999999999999999999999999999999999999999999\"]]]";
+    const expectedCombinedSha256 = "97a196952d53fc65884424e3847c7e89c5b655ab7b2036ad52aed437f62b99f7";
+    const facts = new Map(manifestEntries.map((entry) => [entry.path, entry]));
+
+    const run = async (reverse: boolean) => {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      for (const entry of manifestEntries.filter((entry) => entry.root === "content")) {
+        const relativePath = entry.path.slice("content/dota_addons/fixture_addon/".length);
+        const path = join(fixture.contentAddonRoot, ...relativePath.split("/"));
+        await mkdir(join(path, ".."), { recursive: true });
+        await writeFile(path, Buffer.from([0x00]));
+      }
+      const observation = (path: string): unknown => {
+        const fact = facts.get(path);
+        if (fact === undefined) throw new Error("fixture integrity fact missing");
+        return Object.defineProperty({
+          ok: true,
+          schemaVersion: "1.0",
+          root: fact.root,
+          path: fact.path,
+          bytes: fact.bytes,
+          sha256: fact.sha256,
+          identityMatched: true,
+          kindMatched: true,
+          contained: true
+        }, "host", { get: () => { throw new Error("host metadata must not be read"); } });
+      };
+      let candidateRoot: string | undefined;
+      const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+        createCandidateLease: async (validated) => {
+          candidateRoot = await mkdtemp(join(validated.tempParent, reverse ? "host-b-" : "host-a-"));
+          return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+        },
+        cleanupCandidateLease: async (identity) => {
+          await rm(identity.root, { recursive: true, force: false });
+          return { ok: true, removed: true, absent: true, identityMatched: true };
+        },
+        observeAcceptedSource: async (_input, entry) => observation(entry.path),
+        observeCandidate: async (_identity, expected) => ({
+          ok: true,
+          schemaVersion: "1.0",
+          observations: (reverse
+            ? expected.filter((entry) => entry.kind === "file").reverse()
+            : expected.filter((entry) => entry.kind === "file"))
+            .map((entry) => observation(entry.path)),
+          absoluteRoot: candidateRoot,
+          target: reverse ? "ssh-private-host" : "local-private-host",
+          generatedAt: reverse ? "2038-01-01T00:00:00Z" : "1970-01-01T00:00:00Z"
+        })
+      });
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        async () => "inspected",
+        {
+          repositoryRoot: fixture.repositoryRoot,
+          filesystem: {
+            lstat,
+            realpath,
+            readDirectory: async (path) => reverse ? await readdir(path) : (await readdir(path)).reverse(),
+            classifySourceEntry: classifyFixtureEntry,
+            createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+            candidateLifecycle: lifecycle
+          }
+        }
+      );
+      expect(result).toMatchObject({ ok: true, value: "inspected" });
+      if (!result.ok) throw new Error("manifest fixture was blocked");
+      return result.manifest;
+    };
+
+    vi.spyOn(String.prototype, "localeCompare").mockImplementation(() => {
+      throw new Error("locale-sensitive ordering is forbidden");
+    });
+    const forward = await run(false);
+    const shuffled = await run(true);
+
+    expect(forward).toEqual({
+      schemaVersion: "1.0",
+      entries: manifestEntries,
+      combinedSha256: expectedCombinedSha256
+    });
+    expect(shuffled).toEqual(forward);
+    expect(JSON.stringify([forward.schemaVersion, forward.entries.map(({ root, path, bytes, sha256 }) => [root, path, bytes, sha256])])).toBe(expectedCanonical);
+    expect(createHash("sha256").update(Buffer.from(expectedCanonical, "utf8")).digest("hex")).toBe(expectedCombinedSha256);
+    expect(JSON.stringify(forward)).not.toContain("private-host");
+    expect(forward.entries.map((entry) => entry.path)).toContain("content/dota_addons/fixture_addon/materials/alpha|beta.bin");
+    expect(forward.entries.map((entry) => entry.path)).toContain("content/dota_addons/fixture_addon/materials/quote\"\n.bin");
   });
 
   test("rejects malformed final integrity observations without retry or repair", async () => {
