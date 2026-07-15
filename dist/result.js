@@ -7,7 +7,8 @@ export function createSuccessResult(input) {
         warnings: input.warnings ?? [],
         paths: input.paths ?? {},
         commands: input.commands ?? [],
-        logs: input.logs ?? []
+        logs: input.logs ?? [],
+        ...(input.releaseCandidate === undefined ? {} : { releaseCandidate: input.releaseCandidate })
     };
 }
 export function createFailureResult(input) {
@@ -20,6 +21,7 @@ export function createFailureResult(input) {
         warnings: input.warnings ?? [],
         paths: input.paths ?? {},
         commands: input.commands ?? [],
-        logs: input.logs ?? []
+        logs: input.logs ?? [],
+        ...(input.releaseCandidate === undefined ? {} : { releaseCandidate: input.releaseCandidate })
     };
 }

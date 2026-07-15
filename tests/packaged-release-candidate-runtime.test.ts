@@ -85,7 +85,7 @@ describe("packaged release-candidate runtime", () => {
     const indexedRuntime = (await execFileAsync("git", ["ls-files", "dist/*.js"], { cwd: root })).stdout
       .trim().split("\n").filter(Boolean);
     expect(indexedRuntime.filter((path) => path.includes("release-candidate"))).toEqual(
-      REQUIRED_RUNTIME.filter((path) => path.includes("release-candidate"))
+      REQUIRED_RUNTIME.filter((path) => path.includes("release-candidate")).sort()
     );
     expect(REQUIRED_RUNTIME.some((path) => /\.(zip|7z|tar|gz|pck|sig|enc)$/i.test(path))).toBe(false);
     expect((await untrackedDistFiles())).toEqual([]);

@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { PreflightReleaseCandidateInputSchema } from "./schemas.js";
 import { asToolContent, handleTool } from "./tools.js";
 const targetInput = {
     target: z.discriminatedUnion("kind", [
@@ -99,6 +100,11 @@ export function createServer() {
             addonName: z.string().min(1)
         }
     }, async (input) => asToolContent(await handleTool("dry_run_release_report", input)));
+    server.registerTool("preflight_release_candidate", {
+        title: "Preflight Release Candidate",
+        description: "Assemble, validate, report, and remove one temporary evidence-only release candidate without uploading or retaining it.",
+        inputSchema: PreflightReleaseCandidateInputSchema
+    }, async (input) => asToolContent(await handleTool("preflight_release_candidate", input)));
     server.registerTool("prepare_custom_map", {
         title: "Prepare Custom Map",
         description: "Copy an installed Workshop template map, verify spawn entity markers, and compile it with resourcecompiler.exe.",

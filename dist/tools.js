@@ -4,10 +4,32 @@ import { discoverEnvironment, validateInstallRoot } from "./environment.js";
 import { launchCustomGame, launchTools, readConsoleOrLogs, validateAddon } from "./launch.js";
 import { prepareCustomMap } from "./map.js";
 import { dryRunReleaseReport, inspectWorkshopPreflight } from "./preflight.js";
+import { preflightNodeReleaseCandidate } from "./release-candidate-node.js";
+import { preflightRemoteReleaseCandidate } from "./release-candidate-remote.js";
+import { createReleaseCandidateToolResult } from "./release-candidate-result.js";
 import { createFailureResult } from "./result.js";
 import { runPlayableSmoke } from "./smoke.js";
 import { createRemoteAddon, discoverRemoteEnvironment, inspectRemoteAddon, dryRunRemoteReleaseReport, inspectRemoteWorkshopPreflight, launchRemoteCustomGame, launchRemoteTools, readRemoteConsoleOrLogs, runRemoteCommand, validateRemoteAddon } from "./remote.js";
-import { CreateAddonInputSchema, DiscoverEnvironmentInputSchema, DryRunReleaseReportInputSchema, InspectAddonInputSchema, InspectWorkshopPreflightInputSchema, LaunchCustomGameInputSchema, LaunchToolsInputSchema, PrepareCustomMapInputSchema, ReadLogsInputSchema, RemoteCommandInputSchema, RunPlayableSmokeInputSchema, CleanupPlayableSmokeInputSchema, ValidateAddonInputSchema, ValidateTargetInputSchema } from "./schemas.js";
+import { CreateAddonInputSchema, DiscoverEnvironmentInputSchema, DryRunReleaseReportInputSchema, InspectAddonInputSchema, InspectWorkshopPreflightInputSchema, LaunchCustomGameInputSchema, LaunchToolsInputSchema, PrepareCustomMapInputSchema, PreflightReleaseCandidateInputSchema, ReadLogsInputSchema, RemoteCommandInputSchema, RunPlayableSmokeInputSchema, CleanupPlayableSmokeInputSchema, ValidateAddonInputSchema, ValidateTargetInputSchema } from "./schemas.js";
+const defaultPreflightServices = Object.freeze({
+    preflightNodeReleaseCandidate: async (input) => {
+        const releaseCandidate = await preflightNodeReleaseCandidate(input);
+        const target = input.target.kind === "fixture"
+            ? { kind: "fixture", root: "[redacted]" }
+            : { kind: "local" };
+        return createReleaseCandidateToolResult({
+            target,
+            operation: "preflight_release_candidate",
+            releaseCandidate
+        });
+    },
+    preflightRemoteReleaseCandidate: async (input) => {
+        if (input.target.kind !== "remote") {
+            throw new Error("REMOTE_TARGET_REQUIRED");
+        }
+        return preflightRemoteReleaseCandidate({ target: input.target, addonName: input.addonName });
+    }
+});
 export const toolNames = [
     "discover_environment",
     "validate_target",
@@ -16,6 +38,7 @@ export const toolNames = [
     "inspect_addon",
     "inspect_workshop_preflight",
     "dry_run_release_report",
+    "preflight_release_candidate",
     "launch_tools",
     "launch_custom_game",
     "run_playable_smoke",
@@ -24,7 +47,7 @@ export const toolNames = [
     "validate_addon",
     "remote_command"
 ];
-export async function handleTool(name, input) {
+export async function handleTool(name, input, preflightServices = defaultPreflightServices) {
     switch (name) {
         case "discover_environment": {
             const parsed = DiscoverEnvironmentInputSchema.parse(input);
@@ -94,6 +117,13 @@ export async function handleTool(name, input) {
                 });
             }
             return dryRunReleaseReport(parsed);
+        }
+        case "preflight_release_candidate": {
+            const parsed = PreflightReleaseCandidateInputSchema.parse(input);
+            if (parsed.target.kind === "remote") {
+                return preflightServices.preflightRemoteReleaseCandidate(parsed);
+            }
+            return preflightServices.preflightNodeReleaseCandidate(parsed);
         }
         case "launch_tools": {
             const parsed = LaunchToolsInputSchema.parse(input);
