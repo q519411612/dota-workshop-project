@@ -1362,6 +1362,56 @@ describe("release candidate input validation", () => {
     if (successfulRoot === undefined) throw new Error("candidate root was not recorded");
     await expect(lstat(successfulRoot)).rejects.toMatchObject({ code: "ENOENT" });
 
+    const unsafeInspectionValues = [
+      { name: "candidate root directly", value: (root: string) => root },
+      { name: "candidate root nested", value: (root: string) => ({ nested: [{ root }] }) },
+      { name: "absolute source path", value: () => successfulFixture.gameAddonRoot },
+      { name: "function capability", value: () => ({ invoke: () => "live" }) },
+      { name: "live map handle", value: () => new Map([["state", "live"]]) },
+      {
+        name: "throwing value getter",
+        value: () => Object.defineProperty({}, "state", {
+          enumerable: true,
+          get: () => { throw new Error(`private value getter ${successfulFixture.root}`); }
+        })
+      },
+      {
+        name: "throwing value proxy",
+        value: () => new Proxy({}, {
+          ownKeys: () => { throw new Error(`private value proxy ${successfulFixture.root}`); }
+        })
+      }
+    ];
+
+    for (const scenario of unsafeInspectionValues) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      const lifecycle = createLifecycleFilesystem(fixture);
+      const result = await withAssembledReleaseCandidate(
+        {
+          addonName: "fixture_addon",
+          dotaRoot: fixture.dotaRoot,
+          tempParent: fixture.tempParent
+        },
+        async (root) => scenario.value(root),
+        { repositoryRoot: fixture.repositoryRoot, filesystem: lifecycle.filesystem }
+      );
+
+      expect(result, scenario.name).toMatchObject({
+        ok: false,
+        operation: { status: "failed", code: "CANDIDATE_INSPECTION_FAILED" },
+        artifactValidation: { status: "passed" },
+        cleanup: { status: "verified", attempts: 1 },
+        blockers: [{ code: "CANDIDATE_INSPECTION_VALUE_UNSAFE", category: "inspection" }]
+      });
+      expect(result, scenario.name).not.toHaveProperty("value");
+      expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
+      expect(lifecycle.cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
+      const root = lifecycle.candidateRoot();
+      if (root === undefined) throw new Error("unsafe-value candidate root was not recorded");
+      await expect(lstat(root), scenario.name).rejects.toMatchObject({ code: "ENOENT" });
+    }
+
     const callbackFixture = await createFixture();
     await populateReadyFixture(callbackFixture);
     const callbackLifecycle = createLifecycleFilesystem(callbackFixture);
