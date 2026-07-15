@@ -537,6 +537,74 @@ describe("release candidate input validation", () => {
     expect((await lstat(candidateRoot)).isDirectory()).toBe(true);
   });
 
+  test("sanitizes exceptional identity-bound cleanup results", async () => {
+    const scenarios: Array<{
+      name: string;
+      createResult: (privateFailure: string) => CandidateLeaseCleanupResult;
+    }> = [
+      {
+        name: "throwing ok getter",
+        createResult: (privateFailure) => Object.defineProperty({}, "ok", {
+          get: () => {
+            throw new Error(`getter exposed ${privateFailure}`);
+          }
+        }) as CandidateLeaseCleanupResult
+      },
+      {
+        name: "throwing required-field proxy",
+        createResult: (privateFailure) => new Proxy(
+          { ok: false, removed: false, absent: false, identityMatched: false },
+          {
+            get: (target, property, receiver) => {
+              if (property === "removed") {
+                throw new Error(`proxy exposed ${privateFailure}`);
+              }
+              return Reflect.get(target, property, receiver);
+            }
+          }
+        ) as unknown as CandidateLeaseCleanupResult
+      }
+    ];
+
+    for (const scenario of scenarios) {
+      const fixture = await createFixture();
+      const privateFailure = `${fixture.root}/credential_password=synthetic-private-value`;
+      const filesystem: ReleaseCandidateFilesystem = {
+        lstat,
+        realpath,
+        readDirectory: async (path) => await readdir(path),
+        classifySourceEntry: classifyFixtureEntry,
+        createCandidateRoot: vi.fn(async () => {
+          throw new Error("raw candidate creation must not be used");
+        }),
+        candidateLifecycle: createIdentityBoundCandidateLifecycle({
+          createCandidateLease: vi.fn(async (validated) => {
+            const candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+            return { inspectionRoot: candidateRoot, identity: { candidateRoot } };
+          }),
+          cleanupCandidateLease: vi.fn(async () => scenario.createResult(privateFailure))
+        })
+      };
+
+      const result = await withAssembledReleaseCandidate(
+        {
+          addonName: "fixture_addon",
+          dotaRoot: fixture.dotaRoot,
+          tempParent: fixture.tempParent
+        },
+        async () => "must not survive exceptional cleanup",
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+
+      expect(result, scenario.name).toEqual({
+        ok: false,
+        blockers: [{ code: "CANDIDATE_CLEANUP_RESULT_INVALID", category: "removal" }]
+      });
+      expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
+      expect(JSON.stringify(result), scenario.name).not.toContain("synthetic-private-value");
+    }
+  });
+
   test("blocks invalid inputs before candidate creation", async () => {
     const cases: Array<{
       name: string;
