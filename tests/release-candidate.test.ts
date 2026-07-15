@@ -5159,6 +5159,120 @@ describe("release candidate input validation", () => {
       if (unsupportedRoot !== undefined) expect((await lstat(unsupportedRoot)).isDirectory()).toBe(true);
     }
 
+    for (const scenario of ["provider throws", "provider returns malformed"] as const) {
+      let inFlightRoot: string | undefined;
+      let settleCreation: (() => void) | undefined;
+      const creationSettled = new Promise<void>((resolve) => {
+        settleCreation = resolve;
+      });
+      const createCandidateState = vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        inFlightRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+        settleCreation?.();
+        return { inspectionRoot: inFlightRoot, identity: { root: inFlightRoot } };
+      });
+      const cleanupCandidateLease = vi.fn(async (identity: { root: string }) => {
+        await rm(identity.root, { recursive: true, force: false });
+        return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
+      });
+      const lifecycle = createFactoryOwnedLifecycle<{ root: string }>({
+        createCandidateState,
+        acquireCandidateLease: async (_validated, createRegisteredCandidate) => {
+          void createRegisteredCandidate();
+          if (scenario === "provider throws") throw new Error("private provider failure");
+          return null;
+        },
+        cleanupCandidateLease
+      });
+      const result = await lifecycle.createCandidateLease(preparedOwnership.value);
+      await creationSettled;
+      expect(result, scenario).toEqual({
+        ok: false,
+        schemaVersion: "1.0",
+        state: "created-failure",
+        code: "CANDIDATE_ACQUISITION_RESULT_INVALID",
+        cleanup: {
+          schemaVersion: "1.0",
+          attempted: true,
+          attempts: 1,
+          status: "verified",
+          verified: true,
+          identityMatched: true,
+          removed: true,
+          absent: true
+        }
+      });
+      expect(createCandidateState, scenario).toHaveBeenCalledTimes(1);
+      expect(cleanupCandidateLease, scenario).toHaveBeenCalledTimes(1);
+      if (inFlightRoot === undefined) throw new Error("in-flight candidate root was not recorded");
+      await expect(lstat(inFlightRoot), scenario).rejects.toMatchObject({ code: "ENOENT" });
+    }
+
+    let concurrentRoot: string | undefined;
+    let concurrentSettled: (() => void) | undefined;
+    const concurrentCreationSettled = new Promise<void>((resolve) => {
+      concurrentSettled = resolve;
+    });
+    const concurrentCreate = vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      concurrentRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+      concurrentSettled?.();
+      return { inspectionRoot: concurrentRoot, identity: { root: concurrentRoot } };
+    });
+    const concurrentCleanup = vi.fn(async (identity: { root: string }) => {
+      await rm(identity.root, { recursive: true, force: false });
+      return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
+    });
+    const concurrentLifecycle = createFactoryOwnedLifecycle<{ root: string }>({
+      createCandidateState: concurrentCreate,
+      acquireCandidateLease: async (_validated, createRegisteredCandidate) => {
+        void createRegisteredCandidate();
+        await expect(createRegisteredCandidate()).rejects.toBeDefined();
+        return null;
+      },
+      cleanupCandidateLease: concurrentCleanup
+    });
+    const concurrentResult = await concurrentLifecycle.createCandidateLease(preparedOwnership.value);
+    await concurrentCreationSettled;
+    expect(concurrentResult).toMatchObject({
+      ok: false,
+      state: "created-failure",
+      cleanup: { attempted: true, attempts: 1, status: "verified", verified: true }
+    });
+    expect(concurrentCreate).toHaveBeenCalledTimes(1);
+    expect(concurrentCleanup).toHaveBeenCalledTimes(1);
+    if (concurrentRoot === undefined) throw new Error("concurrent candidate root was not recorded");
+    await expect(lstat(concurrentRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    let retainedPrimitive: (() => Promise<object>) | undefined;
+    const lateCreate = vi.fn(async () => {
+      throw new Error("late primitive must reject before candidate creation");
+    });
+    const lateCleanup = vi.fn(async () => ({
+      ok: true as const,
+      removed: true as const,
+      absent: true as const,
+      identityMatched: true as const
+    }));
+    const lateLifecycle = createFactoryOwnedLifecycle<{ root: string }>({
+      createCandidateState: lateCreate,
+      acquireCandidateLease: async (_validated, createRegisteredCandidate) => {
+        retainedPrimitive = createRegisteredCandidate;
+        return null;
+      },
+      cleanupCandidateLease: lateCleanup
+    });
+    const lateResult = await lateLifecycle.createCandidateLease(preparedOwnership.value);
+    expect(lateResult).toMatchObject({
+      ok: false,
+      state: "contract-failure",
+      cleanup: { attempted: false, attempts: 0, verified: false }
+    });
+    if (retainedPrimitive === undefined) throw new Error("creation primitive was not retained");
+    await expect(retainedPrimitive()).rejects.toBeDefined();
+    expect(lateCreate).not.toHaveBeenCalled();
+    expect(lateCleanup).not.toHaveBeenCalled();
+
     const postLeaseScenarios = [
       { name: "success", fault: "none", callbackCount: 1 },
       { name: "root inspection blocker", fault: "inspection", callbackCount: 0 },
