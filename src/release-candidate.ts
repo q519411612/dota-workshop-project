@@ -1,6 +1,6 @@
-import { copyFile, lstat, mkdir, mkdtemp, readFile, readdir, realpath, stat } from "node:fs/promises";
+import { lstat, mkdtemp, readdir, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { constants as filesystemConstants, type Stats } from "node:fs";
+import type { Stats } from "node:fs";
 import { validateAddonName } from "./addon.js";
 import {
   evaluateReleaseReadiness,
@@ -83,10 +83,6 @@ export type ReleaseCandidateFilesystem = {
   readDirectory(path: string): Promise<string[]>;
   classifySourceEntry(path: string): Promise<ReleaseCandidateEntryKind>;
   createCandidateRoot(input: ValidatedReleaseCandidateInput): Promise<string>;
-  makeDirectory?(path: string): Promise<void>;
-  copySourceFile?(source: string, destination: string): Promise<void>;
-  readSourceFile?(path: string): Promise<string>;
-  sourceFileSize?(path: string): Promise<number>;
   candidateLifecycle?: IdentityBoundCandidateLifecycle;
 };
 
@@ -104,13 +100,7 @@ function createDefaultFilesystem(platform: NodeJS.Platform): ReleaseCandidateFil
     classifySourceEntry: platform === "win32"
       ? async () => "unknown"
       : classifySourceEntry,
-    createCandidateRoot: async (input) => await mkdtemp(join(input.tempParent, "dota-release-candidate-")),
-    makeDirectory: async (path) => await mkdir(path),
-    copySourceFile: async (source, destination) => (
-      await copyFile(source, destination, filesystemConstants.COPYFILE_EXCL)
-    ),
-    readSourceFile: async (path) => await readFile(path, "utf8"),
-    sourceFileSize: async (path) => (await stat(path)).size
+    createCandidateRoot: async (input) => await mkdtemp(join(input.tempParent, "dota-release-candidate-"))
   };
 }
 
@@ -131,6 +121,8 @@ export type ReleaseCandidateLifecycleResult<T> =
         | ReleaseReadinessFinding
       >;
     };
+
+type ReleaseCandidateLifecycleFailure = Extract<ReleaseCandidateLifecycleResult<never>, { ok: false }>;
 
 export type ReleaseCandidateLease = Readonly<{
   [releaseCandidateLeaseBrand]: true;
@@ -157,14 +149,88 @@ export type CandidateLeaseCleanupResult =
       code: CandidateLeaseCleanupFailureCode;
     }>;
 
+export type AcceptedSourceReadResult =
+  | Readonly<{
+      ok: true;
+      state: "readable";
+      size: number;
+      content: string;
+      identityMatched: true;
+      kindMatched: true;
+      contained: true;
+    }>
+  | Readonly<{
+      ok: true;
+      state: "oversized";
+      size: number;
+      identityMatched: true;
+      kindMatched: true;
+      contained: true;
+    }>
+  | Readonly<{ ok: false; code: "SOURCE_FILE_IDENTITY_CHANGED" | "SOURCE_FILE_READ_FAILED" }>;
+
+export type CandidateMaterializationOperation = Readonly<{
+  destination: string;
+  kind: "file" | "directory";
+  source: ReleaseCandidateSourceEntry;
+}>;
+
+export type CandidateMaterializationResult =
+  | Readonly<{ ok: true; created: true; identityMatched: true; kindMatched: true; contained: true }>
+  | Readonly<{
+      ok: false;
+      code:
+        | "CANDIDATE_DESTINATION_IDENTITY_MISMATCH"
+        | "CANDIDATE_DESTINATION_UNEXPECTED"
+        | "CANDIDATE_MATERIALIZATION_FAILED"
+        | "SOURCE_ENTRY_CHANGED";
+    }>;
+
+export type CandidateRootInspectionResult =
+  | Readonly<{ ok: true; empty: true; identityMatched: true }>
+  | Readonly<{
+      ok: false;
+      code: "CANDIDATE_ROOT_IDENTITY_MISMATCH" | "CANDIDATE_ROOT_INSPECTION_FAILED" | "CANDIDATE_ROOT_NOT_EMPTY";
+      entries?: string[];
+    }>;
+
+export type CandidateExpectedEntry = Readonly<{ path: string; kind: "file" | "directory" }>;
+export type CandidateTreeReconciliationResult =
+  | Readonly<{ ok: true; exact: true; identityMatched: true }>
+  | Readonly<{
+      ok: false;
+      code: "CANDIDATE_TREE_MISMATCH" | "CANDIDATE_TREE_RECONCILIATION_FAILED";
+      issues?: Array<Readonly<{
+        code: "CANDIDATE_TREE_MISSING" | "CANDIDATE_TREE_UNEXPECTED" | "CANDIDATE_TREE_WRONG_KIND" | "CANDIDATE_TREE_IDENTITY_INVALID";
+        path: string;
+        kind?: "file" | "directory";
+      }>>;
+    }>;
+
 export type IdentityBoundCandidateLifecycle = Readonly<{
   [identityBoundCandidateLifecycleBrand]: true;
   identityBoundCleanup: true;
+  identityBoundAssembly: boolean;
   createCandidateLease(input: ValidatedReleaseCandidateInput): Promise<Readonly<{
     inspectionRoot: string;
     lease: ReleaseCandidateLease;
   }>>;
   cleanupCandidateLease(lease: ReleaseCandidateLease): Promise<CandidateLeaseCleanupResult>;
+  readAcceptedSourceFile(
+    input: ValidatedReleaseCandidateInput,
+    entry: ReleaseCandidateSourceEntry,
+    maxBytes: number
+  ): Promise<AcceptedSourceReadResult>;
+  inspectCandidateRoot(lease: ReleaseCandidateLease): Promise<CandidateRootInspectionResult>;
+  materializeCandidateEntry(
+    lease: ReleaseCandidateLease,
+    input: ValidatedReleaseCandidateInput,
+    operation: CandidateMaterializationOperation
+  ): Promise<CandidateMaterializationResult>;
+  reconcileCandidateTree(
+    lease: ReleaseCandidateLease,
+    expected: CandidateExpectedEntry[]
+  ): Promise<CandidateTreeReconciliationResult>;
 }>;
 
 export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(operations: {
@@ -173,13 +239,37 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
     identity: TIdentity;
   }>>;
   cleanupCandidateLease(identity: TIdentity): Promise<CandidateLeaseCleanupResult>;
+  readAcceptedSourceFile?(
+    input: ValidatedReleaseCandidateInput,
+    entry: ReleaseCandidateSourceEntry,
+    maxBytes: number
+  ): Promise<AcceptedSourceReadResult>;
+  inspectCandidateRoot?(identity: TIdentity): Promise<CandidateRootInspectionResult>;
+  materializeCandidateEntry?(
+    identity: TIdentity,
+    input: ValidatedReleaseCandidateInput,
+    operation: CandidateMaterializationOperation
+  ): Promise<CandidateMaterializationResult>;
+  reconcileCandidateTree?(
+    identity: TIdentity,
+    expected: CandidateExpectedEntry[]
+  ): Promise<CandidateTreeReconciliationResult>;
 }): IdentityBoundCandidateLifecycle {
   const identities = new WeakMap<ReleaseCandidateLease, TIdentity>();
   const createCandidateLease = operations.createCandidateLease.bind(operations);
   const cleanupCandidateLease = operations.cleanupCandidateLease.bind(operations);
+  const readAcceptedSourceFile = operations.readAcceptedSourceFile?.bind(operations);
+  const inspectCandidateRoot = operations.inspectCandidateRoot?.bind(operations);
+  const materializeCandidateEntry = operations.materializeCandidateEntry?.bind(operations);
+  const reconcileCandidateTree = operations.reconcileCandidateTree?.bind(operations);
+  const identityBoundAssembly = readAcceptedSourceFile !== undefined
+    && inspectCandidateRoot !== undefined
+    && materializeCandidateEntry !== undefined
+    && reconcileCandidateTree !== undefined;
   return Object.freeze({
     [identityBoundCandidateLifecycleBrand]: true as const,
     identityBoundCleanup: true as const,
+    identityBoundAssembly,
     createCandidateLease: async (input) => {
       const created = await createCandidateLease(input);
       const lease = Object.freeze({ [releaseCandidateLeaseBrand]: true as const });
@@ -199,6 +289,32 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
       }
       identities.delete(lease);
       return await cleanupCandidateLease(identity);
+    },
+    readAcceptedSourceFile: async (input, entry, maxBytes) => (
+      readAcceptedSourceFile === undefined
+        ? { ok: false, code: "SOURCE_FILE_READ_FAILED" }
+        : await readAcceptedSourceFile(input, entry, maxBytes)
+    ),
+    inspectCandidateRoot: async (lease) => {
+      const identity = identities.get(lease);
+      if (identity === undefined || inspectCandidateRoot === undefined) {
+        return { ok: false, code: "CANDIDATE_ROOT_IDENTITY_MISMATCH" };
+      }
+      return await inspectCandidateRoot(identity);
+    },
+    materializeCandidateEntry: async (lease, input, operation) => {
+      const identity = identities.get(lease);
+      if (identity === undefined || materializeCandidateEntry === undefined) {
+        return { ok: false, code: "CANDIDATE_DESTINATION_IDENTITY_MISMATCH" };
+      }
+      return await materializeCandidateEntry(identity, input, operation);
+    },
+    reconcileCandidateTree: async (lease, expected) => {
+      const identity = identities.get(lease);
+      if (identity === undefined || reconcileCandidateTree === undefined) {
+        return { ok: false, code: "CANDIDATE_TREE_RECONCILIATION_FAILED" };
+      }
+      return await reconcileCandidateTree(identity, expected);
     }
   });
 }
@@ -206,12 +322,12 @@ export function createIdentityBoundCandidateLifecycle<TIdentity extends object>(
 type BoundCandidateLifecycle = Readonly<{
   lstat: ReleaseCandidateFilesystem["lstat"];
   realpath: ReleaseCandidateFilesystem["realpath"];
-  readDirectory: ReleaseCandidateFilesystem["readDirectory"];
-  classifySourceEntry: ReleaseCandidateFilesystem["classifySourceEntry"];
   createCandidateLease: IdentityBoundCandidateLifecycle["createCandidateLease"];
   cleanupCandidateLease: IdentityBoundCandidateLifecycle["cleanupCandidateLease"];
-  makeDirectory: (path: string) => Promise<void>;
-  copySourceFile: (source: string, destination: string) => Promise<void>;
+  readAcceptedSourceFile: IdentityBoundCandidateLifecycle["readAcceptedSourceFile"];
+  inspectCandidateRoot: IdentityBoundCandidateLifecycle["inspectCandidateRoot"];
+  materializeCandidateEntry: IdentityBoundCandidateLifecycle["materializeCandidateEntry"];
+  reconcileCandidateTree: IdentityBoundCandidateLifecycle["reconcileCandidateTree"];
 }>;
 
 export type ReleaseCandidateContinuationResult<T> =
@@ -356,17 +472,6 @@ export async function withAssembledReleaseCandidate<T>(
   if (!inventory.ok) return inventory;
 
   const filesystem = prepared.value[releaseCandidateFilesystemCapability];
-  if (filesystem.readSourceFile === undefined || filesystem.sourceFileSize === undefined) {
-    return lifecycleBlocked("RELEASE_READINESS_CAPABILITY_REQUIRED", "creation");
-  }
-  const readinessBlockers = await releaseReadinessBlockers(
-    prepared.value,
-    inventory.entries,
-    filesystem.readSourceFile.bind(filesystem),
-    filesystem.sourceFileSize.bind(filesystem)
-  );
-  if (readinessBlockers.length > 0) return { ok: false, blockers: readinessBlockers };
-
   const capability = filesystem.candidateLifecycle;
   if (
     capability?.identityBoundCleanup !== true
@@ -374,13 +479,16 @@ export async function withAssembledReleaseCandidate<T>(
   ) {
     return lifecycleBlocked("IDENTITY_BOUND_CLEANUP_REQUIRED", "creation");
   }
-  if (filesystem.makeDirectory === undefined || filesystem.copySourceFile === undefined) {
-    return lifecycleBlocked("CANDIDATE_ASSEMBLY_CAPABILITY_REQUIRED", "creation");
+  if (capability.identityBoundAssembly !== true) {
+    return lifecycleBlocked("IDENTITY_BOUND_ASSEMBLY_REQUIRED", "creation");
   }
   const lifecycle = bindIdentityBoundCandidateLifecycle(filesystem);
   if (lifecycle === undefined) {
     return lifecycleBlocked("IDENTITY_BOUND_CLEANUP_REQUIRED", "creation");
   }
+  const readiness = await releaseReadinessBlockers(prepared.value, inventory.entries, lifecycle);
+  if (!readiness.ok) return readiness;
+  if (readiness.blockers.length > 0) return { ok: false, blockers: readiness.blockers };
 
   let created: Awaited<ReturnType<BoundCandidateLifecycle["createCandidateLease"]>>;
   try {
@@ -394,6 +502,7 @@ export async function withAssembledReleaseCandidate<T>(
   try {
     outcome = await inspectCandidateLease(
       created.inspectionRoot,
+      created.lease,
       prepared.value,
       inventory.entries,
       lifecycle,
@@ -414,25 +523,25 @@ function bindIdentityBoundCandidateLifecycle(
   if (
     capability?.identityBoundCleanup !== true
     || capability[identityBoundCandidateLifecycleBrand] !== true
-    || filesystem.makeDirectory === undefined
-    || filesystem.copySourceFile === undefined
+    || capability.identityBoundAssembly !== true
   ) {
     return undefined;
   }
   return Object.freeze({
     lstat: filesystem.lstat.bind(filesystem),
     realpath: filesystem.realpath.bind(filesystem),
-    readDirectory: filesystem.readDirectory.bind(filesystem),
-    classifySourceEntry: filesystem.classifySourceEntry.bind(filesystem),
     createCandidateLease: capability.createCandidateLease.bind(capability),
     cleanupCandidateLease: capability.cleanupCandidateLease.bind(capability),
-    makeDirectory: filesystem.makeDirectory.bind(filesystem),
-    copySourceFile: filesystem.copySourceFile.bind(filesystem)
+    readAcceptedSourceFile: capability.readAcceptedSourceFile.bind(capability),
+    inspectCandidateRoot: capability.inspectCandidateRoot.bind(capability),
+    materializeCandidateEntry: capability.materializeCandidateEntry.bind(capability),
+    reconcileCandidateTree: capability.reconcileCandidateTree.bind(capability)
   });
 }
 
 async function inspectCandidateLease<T>(
   inspectionRoot: string,
+  lease: ReleaseCandidateLease,
   input: ValidatedReleaseCandidateInput,
   inventory: ReleaseCandidateSourceEntry[],
   lifecycle: BoundCandidateLifecycle,
@@ -458,10 +567,14 @@ async function inspectCandidateLease<T>(
     if (!isCandidateRootIsolated(canonicalRoot, input)) {
       return lifecycleBlocked("CANDIDATE_ROOT_NOT_ISOLATED", "unsafe-isolation");
     }
-    const unexpectedEntries = await candidateRootUnexpectedEntries(canonicalRoot, lifecycle);
+    const unexpectedEntries = await parseCandidateRootInspection(
+      async () => await lifecycle.inspectCandidateRoot(lease)
+    );
     if (unexpectedEntries !== undefined) return unexpectedEntries;
-    const assemblyFailure = await assembleReleaseCandidate(canonicalRoot, input, inventory, lifecycle);
+    const assemblyFailure = await assembleReleaseCandidate(lease, input, inventory, lifecycle);
     if (assemblyFailure !== undefined) return assemblyFailure;
+    const reconciliationFailure = await reconcileReleaseCandidate(lease, input, inventory, lifecycle);
+    if (reconciliationFailure !== undefined) return reconciliationFailure;
     try {
       return { ok: true, value: await inspect(canonicalRoot) };
     } catch {
@@ -472,27 +585,48 @@ async function inspectCandidateLease<T>(
   }
 }
 
-async function candidateRootUnexpectedEntries(
-  candidateRoot: string,
-  filesystem: Pick<ReleaseCandidateFilesystem, "readDirectory">
+async function parseCandidateRootInspection(
+  acquire: () => Promise<unknown>
 ): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
-  let names: string[];
   try {
-    names = await filesystem.readDirectory(candidateRoot);
+    const result = await acquire();
+    if (result === null || typeof result !== "object") {
+      return lifecycleBlocked("CANDIDATE_ROOT_INSPECTION_RESULT_INVALID", "unsafe-isolation");
+    }
+    const ok = Reflect.get(result, "ok");
+    if (
+      ok === true
+      && Reflect.get(result, "empty") === true
+      && Reflect.get(result, "identityMatched") === true
+    ) return undefined;
+    const code = Reflect.get(result, "code");
+    if (ok !== false || typeof code !== "string") {
+      return lifecycleBlocked("CANDIDATE_ROOT_INSPECTION_RESULT_INVALID", "unsafe-isolation");
+    }
+    if (code === "CANDIDATE_ROOT_NOT_EMPTY") {
+      const entries = Reflect.get(result, "entries");
+      if (!Array.isArray(entries) || entries.length === 0 || !entries.every((entry) => typeof entry === "string")) {
+        return lifecycleBlocked("CANDIDATE_ROOT_INSPECTION_RESULT_INVALID", "unsafe-isolation");
+      }
+      return {
+        ok: false,
+        blockers: [...entries].sort(compareOrdinal).map((entry) => ({
+          code: "CANDIDATE_ROOT_NOT_EMPTY",
+          category: "unexpected-entry" as const,
+          path: safeCandidateEntryIdentity(entry)
+        }))
+      };
+    }
+    if (code === "CANDIDATE_ROOT_IDENTITY_MISMATCH") {
+      return lifecycleBlocked(code, "unsafe-isolation");
+    }
+    if (code === "CANDIDATE_ROOT_INSPECTION_FAILED") {
+      return lifecycleBlocked(code, "inspection");
+    }
   } catch {
-    return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
+    return lifecycleBlocked("CANDIDATE_ROOT_INSPECTION_RESULT_INVALID", "unsafe-isolation");
   }
-  if (names.length === 0) return undefined;
-  return {
-    ok: false,
-    blockers: [...names]
-      .sort(compareOrdinal)
-      .map((name) => ({
-        code: "CANDIDATE_ROOT_NOT_EMPTY",
-        category: "unexpected-entry" as const,
-        path: safeCandidateEntryIdentity(name)
-      }))
-  };
+  return lifecycleBlocked("CANDIDATE_ROOT_INSPECTION_RESULT_INVALID", "unsafe-isolation");
 }
 
 function safeCandidateEntryIdentity(name: string): string {
@@ -502,150 +636,222 @@ function safeCandidateEntryIdentity(name: string): string {
 }
 
 async function assembleReleaseCandidate(
-  candidateRoot: string,
+  lease: ReleaseCandidateLease,
   input: ValidatedReleaseCandidateInput,
   inventory: ReleaseCandidateSourceEntry[],
-  filesystem: BoundCandidateLifecycle
+  lifecycle: BoundCandidateLifecycle
 ): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
   const fixedDirectories = [
-    { path: "content", sourceRoot: input.contentAddonRoot },
-    { path: "content/dota_addons", sourceRoot: input.contentAddonRoot },
-    { path: `content/dota_addons/${input.addonName}`, sourceRoot: input.contentAddonRoot },
-    { path: "game", sourceRoot: input.gameAddonRoot },
-    { path: "game/dota_addons", sourceRoot: input.gameAddonRoot },
-    { path: `game/dota_addons/${input.addonName}`, sourceRoot: input.gameAddonRoot }
+    { path: "content", root: "content" as const },
+    { path: "content/dota_addons", root: "content" as const },
+    { path: `content/dota_addons/${input.addonName}`, root: "content" as const },
+    { path: "game", root: "game" as const },
+    { path: "game/dota_addons", root: "game" as const },
+    { path: `game/dota_addons/${input.addonName}`, root: "game" as const }
   ];
 
   for (const directory of fixedDirectories) {
-    const sourceFailure = await revalidateSourceEntry(
-      directory.sourceRoot,
-      directory.sourceRoot,
-      "directory",
-      filesystem
-    );
-    if (sourceFailure !== undefined) return sourceFailure;
-    const destination = join(candidateRoot, ...directory.path.split("/"));
-    const destinationFailure = await validateDestinationParent(destination, candidateRoot, filesystem);
-    if (destinationFailure !== undefined) return destinationFailure;
-    try {
-      await filesystem.makeDirectory(destination);
-    } catch {
-      return lifecycleBlocked("CANDIDATE_ASSEMBLY_FAILED", "assembly");
-    }
+    const failure = await parseCandidateMaterialization(async () => (
+      await lifecycle.materializeCandidateEntry(lease, input, {
+        destination: directory.path,
+        kind: "directory",
+        source: { root: directory.root, path: `${directory.root}/dota_addons/${input.addonName}`, kind: "directory" }
+      })
+    ));
+    if (failure !== undefined) return failure;
   }
 
   for (const entry of inventory) {
-    const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
-    const prefix = `${entry.root}/dota_addons/${input.addonName}`;
-    const relativeIdentity = entry.path.slice(prefix.length + 1);
-    const source = join(sourceRoot, ...relativeIdentity.split("/"));
-    const sourceFailure = await revalidateSourceEntry(source, sourceRoot, entry.kind, filesystem);
-    if (sourceFailure !== undefined) return sourceFailure;
-
-    const destination = join(candidateRoot, ...entry.path.split("/"));
-    const destinationFailure = await validateDestinationParent(destination, candidateRoot, filesystem);
-    if (destinationFailure !== undefined) return destinationFailure;
-    try {
-      if (entry.kind === "directory") {
-        await filesystem.makeDirectory(destination);
-      } else {
-        await filesystem.copySourceFile(source, destination);
-      }
-    } catch {
-      return lifecycleBlocked("CANDIDATE_ASSEMBLY_FAILED", "assembly");
-    }
+    const failure = await parseCandidateMaterialization(async () => (
+      await lifecycle.materializeCandidateEntry(lease, input, {
+        destination: entry.path,
+        kind: entry.kind,
+        source: entry
+      })
+    ));
+    if (failure !== undefined) return failure;
   }
   return undefined;
 }
 
-async function revalidateSourceEntry(
-  source: string,
-  sourceRoot: string,
-  expectedKind: "file" | "directory",
-  filesystem: Pick<ReleaseCandidateFilesystem, "classifySourceEntry" | "realpath">
+async function parseCandidateMaterialization(
+  acquire: () => Promise<unknown>
 ): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
   try {
-    const kind = normalizeEntryKind(await filesystem.classifySourceEntry(source));
-    if (kind !== expectedKind) {
-      return lifecycleBlocked("SOURCE_ENTRY_CHANGED", "assembly");
+    const result = await acquire();
+    if (result === null || typeof result !== "object") {
+      return lifecycleBlocked("CANDIDATE_MATERIALIZATION_RESULT_INVALID", "assembly");
     }
-    const canonicalSource = await filesystem.realpath(source);
-    if (!isPathAtOrInside(canonicalSource, sourceRoot)) {
-      return lifecycleBlocked("SOURCE_ENTRY_CHANGED", "assembly");
+    if (
+      Reflect.get(result, "ok") === true
+      && Reflect.get(result, "created") === true
+      && Reflect.get(result, "identityMatched") === true
+      && Reflect.get(result, "kindMatched") === true
+      && Reflect.get(result, "contained") === true
+    ) return undefined;
+    const code = Reflect.get(result, "code");
+    if (Reflect.get(result, "ok") !== false || typeof code !== "string") {
+      return lifecycleBlocked("CANDIDATE_MATERIALIZATION_RESULT_INVALID", "assembly");
     }
-    return undefined;
+    if (code === "CANDIDATE_DESTINATION_IDENTITY_MISMATCH" || code === "CANDIDATE_DESTINATION_UNEXPECTED") {
+      return lifecycleBlocked(code, "unsafe-isolation");
+    }
+    if (code === "CANDIDATE_MATERIALIZATION_FAILED" || code === "SOURCE_ENTRY_CHANGED") {
+      return lifecycleBlocked(code, "assembly");
+    }
   } catch {
-    return lifecycleBlocked("SOURCE_ENTRY_CHANGED", "assembly");
+    return lifecycleBlocked("CANDIDATE_MATERIALIZATION_RESULT_INVALID", "assembly");
+  }
+  return lifecycleBlocked("CANDIDATE_MATERIALIZATION_RESULT_INVALID", "assembly");
+}
+
+async function reconcileReleaseCandidate(
+  lease: ReleaseCandidateLease,
+  input: ValidatedReleaseCandidateInput,
+  inventory: ReleaseCandidateSourceEntry[],
+  lifecycle: BoundCandidateLifecycle
+): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+  const expected = expectedCandidateTree(input, inventory);
+  return await parseCandidateReconciliation(
+    async () => await lifecycle.reconcileCandidateTree(lease, expected)
+  );
+}
+
+function expectedCandidateTree(
+  input: ValidatedReleaseCandidateInput,
+  inventory: ReleaseCandidateSourceEntry[]
+): CandidateExpectedEntry[] {
+  const fixed = [
+    "content",
+    "content/dota_addons",
+    `content/dota_addons/${input.addonName}`,
+    "game",
+    "game/dota_addons",
+    `game/dota_addons/${input.addonName}`
+  ].map((path) => ({ path, kind: "directory" as const }));
+  return [...fixed, ...inventory.map((entry) => ({ path: entry.path, kind: entry.kind }))]
+    .sort((left, right) => compareOrdinal(left.path, right.path));
+}
+
+async function parseCandidateReconciliation(
+  acquire: () => Promise<unknown>
+): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+  try {
+    const result = await acquire();
+    if (result === null || typeof result !== "object") {
+      return lifecycleBlocked("CANDIDATE_TREE_RECONCILIATION_RESULT_INVALID", "assembly");
+    }
+    if (
+      Reflect.get(result, "ok") === true
+      && Reflect.get(result, "exact") === true
+      && Reflect.get(result, "identityMatched") === true
+    ) return undefined;
+    if (Reflect.get(result, "ok") !== false || Reflect.get(result, "code") !== "CANDIDATE_TREE_MISMATCH") {
+      return lifecycleBlocked("CANDIDATE_TREE_RECONCILIATION_RESULT_INVALID", "assembly");
+    }
+    const issues = Reflect.get(result, "issues");
+    if (!Array.isArray(issues) || issues.length === 0) {
+      return lifecycleBlocked("CANDIDATE_TREE_RECONCILIATION_RESULT_INVALID", "assembly");
+    }
+    const blockers: ReleaseCandidateLifecycleBlocker[] = [];
+    for (const issue of issues) {
+      if (issue === null || typeof issue !== "object") {
+        return lifecycleBlocked("CANDIDATE_TREE_RECONCILIATION_RESULT_INVALID", "assembly");
+      }
+      const code = Reflect.get(issue, "code");
+      const path = Reflect.get(issue, "path");
+      if (
+        typeof path !== "string"
+        || ![
+          "CANDIDATE_TREE_MISSING",
+          "CANDIDATE_TREE_UNEXPECTED",
+          "CANDIDATE_TREE_WRONG_KIND",
+          "CANDIDATE_TREE_IDENTITY_INVALID"
+        ].includes(code)
+      ) {
+        return lifecycleBlocked("CANDIDATE_TREE_RECONCILIATION_RESULT_INVALID", "assembly");
+      }
+      blockers.push({
+        code,
+        category: code === "CANDIDATE_TREE_UNEXPECTED" ? "unexpected-entry" : "assembly",
+        path: safeCandidateTreeIdentity(path)
+      });
+    }
+    blockers.sort((left, right) => compareOrdinal(left.path ?? "", right.path ?? "") || compareOrdinal(left.code, right.code));
+    return { ok: false, blockers };
+  } catch {
+    return lifecycleBlocked("CANDIDATE_TREE_RECONCILIATION_RESULT_INVALID", "assembly");
   }
 }
 
-async function validateDestinationParent(
-  destination: string,
-  candidateRoot: string,
-  filesystem: Pick<ReleaseCandidateFilesystem, "lstat" | "realpath">
-): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
-  if (!isPathInside(destination, candidateRoot)) {
-    return lifecycleBlocked("CANDIDATE_DESTINATION_UNSAFE", "unsafe-isolation");
-  }
-  try {
-    try {
-      await filesystem.lstat(destination);
-      return lifecycleBlocked("CANDIDATE_DESTINATION_UNEXPECTED", "unsafe-isolation");
-    } catch (error) {
-      if (errorCode(error) !== "ENOENT") {
-        return lifecycleBlocked("CANDIDATE_DESTINATION_UNSAFE", "unsafe-isolation");
-      }
-    }
-    const canonicalParent = await filesystem.realpath(resolve(destination, ".."));
-    if (!isPathAtOrInside(canonicalParent, candidateRoot)) {
-      return lifecycleBlocked("CANDIDATE_DESTINATION_UNSAFE", "unsafe-isolation");
-    }
-    return undefined;
-  } catch {
-    return lifecycleBlocked("CANDIDATE_DESTINATION_UNSAFE", "unsafe-isolation");
-  }
+function safeCandidateTreeIdentity(path: string): string {
+  if (path.length === 0 || path.startsWith("/") || path.startsWith("\\") || path.includes("\\")) return "[invalid]";
+  const segments = path.split("/");
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) return "[invalid]";
+  return segments.map(safeCandidateEntryIdentity).join("/");
 }
 
 async function releaseReadinessBlockers(
   input: ValidatedReleaseCandidateInput,
   inventory: ReleaseCandidateSourceEntry[],
-  readSourceFile: (path: string) => Promise<string>,
-  sourceFileSize: (path: string) => Promise<number>
-): Promise<ReleaseReadinessFinding[]> {
-  const observations = await collectReleaseReadinessInput(input, inventory, readSourceFile, sourceFileSize);
-  return evaluateReleaseReadiness(observations).filter((finding) => finding.disposition === "blocker");
+  lifecycle: BoundCandidateLifecycle
+): Promise<
+  | { ok: true; blockers: ReleaseReadinessFinding[] }
+  | ReleaseCandidateLifecycleFailure
+> {
+  const collected = await collectReleaseReadinessInput(input, inventory, lifecycle);
+  if (!collected.ok) return collected;
+  const blockers = evaluateReleaseReadiness(collected.value)
+    .filter((finding) => finding.disposition === "blocker");
+  const unique = new Map<string, ReleaseReadinessFinding>();
+  for (const blocker of blockers) unique.set(JSON.stringify(blocker), blocker);
+  return { ok: true, blockers: [...unique.values()] };
 }
 
 async function collectReleaseReadinessInput(
   input: ValidatedReleaseCandidateInput,
   inventory: ReleaseCandidateSourceEntry[],
-  readSourceFile: (path: string) => Promise<string>,
-  sourceFileSize: (path: string) => Promise<number>
-): Promise<ReleaseReadinessInput> {
-  const identities = new Set(inventory.map((entry) => entry.path));
+  lifecycle: BoundCandidateLifecycle
+): Promise<{ ok: true; value: ReleaseReadinessInput } | ReleaseCandidateLifecycleFailure> {
+  const identities = new Map(inventory.map((entry) => [entry.path, entry]));
   const gamePrefix = `game/dota_addons/${input.addonName}`;
   const contentPrefix = `content/dota_addons/${input.addonName}`;
+  const required = (
+    label: ReleaseReadinessInput["requiredPaths"][number]["label"],
+    path: string,
+    expectedKind: "file" | "directory"
+  ): ReleaseReadinessInput["requiredPaths"][number] => {
+    const entry = identities.get(path);
+    return { label, present: entry !== undefined, kind: entry?.kind, expectedKind };
+  };
   const requiredPaths: ReleaseReadinessInput["requiredPaths"] = [
-    { label: "game addon root", present: true },
-    { label: "content addon root", present: true },
-    { label: "addon metadata", present: identities.has(`${gamePrefix}/addoninfo.txt`) },
-    { label: "lua entry", present: identities.has(`${gamePrefix}/scripts/vscripts/addon_game_mode.lua`) },
-    { label: "localization file", present: identities.has(`${gamePrefix}/resource/addon_${input.addonName}_english.txt`) },
-    { label: "content maps directory", present: identities.has(`${contentPrefix}/maps`) },
-    { label: "hero list", present: identities.has(`${gamePrefix}/scripts/npc/herolist.txt`) },
-    { label: "hero data", present: identities.has(`${gamePrefix}/scripts/npc/npc_heroes_custom.txt`) },
-    { label: "unit support file", present: identities.has(`${gamePrefix}/scripts/npc/npc_units_custom.txt`) },
-    { label: "ability support file", present: identities.has(`${gamePrefix}/scripts/npc/npc_abilities_custom.txt`) }
+    { label: "game addon root", present: true, kind: "directory", expectedKind: "directory" },
+    { label: "content addon root", present: true, kind: "directory", expectedKind: "directory" },
+    required("addon metadata", `${gamePrefix}/addoninfo.txt`, "file"),
+    required("lua entry", `${gamePrefix}/scripts/vscripts/addon_game_mode.lua`, "file"),
+    required("localization file", `${gamePrefix}/resource/addon_${input.addonName}_english.txt`, "file"),
+    required("content maps directory", `${contentPrefix}/maps`, "directory"),
+    required("hero list", `${gamePrefix}/scripts/npc/herolist.txt`, "file"),
+    required("hero data", `${gamePrefix}/scripts/npc/npc_heroes_custom.txt`, "file"),
+    required("unit support file", `${gamePrefix}/scripts/npc/npc_units_custom.txt`, "file"),
+    required("ability support file", `${gamePrefix}/scripts/npc/npc_abilities_custom.txt`, "file")
   ];
 
-  const metadataPath = join(input.gameAddonRoot, "addoninfo.txt");
+  const observations = new Map<string, Extract<AcceptedSourceReadResult, { ok: true }>>();
+  for (const entry of inventory.filter((candidate) => candidate.kind === "file" && isReleaseTextPath(candidate.path))) {
+    const observed = await parseAcceptedSourceRead(
+      async () => await lifecycle.readAcceptedSourceFile(input, entry, MAX_SECRET_SCAN_BYTES)
+    );
+    if (!observed.ok) return observed;
+    observations.set(entry.path, observed.value);
+  }
+
   let metadata: ReleaseReadinessInput["metadata"] = { state: "missing" };
-  if (identities.has(`${gamePrefix}/addoninfo.txt`)) {
-    try {
-      metadata = { state: "readable", content: await readSourceFile(metadataPath) };
-    } catch {
-      metadata = { state: "unreadable", path: "addoninfo.txt" };
-    }
+  const metadataObservation = observations.get(`${gamePrefix}/addoninfo.txt`);
+  if (metadataObservation?.state === "readable") {
+    metadata = { state: "readable", content: metadataObservation.content };
+  } else if (metadataObservation?.state === "oversized") {
+    metadata = { state: "oversized", path: "addoninfo.txt" };
   }
 
   const requiredText = new Set([
@@ -659,35 +865,67 @@ async function collectReleaseReadinessInput(
   ]);
   const scanRoots: ReleaseReadinessInput["scanRoots"] = [];
   for (const root of ["game", "content"] as const) {
-    const sourceRoot = root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
     const prefix = root === "game" ? gamePrefix : contentPrefix;
     const files: ReleaseReadinessInput["scanRoots"][number]["files"] = [];
     for (const entry of inventory.filter((candidate) => candidate.root === root && candidate.kind === "file")) {
       const relativePath = entry.path.slice(prefix.length + 1);
-      const source = join(sourceRoot, ...relativePath.split("/"));
       if (!isReleaseTextPath(relativePath)) {
         files.push({ relativePath, state: "non-text", requiredText: requiredText.has(relativePath) });
         continue;
       }
-      try {
-        const size = await sourceFileSize(source);
-        if (size > MAX_SECRET_SCAN_BYTES) {
-          files.push({ relativePath, state: "oversized", requiredText: requiredText.has(relativePath) });
-        } else {
-          files.push({
-            relativePath,
-            state: "text",
-            content: await readSourceFile(source),
-            requiredText: requiredText.has(relativePath)
-          });
-        }
-      } catch {
-        files.push({ relativePath, state: "unreadable", requiredText: requiredText.has(relativePath) });
-      }
+      const observed = observations.get(entry.path);
+      if (observed?.state === "oversized") {
+        files.push({ relativePath, state: "oversized", requiredText: requiredText.has(relativePath) });
+      } else if (observed?.state === "readable") {
+        files.push({ relativePath, state: "text", content: observed.content, requiredText: requiredText.has(relativePath) });
+      } else files.push({ relativePath, state: "unreadable", requiredText: requiredText.has(relativePath) });
     }
     scanRoots.push({ root, files });
   }
-  return { requiredPaths, metadata, scanRoots };
+  return { ok: true, value: { requiredPaths, metadata, scanRoots } };
+}
+
+async function parseAcceptedSourceRead(
+  acquire: () => Promise<unknown>
+): Promise<
+  | { ok: true; value: Extract<AcceptedSourceReadResult, { ok: true }> }
+  | ReleaseCandidateLifecycleFailure
+> {
+  try {
+    const result = await acquire();
+    if (result === null || typeof result !== "object") {
+      return lifecycleBlocked("SOURCE_READ_RESULT_INVALID", "assembly");
+    }
+    const ok = Reflect.get(result, "ok");
+    if (ok === false) {
+      const code = Reflect.get(result, "code");
+      if (code === "SOURCE_FILE_IDENTITY_CHANGED" || code === "SOURCE_FILE_READ_FAILED") {
+        return lifecycleBlocked(code, "assembly");
+      }
+      return lifecycleBlocked("SOURCE_READ_RESULT_INVALID", "assembly");
+    }
+    const state = Reflect.get(result, "state");
+    const size = Reflect.get(result, "size");
+    if (ok !== true || !Number.isSafeInteger(size) || size < 0) {
+      return lifecycleBlocked("SOURCE_READ_RESULT_INVALID", "assembly");
+    }
+    const identityMatched = Reflect.get(result, "identityMatched");
+    const kindMatched = Reflect.get(result, "kindMatched");
+    const contained = Reflect.get(result, "contained");
+    if (identityMatched !== true || kindMatched !== true || contained !== true) {
+      return lifecycleBlocked("SOURCE_READ_RESULT_INVALID", "assembly");
+    }
+    if (state === "oversized" && size > MAX_SECRET_SCAN_BYTES) {
+      return { ok: true, value: { ok: true, state, size, identityMatched, kindMatched, contained } };
+    }
+    const content = Reflect.get(result, "content");
+    if (state === "readable" && size <= MAX_SECRET_SCAN_BYTES && typeof content === "string") {
+      return { ok: true, value: { ok: true, state, size, content, identityMatched, kindMatched, contained } };
+    }
+  } catch {
+    return lifecycleBlocked("SOURCE_READ_RESULT_INVALID", "assembly");
+  }
+  return lifecycleBlocked("SOURCE_READ_RESULT_INVALID", "assembly");
 }
 
 async function parseCandidateCleanupResult(
@@ -746,7 +984,7 @@ function isCandidateRootIsolated(
 function lifecycleBlocked(
   code: string,
   category: ReleaseCandidateLifecycleBlocker["category"]
-): ReleaseCandidateLifecycleResult<never> {
+): ReleaseCandidateLifecycleFailure {
   return { ok: false, blockers: [{ code, category }] };
 }
 

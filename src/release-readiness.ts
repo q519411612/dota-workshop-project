@@ -64,6 +64,7 @@ const SECRET_PATTERNS = [
 export type ReleaseReadinessFinding =
   | { code: "REQUIRED_PATH_PRESENT"; category: "required-structure"; disposition: "evidence"; field: RequiredPathLabel }
   | { code: "REQUIRED_PATH_MISSING"; category: "required-structure"; disposition: "blocker"; field: RequiredPathLabel }
+  | { code: "REQUIRED_PATH_WRONG_KIND"; category: "required-structure"; disposition: "blocker"; field: RequiredPathLabel }
   | { code: "METADATA_PRESENT"; category: "metadata"; disposition: "evidence"; field: ReleaseMetadataKey }
   | { code: "METADATA_MISSING"; category: "metadata"; disposition: "blocker"; field: ReleaseMetadataKey }
   | { code: "METADATA_PLACEHOLDER"; category: "metadata"; disposition: "blocker"; field: ReleaseMetadataKey }
@@ -81,7 +82,12 @@ export type ReleaseReadinessFinding =
     };
 
 export type ReleaseReadinessInput = {
-  requiredPaths: Array<{ label: RequiredPathLabel; present: boolean }>;
+  requiredPaths: Array<{
+    label: RequiredPathLabel;
+    present: boolean;
+    kind?: "file" | "directory";
+    expectedKind?: "file" | "directory";
+  }>;
   metadata:
     | { state: "missing" }
     | { state: "readable"; content: string }
@@ -108,11 +114,13 @@ export function evaluateReleaseReadiness(input: ReleaseReadinessInput): ReleaseR
       findings.push({ code: "POLICY_INPUT_INVALID", category: "required-structure-identity", disposition: "blocker" });
       continue;
     }
-    findings.push(
-      requiredPath.present
-        ? { code: "REQUIRED_PATH_PRESENT", category: "required-structure", disposition: "evidence", field: requiredPath.label }
-        : { code: "REQUIRED_PATH_MISSING", category: "required-structure", disposition: "blocker", field: requiredPath.label }
-    );
+    if (!requiredPath.present) {
+      findings.push({ code: "REQUIRED_PATH_MISSING", category: "required-structure", disposition: "blocker", field: requiredPath.label });
+    } else if (requiredPath.expectedKind !== undefined && requiredPath.kind !== requiredPath.expectedKind) {
+      findings.push({ code: "REQUIRED_PATH_WRONG_KIND", category: "required-structure", disposition: "blocker", field: requiredPath.label });
+    } else {
+      findings.push({ code: "REQUIRED_PATH_PRESENT", category: "required-structure", disposition: "evidence", field: requiredPath.label });
+    }
   }
 
   appendMetadataFindings(findings, input.metadata);

@@ -61,9 +61,15 @@ export function evaluateReleaseReadiness(input) {
             findings.push({ code: "POLICY_INPUT_INVALID", category: "required-structure-identity", disposition: "blocker" });
             continue;
         }
-        findings.push(requiredPath.present
-            ? { code: "REQUIRED_PATH_PRESENT", category: "required-structure", disposition: "evidence", field: requiredPath.label }
-            : { code: "REQUIRED_PATH_MISSING", category: "required-structure", disposition: "blocker", field: requiredPath.label });
+        if (!requiredPath.present) {
+            findings.push({ code: "REQUIRED_PATH_MISSING", category: "required-structure", disposition: "blocker", field: requiredPath.label });
+        }
+        else if (requiredPath.expectedKind !== undefined && requiredPath.kind !== requiredPath.expectedKind) {
+            findings.push({ code: "REQUIRED_PATH_WRONG_KIND", category: "required-structure", disposition: "blocker", field: requiredPath.label });
+        }
+        else {
+            findings.push({ code: "REQUIRED_PATH_PRESENT", category: "required-structure", disposition: "evidence", field: requiredPath.label });
+        }
     }
     appendMetadataFindings(findings, input.metadata);
     for (const scanRoot of canonicalScanRoots(input.scanRoots)) {
