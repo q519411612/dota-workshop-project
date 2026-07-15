@@ -13,6 +13,7 @@ import {
   utimes,
   writeFile
 } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { constants as filesystemConstants } from "node:fs";
@@ -56,6 +57,55 @@ type SourceTreeSnapshotEntry = Readonly<{
   kind: "directory" | "file" | "symbolic-link" | "special";
   bytes?: string;
 }>;
+
+type FixtureIntegrityObservation = Readonly<{
+  ok: true;
+  schemaVersion: "1.0";
+  root: "game" | "content";
+  path: string;
+  bytes: number;
+  sha256: string;
+  identityMatched: true;
+  kindMatched: true;
+  contained: true;
+}>;
+
+async function streamFixtureIntegrity(
+  absolutePath: string,
+  root: "game" | "content",
+  path: string,
+  chunkSizes?: number[]
+): Promise<FixtureIntegrityObservation> {
+  const handle = await open(absolutePath, filesystemConstants.O_RDONLY | filesystemConstants.O_NOFOLLOW);
+  const hash = createHash("sha256");
+  let bytes = 0;
+  let chunkIndex = 0;
+  try {
+    for (;;) {
+      const requested = chunkSizes?.[chunkIndex] ?? 64;
+      const buffer = Buffer.alloc(requested);
+      const read = await handle.read(buffer, 0, requested, null);
+      if (read.bytesRead === 0) break;
+      const chunk = buffer.subarray(0, read.bytesRead);
+      bytes += chunk.byteLength;
+      hash.update(chunk);
+      chunkIndex += 1;
+    }
+  } finally {
+    await handle.close();
+  }
+  return {
+    ok: true,
+    schemaVersion: "1.0",
+    root,
+    path,
+    bytes,
+    sha256: hash.digest("hex"),
+    identityMatched: true,
+    kindMatched: true,
+    contained: true
+  };
+}
 
 async function snapshotSourceTrees(fixture: Fixture): Promise<SourceTreeSnapshotEntry[]> {
   const snapshot: SourceTreeSnapshotEntry[] = [];
@@ -208,6 +258,11 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
   inspectCandidateRoot?(identity: TIdentity): Promise<CandidateRootInspectionResult>;
   materializeCandidateEntry?(identity: TIdentity, input: ValidatedReleaseCandidateInput, operation: CandidateMaterializationOperation): Promise<CandidateMaterializationResult>;
   reconcileCandidateTree?(identity: TIdentity, expected: CandidateExpectedEntry[]): Promise<CandidateTreeReconciliationResult>;
+  observeAcceptedSource?(
+    input: ValidatedReleaseCandidateInput,
+    entry: Parameters<ReturnType<typeof createNoFollowSourceReader>>[1]
+  ): Promise<unknown>;
+  observeCandidate?(identity: TIdentity, expected: CandidateExpectedEntry[]): Promise<unknown>;
 }) {
   const identityRoot = (identity: TIdentity): string => {
     const record = identity as Record<string, unknown>;
@@ -337,12 +392,43 @@ function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(
       ? { ok: true, exact: true, identityMatched: true }
       : { ok: false, code: "CANDIDATE_TREE_MISMATCH", issues };
   };
+  const defaultObserveAcceptedSource = async (
+    input: ValidatedReleaseCandidateInput,
+    entry: Parameters<ReturnType<typeof createNoFollowSourceReader>>[1]
+  ): Promise<unknown> => {
+    const prefix = `${entry.root}/dota_addons/${input.addonName}/`;
+    const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+    return await streamFixtureIntegrity(
+      join(sourceRoot, ...entry.path.slice(prefix.length).split("/")),
+      entry.root,
+      entry.path
+    );
+  };
+  const defaultObserveCandidate = async (
+    identity: TIdentity,
+    expected: CandidateExpectedEntry[]
+  ): Promise<unknown> => ({
+    ok: true,
+    schemaVersion: "1.0",
+    observations: await Promise.all(expected
+      .filter((entry) => entry.kind === "file")
+      .map(async (entry) => {
+        const [root] = entry.path.split("/");
+        return await streamFixtureIntegrity(
+          join(identityRoot(identity), ...entry.path.split("/")),
+          root as "game" | "content",
+          entry.path
+        );
+      }))
+  });
   return createIdentityBoundCandidateLifecycle({
     readAcceptedSourceFile: createNoFollowSourceReader(),
     observeAcceptedSourceEntry: createAcceptedSourceObserver(),
     inspectCandidateRoot: defaultInspect,
     materializeCandidateEntry: defaultMaterialize,
     reconcileCandidateTree: defaultReconcile,
+    observeAcceptedSource: defaultObserveAcceptedSource,
+    observeCandidate: defaultObserveCandidate,
     ...operations
   });
 }
@@ -843,7 +929,7 @@ describe("release candidate input validation", () => {
       createCandidateRoot: vi.fn(async () => {
         throw new Error("raw candidate creation must not be used");
       }),
-      candidateLifecycle: createIdentityBoundCandidateLifecycle(operations)
+      candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle(operations)
     };
     const inspect = vi.fn(async () => "unexpected");
 
@@ -934,7 +1020,7 @@ describe("release candidate input validation", () => {
       createCandidateRoot: vi.fn(async () => {
         throw new Error("raw candidate creation must not be used");
       }),
-      candidateLifecycle: createIdentityBoundCandidateLifecycle(operations)
+      candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle(operations)
     };
     const inspect = vi.fn(async () => "unexpected");
 
@@ -2973,7 +3059,13 @@ describe("release candidate input validation", () => {
         }
       );
 
-      expect(result, scenario.name).toEqual({ ok: false, blockers: [{ code: "SOURCE_CHANGED_DURING_ASSEMBLY", category: "assembly" }] });
+      expect(result, scenario.name).toEqual({
+        ok: false,
+        blockers: [{
+          code: scenario.checkpoint === "callback" ? "RELEASE_CANDIDATE_INTEGRITY_MISMATCH" : "SOURCE_CHANGED_DURING_ASSEMBLY",
+          category: scenario.checkpoint === "callback" ? "integrity" : "assembly"
+        }]
+      });
       expect(mutated, scenario.name).toBe(true);
       expect(mutationAttempts, scenario.name).toBe(1);
       expect(inspect, scenario.name).toHaveBeenCalledTimes(scenario.callbackInvoked ? 1 : 0);
@@ -3026,6 +3118,229 @@ describe("release candidate input validation", () => {
       expect(cleanupCandidateLease, outcome).toHaveBeenCalledTimes(1);
       if (outcome === "success") expect(result).toEqual({ ok: true, value: "inspected" });
       else expect(result.ok, outcome).toBe(false);
+    }
+  });
+
+  test("reobserves triple integrity after inspection before cleanup", async () => {
+    for (const scenario of [
+      { name: "success", mutation: "none", callbackThrows: false, expectedCode: undefined },
+      { name: "callback throws", mutation: "none", callbackThrows: true, expectedCode: "CANDIDATE_INSPECTION_FAILED" },
+      { name: "candidate mutation", mutation: "candidate", callbackThrows: false, expectedCode: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH" },
+      { name: "source mutation", mutation: "source", callbackThrows: false, expectedCode: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH" },
+      { name: "mutation before throw", mutation: "candidate", callbackThrows: true, expectedCode: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH" }
+    ] as const) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      const binaryPath = join(fixture.contentAddonRoot, "materials", "integrity.bin");
+      await mkdir(join(binaryPath, ".."), { recursive: true });
+      await writeFile(binaryPath, Buffer.from([0x00, 0xff, 0x10, 0x80, 0x42]));
+      const emptyPath = join(fixture.contentAddonRoot, "materials", "empty.bin");
+      await writeFile(emptyPath, Buffer.alloc(0));
+      const largePath = join(fixture.contentAddonRoot, "materials", "large.bin");
+      await writeFile(largePath, Buffer.alloc(256 * 1024 + 17, 0xa5));
+
+      const events: string[] = [];
+      let sourceCalls = 0;
+      let candidateCalls = 0;
+      let candidateRoot: string | undefined;
+      const observeSource = async (
+        input: ValidatedReleaseCandidateInput,
+        entry: Parameters<ReturnType<typeof createNoFollowSourceReader>>[1]
+      ): Promise<unknown> => {
+        sourceCalls += 1;
+        const prefix = `${entry.root}/dota_addons/${input.addonName}/`;
+        const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+        return await streamFixtureIntegrity(
+          join(sourceRoot, ...entry.path.slice(prefix.length).split("/")),
+          entry.root,
+          entry.path,
+          [1, 63, 64, 65, 4096]
+        );
+      };
+      const observeCandidate = async (
+        identity: { root: string },
+        expected: CandidateExpectedEntry[]
+      ): Promise<unknown> => {
+        candidateCalls += 1;
+        events.push(candidateCalls === 1 ? "candidate-before-callback" : "candidate-after-callback");
+        return {
+          ok: true,
+          schemaVersion: "1.0",
+          observations: await Promise.all(expected.filter((entry) => entry.kind === "file").map(async (entry) => {
+            const [root] = entry.path.split("/");
+            return await streamFixtureIntegrity(
+              join(identity.root, ...entry.path.split("/")),
+              root as "game" | "content",
+              entry.path,
+              [65, 1, 4096, 63, 64]
+            );
+          }))
+        };
+      };
+      const cleanupCandidateLease = vi.fn(async (identity: { root: string }) => {
+        events.push("cleanup");
+        await rm(identity.root, { recursive: true, force: false });
+        return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
+      });
+      const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+        createCandidateLease: async (validated) => {
+          candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+        },
+        cleanupCandidateLease,
+        observeAcceptedSource: observeSource,
+        observeCandidate
+      });
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        async (root) => {
+          events.push("callback");
+          if (scenario.mutation === "candidate") {
+            await writeFile(join(root, "content/dota_addons/fixture_addon/materials/integrity.bin"), Buffer.from([0x00, 0xff, 0x10, 0x80, 0x43]));
+          }
+          if (scenario.mutation === "source") {
+            await writeFile(binaryPath, Buffer.from([0x00, 0xff, 0x10, 0x80, 0x43]));
+          }
+          if (scenario.callbackThrows) throw new Error(`private callback failure ${fixture.root}`);
+          return "validated";
+        },
+        {
+          repositoryRoot: fixture.repositoryRoot,
+          filesystem: {
+            lstat,
+            realpath,
+            readDirectory: async (path) => await readdir(path),
+            classifySourceEntry: classifyFixtureEntry,
+            createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+            candidateLifecycle: lifecycle
+          }
+        }
+      );
+
+      expect(candidateCalls, scenario.name).toBe(2);
+      expect(sourceCalls, scenario.name).toBe(20);
+      expect(events, scenario.name).toEqual([
+        "candidate-before-callback",
+        "callback",
+        "candidate-after-callback",
+        "cleanup"
+      ]);
+      expect(cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
+      if (scenario.expectedCode === undefined) {
+        expect(result, scenario.name).toEqual({ ok: true, value: "validated" });
+      } else {
+        expect(result, scenario.name).toEqual({
+          ok: false,
+          blockers: [{ code: scenario.expectedCode, category: scenario.expectedCode === "CANDIDATE_INSPECTION_FAILED" ? "inspection" : "integrity" }]
+        });
+        expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
+      }
+      if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
+      await expect(lstat(candidateRoot), scenario.name).rejects.toMatchObject({ code: "ENOENT" });
+    }
+  });
+
+  test("rejects malformed final integrity observations without retry or repair", async () => {
+    const malformedCandidateResults: Array<Readonly<{ name: string; result(path: string): unknown }>> = [
+      { name: "missing observation", result: () => ({ ok: true, schemaVersion: "1.0", observations: [] }) },
+      { name: "duplicate observation", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [validObservation(path), validObservation(path)] }) },
+      { name: "unexpected observation", result: () => ({ ok: true, schemaVersion: "1.0", observations: [validObservation("game/dota_addons/fixture_addon/unexpected.bin")] }) },
+      { name: "uppercase digest", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), sha256: "A".repeat(64) }] }) },
+      { name: "short digest", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), sha256: "0".repeat(63) }] }) },
+      { name: "negative count", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), bytes: -1 }] }) },
+      { name: "fractional count", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), bytes: 0.5 }] }) },
+      { name: "unsafe count", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), bytes: Number.MAX_SAFE_INTEGER + 1 }] }) },
+      { name: "identity false", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), identityMatched: false }] }) },
+      { name: "kind false", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), kindMatched: false }] }) },
+      { name: "containment false", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), contained: false }] }) },
+      { name: "getter throws", result: () => Object.defineProperty({}, "ok", { get: () => { throw new Error("private getter"); } }) },
+      { name: "proxy throws", result: () => new Proxy({}, { get: () => { throw new Error("private proxy"); } }) },
+      { name: "iterator throws", result: () => ({ ok: true, schemaVersion: "1.0", observations: new Proxy([], { get: (_target, key) => { if (key === Symbol.iterator) throw new Error("private iterator"); return Reflect.get([], key); } }) }) },
+      { name: "thenable throws", result: () => ({ then: () => { throw new Error("private thenable"); } }) }
+    ];
+
+    function validObservation(path: string): FixtureIntegrityObservation {
+      return {
+        ok: true,
+        schemaVersion: "1.0",
+        root: path.startsWith("game/") ? "game" : "content",
+        path,
+        bytes: 0,
+        sha256: "0".repeat(64),
+        identityMatched: true,
+        kindMatched: true,
+        contained: true
+      };
+    }
+
+    for (const scenario of malformedCandidateResults) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      let candidateCalls = 0;
+      let materializationCalls = 0;
+      let candidateRoot: string | undefined;
+      const cleanup = vi.fn(async (identity: { root: string }) => {
+        await rm(identity.root, { recursive: true, force: false });
+        return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
+      });
+      const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+        createCandidateLease: async (validated) => {
+          candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+        },
+        cleanupCandidateLease: cleanup,
+        materializeCandidateEntry: async (identity, input, operation) => {
+          materializationCalls += 1;
+          const destination = join((identity as { root: string }).root, ...operation.destination.split("/"));
+          if (operation.kind === "directory") await mkdir(destination);
+          else {
+            const prefix = `${operation.source.root}/dota_addons/${input.addonName}/`;
+            const sourceRoot = operation.source.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+            await copyFile(join(sourceRoot, ...operation.source.path.slice(prefix.length).split("/")), destination);
+          }
+          return { ok: true, created: true, identityMatched: true, kindMatched: true, contained: true };
+        },
+        observeCandidate: async (identity, expected) => {
+          candidateCalls += 1;
+          if (candidateCalls === 1) {
+            const root = (identity as { root: string }).root;
+            return {
+              ok: true,
+              schemaVersion: "1.0",
+              observations: await Promise.all(expected.filter((entry) => entry.kind === "file").map(async (entry) => {
+                const [observationRoot] = entry.path.split("/");
+                return await streamFixtureIntegrity(join(root, ...entry.path.split("/")), observationRoot as "game" | "content", entry.path);
+              }))
+            };
+          }
+          return scenario.result(expected.find((entry) => entry.kind === "file")?.path ?? "game/dota_addons/fixture_addon/addoninfo.txt");
+        }
+      });
+      const callback = vi.fn(async () => "must not survive");
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        callback,
+        {
+          repositoryRoot: fixture.repositoryRoot,
+          filesystem: {
+            lstat,
+            realpath,
+            readDirectory: async (path) => await readdir(path),
+            classifySourceEntry: classifyFixtureEntry,
+            createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+            candidateLifecycle: lifecycle
+          }
+        }
+      );
+
+      expect(result, scenario.name).toEqual({ ok: false, blockers: [{ code: "CANDIDATE_INTEGRITY_RESULT_INVALID", category: "integrity" }] });
+      expect(candidateCalls, scenario.name).toBe(2);
+      expect(callback, scenario.name).toHaveBeenCalledTimes(1);
+      expect(cleanup, scenario.name).toHaveBeenCalledTimes(1);
+      expect(materializationCalls, scenario.name).toBeGreaterThan(0);
+      expect(JSON.stringify(result), scenario.name).not.toContain("private");
+      if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
+      await expect(lstat(candidateRoot), scenario.name).rejects.toMatchObject({ code: "ENOENT" });
     }
   });
 
