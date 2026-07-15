@@ -135,4 +135,19 @@ describe("remote release candidate transport binding", () => {
     expect(called).toBe(false);
     expect(result).toEqual({ transport: "ssh", outcome: "configuration-failed", code: "REMOTE_DOTA_ROOT_REQUIRED" });
   });
+
+  test("rejects option-shaped destination configuration before SSH invocation", async () => {
+    let called = false;
+    const result = await executeRemoteReleaseCandidateScript({
+      target: { ...targets[0]!, host: "-V" },
+      addonName: "demo_addon",
+      executor: async () => {
+        called = true;
+        return { exitCode: 0, stdout: "{}", stderr: "" };
+      }
+    });
+
+    expect(called).toBe(false);
+    expect(result).toEqual({ transport: "ssh", outcome: "configuration-failed", code: "REMOTE_DESTINATION_INVALID" });
+  });
 });
