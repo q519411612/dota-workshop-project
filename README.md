@@ -83,6 +83,7 @@ The server exposes these logical operations:
 - `inspect_addon`
 - `inspect_workshop_preflight`
 - `dry_run_release_report`
+- `preflight_release_candidate`
 - `launch_tools`
 - `launch_custom_game`
 - `run_playable_smoke`

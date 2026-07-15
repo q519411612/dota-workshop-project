@@ -4,6 +4,9 @@ import { discoverEnvironment, validateInstallRoot } from "./environment.js";
 import { launchCustomGame, launchTools, readConsoleOrLogs, validateAddon } from "./launch.js";
 import { prepareCustomMap } from "./map.js";
 import { dryRunReleaseReport, inspectWorkshopPreflight } from "./preflight.js";
+import { preflightNodeReleaseCandidate } from "./release-candidate-node.js";
+import { preflightRemoteReleaseCandidate } from "./release-candidate-remote.js";
+import { createReleaseCandidateToolResult } from "./release-candidate-result.js";
 import { createFailureResult } from "./result.js";
 import { runPlayableSmoke } from "./smoke.js";
 import {
@@ -27,6 +30,7 @@ import {
   LaunchCustomGameInputSchema,
   LaunchToolsInputSchema,
   PrepareCustomMapInputSchema,
+  PreflightReleaseCandidateInputSchema,
   ReadLogsInputSchema,
   RemoteCommandInputSchema,
   RunPlayableSmokeInputSchema,
@@ -35,6 +39,32 @@ import {
   ValidateTargetInputSchema
 } from "./schemas.js";
 import type { ToolResult } from "./types.js";
+import type { PreflightReleaseCandidateToolInput } from "./schemas.js";
+
+type PreflightServices = Readonly<{
+  preflightNodeReleaseCandidate(input: PreflightReleaseCandidateToolInput): Promise<ToolResult>;
+  preflightRemoteReleaseCandidate(input: PreflightReleaseCandidateToolInput): Promise<ToolResult>;
+}>;
+
+const defaultPreflightServices: PreflightServices = Object.freeze({
+  preflightNodeReleaseCandidate: async (input) => {
+    const releaseCandidate = await preflightNodeReleaseCandidate(input);
+    const target = input.target.kind === "fixture"
+      ? { kind: "fixture" as const, root: "[redacted]" }
+      : { kind: "local" as const };
+    return createReleaseCandidateToolResult({
+      target,
+      operation: "preflight_release_candidate",
+      releaseCandidate
+    });
+  },
+  preflightRemoteReleaseCandidate: async (input) => {
+    if (input.target.kind !== "remote") {
+      throw new Error("REMOTE_TARGET_REQUIRED");
+    }
+    return preflightRemoteReleaseCandidate({ target: input.target, addonName: input.addonName });
+  }
+});
 
 export const toolNames = [
   "discover_environment",
@@ -44,6 +74,7 @@ export const toolNames = [
   "inspect_addon",
   "inspect_workshop_preflight",
   "dry_run_release_report",
+  "preflight_release_candidate",
   "launch_tools",
   "launch_custom_game",
   "run_playable_smoke",
@@ -53,7 +84,11 @@ export const toolNames = [
   "remote_command"
 ] as const;
 
-export async function handleTool(name: string, input: unknown): Promise<ToolResult> {
+export async function handleTool(
+  name: string,
+  input: unknown,
+  preflightServices: PreflightServices = defaultPreflightServices
+): Promise<ToolResult> {
   switch (name) {
     case "discover_environment": {
       const parsed = DiscoverEnvironmentInputSchema.parse(input);
@@ -123,6 +158,13 @@ export async function handleTool(name: string, input: unknown): Promise<ToolResu
         });
       }
       return dryRunReleaseReport(parsed);
+    }
+    case "preflight_release_candidate": {
+      const parsed = PreflightReleaseCandidateInputSchema.parse(input);
+      if (parsed.target.kind === "remote") {
+        return preflightServices.preflightRemoteReleaseCandidate(parsed);
+      }
+      return preflightServices.preflightNodeReleaseCandidate(parsed);
     }
     case "launch_tools": {
       const parsed = LaunchToolsInputSchema.parse(input);

@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { PreflightReleaseCandidateInputSchema } from "./schemas.js";
 import { asToolContent, handleTool } from "./tools.js";
 
 const targetInput = {
@@ -133,6 +134,16 @@ export function createServer(): McpServer {
       }
     },
     async (input) => asToolContent(await handleTool("dry_run_release_report", input))
+  );
+
+  server.registerTool(
+    "preflight_release_candidate",
+    {
+      title: "Preflight Release Candidate",
+      description: "Assemble, validate, report, and remove one temporary evidence-only release candidate without uploading or retaining it.",
+      inputSchema: PreflightReleaseCandidateInputSchema.shape
+    },
+    async (input) => asToolContent(await handleTool("preflight_release_candidate", input))
   );
 
   server.registerTool(
