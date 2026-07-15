@@ -215,4 +215,50 @@ describe("release readiness policy", () => {
     expect(JSON.stringify(ordered)).not.toContain(firstCredential);
     expect(JSON.stringify(ordered)).not.toContain(secondCredential);
   });
+
+  test("reports complete release candidate scan coverage from canonical observations", async () => {
+    const policy = await import("../src/release-readiness.js") as unknown as {
+      evaluateReleaseScanCoverage?: (input: ReleaseReadinessInput) => unknown;
+    };
+    expect(typeof policy.evaluateReleaseScanCoverage).toBe("function");
+    if (policy.evaluateReleaseScanCoverage === undefined) return;
+
+    const firstCredential = ["ghp", "12345678901234567890a"].join("_");
+    const secondCredential = ["ghp", "12345678901234567890b"].join("_");
+    const input = {
+      requiredPaths: [],
+      metadata: { state: "missing" },
+      scanRoots: [
+        {
+          root: "game",
+          files: [
+            { relativePath: `scripts/${secondCredential}.lua`, state: "text", content: "safe\n" },
+            { relativePath: "scripts/optional-unreadable.lua", state: "unreadable" },
+            { relativePath: "addoninfo.txt", state: "oversized", requiredText: true },
+            { relativePath: "materials/icon.bin", state: "binary" }
+          ]
+        },
+        {
+          root: "content",
+          files: [
+            { relativePath: `panorama/${firstCredential}.txt`, state: "text", content: "safe\n" },
+            { relativePath: "maps/large.vmap.txt", state: "oversized" }
+          ]
+        }
+      ]
+    } as unknown as ReleaseReadinessInput;
+
+    const coverage = policy.evaluateReleaseScanCoverage(input);
+
+    expect(coverage).toEqual({
+      schemaVersion: "1.0",
+      totalFileCount: 6,
+      text: { count: 2, paths: ["content/panorama/[redacted]", "game/scripts/[redacted]"] },
+      binary: { count: 1, paths: ["game/materials/icon.bin"] },
+      unreadable: { count: 1, paths: ["game/scripts/optional-unreadable.lua"] },
+      oversized: { count: 2, paths: ["content/maps/large.vmap.txt", "game/addoninfo.txt"] }
+    });
+    expect(JSON.stringify(coverage)).not.toContain(firstCredential);
+    expect(JSON.stringify(coverage)).not.toContain(secondCredential);
+  });
 });

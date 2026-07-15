@@ -37,6 +37,7 @@ import {
   type ReleaseCandidateFilesystem,
   type ValidatedReleaseCandidateInput
 } from "../src/release-candidate.js";
+import { MAX_SECRET_SCAN_BYTES, isReleaseTextPath } from "../src/release-readiness.js";
 
 type Fixture = {
   root: string;
@@ -4642,6 +4643,181 @@ describe("release candidate input validation", () => {
         }
         expect(createCandidateRoot).not.toHaveBeenCalled();
       }
+    }
+  });
+
+  test("reports complete release candidate scan coverage across included file classes", async () => {
+    const fixture = await createFixture();
+    await populateReadyFixture(fixture);
+    const optionalFiles: Array<[string, string | Buffer]> = [
+      [join(fixture.gameAddonRoot, "scripts/vscripts/optional-readable.lua"), "print('safe')\n"],
+      [join(fixture.gameAddonRoot, "scripts/vscripts/optional-unreadable.lua"), "unreadable evidence\n"],
+      [join(fixture.gameAddonRoot, "scripts/vscripts/optional-invalid.txt"), Buffer.from([0x66, 0x80, 0x67])],
+      [join(fixture.contentAddonRoot, "materials/arbitrary.bin"), Buffer.from([0x00, 0xff, 0x10, 0x80])],
+      [join(fixture.contentAddonRoot, "panorama/optional-oversized.txt"), Buffer.alloc(MAX_SECRET_SCAN_BYTES + 1, 0x61)]
+    ];
+    for (const [path, content] of optionalFiles) {
+      await mkdir(join(path, ".."), { recursive: true });
+      await writeFile(path, content);
+    }
+
+    const openedForText: string[] = [];
+    let candidateRoot: string | undefined;
+    const scanAcceptedSourceFile = vi.fn(async (
+      input: ValidatedReleaseCandidateInput,
+      entry: { root: "game" | "content"; path: string; kind: "file" | "directory" },
+      maxBytes: number
+    ) => {
+      const prefix = `${entry.root}/dota_addons/${input.addonName}/`;
+      const relativePath = entry.path.slice(prefix.length);
+      const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+      const sourcePath = join(sourceRoot, ...relativePath.split("/"));
+      const info = await lstat(sourcePath);
+      const base = {
+        ok: true as const,
+        schemaVersion: "1.0" as const,
+        size: info.size,
+        identityMatched: true as const,
+        kindMatched: true as const,
+        contained: true as const
+      };
+      if (!isReleaseTextPath(relativePath)) return { ...base, state: "binary" as const };
+      if (relativePath === "scripts/vscripts/optional-unreadable.lua") return { ...base, state: "unreadable" as const };
+      if (info.size > maxBytes) return { ...base, state: "oversized" as const };
+      openedForText.push(entry.path);
+      return { ...base, state: "readable" as const, bytes: await readFile(sourcePath) };
+    });
+    const filesystem: ReleaseCandidateFilesystem = {
+      lstat,
+      realpath,
+      readDirectory: async (path) => (await readdir(path)).reverse(),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot: vi.fn(async () => {
+        throw new Error("raw candidate creation must not be used");
+      }),
+      candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
+        createCandidateLease: async (validated) => {
+          candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+        },
+        cleanupCandidateLease: async (identity) => {
+          await rm(identity.root, { recursive: true, force: false });
+          return { ok: true, removed: true, absent: true, identityMatched: true };
+        },
+        readAcceptedSourceFile: scanAcceptedSourceFile as unknown as ReturnType<typeof createNoFollowSourceReader>
+      })
+    };
+
+    const result = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      async () => "inspected",
+      { repositoryRoot: fixture.repositoryRoot, filesystem }
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: "inspected",
+      scanCoverage: {
+        schemaVersion: "1.0",
+        totalFileCount: 12,
+        text: { count: 8 },
+        binary: { count: 1, paths: ["content/materials/arbitrary.bin"] },
+        unreadable: {
+          count: 2,
+          paths: ["game/scripts/vscripts/optional-invalid.txt", "game/scripts/vscripts/optional-unreadable.lua"]
+        },
+        oversized: { count: 1, paths: ["content/panorama/optional-oversized.txt"] }
+      }
+    });
+    if (!result.ok) throw new Error("complete scan coverage fixture was blocked");
+    expect(result.manifest.entries).toHaveLength(12);
+    expect(result.manifest.entries.map((entry) => entry.path)).toEqual(expect.arrayContaining([
+      "content/dota_addons/fixture_addon/materials/arbitrary.bin",
+      "content/dota_addons/fixture_addon/panorama/optional-oversized.txt",
+      "game/dota_addons/fixture_addon/scripts/vscripts/optional-invalid.txt",
+      "game/dota_addons/fixture_addon/scripts/vscripts/optional-unreadable.lua"
+    ]));
+    expect(openedForText).not.toContain("content/dota_addons/fixture_addon/materials/arbitrary.bin");
+    expect(scanAcceptedSourceFile).toHaveBeenCalledTimes(12);
+    if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
+    await expect(lstat(candidateRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  test("reports complete release candidate scan coverage for required text blockers", async () => {
+    const scenarios = [
+      { name: "unreadable", path: "scripts/vscripts/addon_game_mode.lua", state: "unreadable", code: "REQUIRED_TEXT_UNREADABLE" },
+      { name: "invalid utf8", path: "scripts/npc/herolist.txt", state: "invalid", code: "REQUIRED_TEXT_UNREADABLE" },
+      { name: "oversized", path: "scripts/npc/npc_units_custom.txt", state: "oversized", code: "REQUIRED_TEXT_OVERSIZED" }
+    ] as const;
+
+    for (const scenario of scenarios) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      if (scenario.state === "invalid") {
+        await writeFile(join(fixture.gameAddonRoot, ...scenario.path.split("/")), Buffer.from([0x66, 0x80, 0x67]));
+      }
+      if (scenario.state === "oversized") {
+        await writeFile(join(fixture.gameAddonRoot, ...scenario.path.split("/")), Buffer.alloc(MAX_SECRET_SCAN_BYTES + 1, 0x61));
+      }
+      const createCandidateLease = vi.fn(async () => {
+        throw new Error("required scan blockers must precede candidate creation");
+      });
+      const scanAcceptedSourceFile = vi.fn(async (
+        input: ValidatedReleaseCandidateInput,
+        entry: { root: "game" | "content"; path: string; kind: "file" | "directory" },
+        maxBytes: number
+      ) => {
+        const prefix = `${entry.root}/dota_addons/${input.addonName}/`;
+        const relativePath = entry.path.slice(prefix.length);
+        const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+        const sourcePath = join(sourceRoot, ...relativePath.split("/"));
+        const info = await lstat(sourcePath);
+        const base = {
+          ok: true as const,
+          schemaVersion: "1.0" as const,
+          size: info.size,
+          identityMatched: true as const,
+          kindMatched: true as const,
+          contained: true as const
+        };
+        if (!isReleaseTextPath(relativePath)) return { ...base, state: "binary" as const };
+        if (relativePath === scenario.path && scenario.state === "unreadable") return { ...base, state: "unreadable" as const };
+        if (info.size > maxBytes) return { ...base, state: "oversized" as const };
+        return { ...base, state: "readable" as const, bytes: await readFile(sourcePath) };
+      });
+      const filesystem: ReleaseCandidateFilesystem = {
+        lstat,
+        realpath,
+        readDirectory: async (path) => await readdir(path),
+        classifySourceEntry: classifyFixtureEntry,
+        createCandidateRoot: vi.fn(async () => {
+          throw new Error("raw candidate creation must not be used");
+        }),
+        candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
+          createCandidateLease,
+          cleanupCandidateLease: vi.fn(async () => ({ ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const })),
+          readAcceptedSourceFile: scanAcceptedSourceFile as unknown as ReturnType<typeof createNoFollowSourceReader>
+        })
+      };
+
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        async () => "unexpected",
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+
+      expect(result, scenario.name).toMatchObject({
+        ok: false,
+        scanCoverage: {
+          schemaVersion: "1.0",
+          totalFileCount: 7,
+          unreadable: { count: scenario.state === "oversized" ? 0 : 1 },
+          oversized: { count: scenario.state === "oversized" ? 1 : 0 }
+        },
+        blockers: [{ code: scenario.code, disposition: "blocker", path: scenario.path }]
+      });
+      expect(createCandidateLease, scenario.name).not.toHaveBeenCalled();
+      expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
     }
   });
 });
