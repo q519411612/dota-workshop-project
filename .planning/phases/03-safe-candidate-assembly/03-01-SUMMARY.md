@@ -16,8 +16,8 @@ tech-stack:
   patterns: [pure policy over filesystem observations, compatibility renderer, redacted structured findings]
 
 key-files:
-  created: [src/release-readiness.ts, tests/release-readiness.test.ts]
-  modified: [src/preflight.ts, tests/preflight.test.ts]
+  created: [src/release-readiness.ts, tests/release-readiness.test.ts, dist/release-readiness.js]
+  modified: [src/preflight.ts, tests/preflight.test.ts, dist/preflight.js]
 
 key-decisions:
   - "Keep filesystem observation in preflight while release-readiness owns deterministic classification."
@@ -30,7 +30,7 @@ patterns-established:
 
 requirements-completed: [RCFS-04]
 
-duration: 7min
+duration: 14min
 completed: 2026-07-15
 status: complete
 ---
@@ -41,23 +41,27 @@ status: complete
 
 ## Performance
 
-- **Duration:** 7 min
+- **Duration:** 14 min
 - **Started:** 2026-07-15T04:20:00Z
-- **Completed:** 2026-07-15T04:27:00Z
+- **Completed:** 2026-07-15T04:35:00Z
 - **Tasks:** 2
-- **Files modified:** 4
+- **Files modified:** 6
 
 ## Accomplishments
 
 - Added ordered structured findings for required paths, release metadata, placeholder values, sensitive categories, non-text inputs, and unscannable required text.
 - Preserved complete `dry_run_release_report` results for success, metadata blockers, placeholder blockers, sensitive content, invalid addon names, and missing target roots.
 - Proved findings omit matched secret values and unsafe private absolute paths.
+- Restricted structure labels and scan-root identities to stable allowlists so all serialized input-derived fields remain redacted.
+- Synchronized tracked runtime output with the TypeScript source contract.
 
 ## Task Commits
 
 1. **Characterize readiness and dry-run compatibility** - `19fb3b1` (test)
 2. **Extract structured policy with compatibility rendering** - `9217049` (feat)
 3. **Harden unsafe observation-path redaction** - `4a35d76` (fix)
+4. **Sanitize caller-provided finding identities** - `7c258d1` (fix)
+5. **Synchronize release policy runtime build** - `73419bc` (chore)
 
 ## Files Created/Modified
 
@@ -65,6 +69,8 @@ status: complete
 - `src/preflight.ts` - Filesystem observation collection and exact dry-run compatibility rendering.
 - `tests/release-readiness.test.ts` - Ordered policy, unscannable text, secret-value, and private-root coverage.
 - `tests/preflight.test.ts` - Full representative `ToolResult` equality characterizations.
+- `dist/release-readiness.js` - Runtime build of the shared policy used by the packaged server.
+- `dist/preflight.js` - Runtime build of the compatibility-integrated preflight service.
 
 ## Decisions Made
 
@@ -84,14 +90,30 @@ status: complete
 - **Verification:** Focused tests, typecheck, build, and serialized non-disclosure assertion pass.
 - **Committed in:** `4a35d76`
 
+**2. [Rule 1 - Information Disclosure] Sanitized input-derived finding fields**
+- **Found during:** Independent specification review
+- **Issue:** Caller-provided required-path labels and scan-root identities were serialized verbatim through `finding.field`.
+- **Fix:** Added stable allowlists for required structure and scan roots; unknown identities become category-only findings while safe relative file paths remain visible.
+- **Files modified:** `src/release-readiness.ts`, `tests/release-readiness.test.ts`
+- **Verification:** RED exposed the token-shaped label verbatim; GREEN passed 12/12 focused tests and typecheck.
+- **Committed in:** `7c258d1`
+
+**3. [Rule 2 - Runtime Contract] Synchronized tracked build output**
+- **Found during:** Independent specification review
+- **Issue:** The package executable loads tracked `dist/`, but the first implementation commits excluded changed runtime output.
+- **Fix:** Rebuilt TypeScript and committed only `dist/preflight.js` and `dist/release-readiness.js`.
+- **Files modified:** `dist/preflight.js`, `dist/release-readiness.js`
+- **Verification:** `npm run build` passed and the staged-file audit contained only the two release-policy runtime files.
+- **Committed in:** `73419bc`
+
 ---
 
-**Total deviations:** 1 auto-fixed missing critical security behavior
-**Impact on plan:** The change strengthens the required redaction boundary without expanding candidate lifecycle or public MCP scope.
+**Total deviations:** 3 auto-fixed issues (2 information-disclosure controls, 1 runtime synchronization requirement)
+**Impact on plan:** The changes strengthen redaction and keep the packaged runtime synchronized without expanding candidate lifecycle or public MCP scope.
 
 ## Issues Encountered
 
-None beyond the security deviation documented above.
+The independent review found two confirmed issues; both were reproduced, corrected, and verified as documented above.
 
 ## User Setup Required
 
