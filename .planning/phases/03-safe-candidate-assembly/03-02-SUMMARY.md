@@ -33,7 +33,7 @@ patterns-established:
 
 requirements-completed: [RCOP-02]
 
-duration: 9min
+duration: 19min
 completed: 2026-07-15
 status: complete
 ---
@@ -44,9 +44,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 9 min
+- **Duration:** 19 min
 - **Started:** 2026-07-15T05:10:24Z
-- **Completed:** 2026-07-15T05:19:02Z
+- **Completed:** 2026-07-15T05:29:01Z
 - **Tasks:** 2
 - **Files created:** 2
 
@@ -55,12 +55,15 @@ status: complete
 - Added a parameterized macOS fixture matrix covering invalid addon names; required, missing, non-directory, unsafe-isolation, and unreadable root states; and independent game/content addon-root failures.
 - Proved every rejected case records zero `createCandidateRoot` calls and serializes neither fixture-private paths nor injected exception content.
 - Added `prepareReleaseCandidateInput`, which validates the addon first, canonicalizes trusted directories, derives both fixed addon roots, proves temporary-parent isolation, and returns an immutable validated state.
+- Rejected canonical game/content root escapes and canonical temporary-parent aliases with stable field-specific blockers before candidate creation.
 - Kept inventory, traversal, copying, candidate lifetime, inspection, manifest generation, cleanup evidence, MCP registration, and remote behavior outside this plan.
 
 ## Task Commits
 
 1. **Require precreation validation** - `cd744d3` (test)
 2. **Validate assembly inputs** - `afb3ee5` (feat)
+3. **Expose canonical root escapes** - `7b525f0` (test)
+4. **Contain canonical addon roots** - `59d761d` (fix)
 
 ## Files Created
 
@@ -75,19 +78,33 @@ status: complete
 
 ## Deviations from Plan
 
-None.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Canonical containment] Rejected derived addon-root escapes**
+- **Found during:** Independent specification review
+- **Issue:** A directory reached through an intermediate symlink or junction alias could canonicalize outside the Dota root while still passing the final directory classification.
+- **Fix:** Added strict canonical containment checks for the derived game and content addon roots immediately after each root resolves; canonical temporary-parent aliases continue through the common isolation check.
+- **Files modified:** `src/release-candidate.ts`, `tests/release-candidate.test.ts`
+- **Verification:** Injected canonical-alias RED failed with an accepted validated state; GREEN returns field-specific sanitized blockers with zero creation calls.
+- **Committed in:** `7b525f0`, `59d761d`
+
+---
+
+**Total deviations:** 1 auto-fixed canonical-containment issue
+**Impact on plan:** The correction closes the required source-root trust boundary without adding traversal or candidate lifecycle behavior.
 
 ## TDD Gate Compliance
 
 - RED was observed with the focused command failing because `src/release-candidate.ts` and its export were absent.
 - The isolated RED commit `cd744d3` precedes the GREEN implementation commit `afb3ee5`.
 - GREEN passed the exact focused test, typecheck, and build command before the implementation commit.
+- Review RED commit `7b525f0` precedes containment fix commit `59d761d`; the injected alias test failed by returning `ok: true` before the fix.
 
 ## Verification Evidence
 
-- Focused candidate-input test: 1/1 passed.
-- Candidate-domain focused suite: 38/38 passed across six test files.
-- Full suite: 161/161 passed across 20 test files.
+- Focused candidate-input tests: 2/2 passed.
+- Candidate-domain focused suite: 39/39 passed across six test files.
+- Full suite: 162/162 passed across 20 test files.
 - `npm run typecheck`: passed.
 - `npm run build`: passed; the generated candidate module is not yet a packaged runtime dependency and remains untracked until integration owns it.
 - `git diff --check`: passed.
@@ -95,7 +112,7 @@ None.
 
 ## Issues Encountered
 
-None.
+Independent specification review identified a canonical source-root escape; it was reproduced, corrected, and verified as documented above.
 
 ## User Setup Required
 
