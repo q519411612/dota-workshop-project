@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
@@ -5,8 +6,12 @@ import { afterEach, describe, expect, test } from "vitest";
 import { preflightNodeReleaseCandidate } from "../src/release-candidate-node.js";
 import { buildRemoteReleaseCandidateScript } from "../src/release-candidate-remote-script.js";
 import { preflightRemoteReleaseCandidate } from "../src/release-candidate-remote.js";
-import { createReleaseCandidateToolResult } from "../src/release-candidate-result.js";
-import { evaluateReleaseReadiness } from "../src/release-readiness.js";
+import {
+  computeReleaseCandidateCombinedDigest,
+  createReleaseCandidateToolResult,
+  RELEASE_CANDIDATE_BOUNDARIES
+} from "../src/release-candidate-result.js";
+import { evaluateReleaseReadiness, isReleaseTextPath } from "../src/release-readiness.js";
 import { handleTool } from "../src/tools.js";
 import type { ToolResult } from "../src/types.js";
 
@@ -25,8 +30,8 @@ describe("release-candidate four-target parity", () => {
     const before = await snapshot(fixture.dotaRoot);
     const fixtureResult = await runNodeRoute("fixture", fixture);
     const localResult = await runNodeRoute("local", fixture);
-    const sshResult = await runRemoteRoute("ssh", fixtureResult);
-    const powershellResult = await runRemoteRoute("powershell", fixtureResult);
+    const sshResult = await runRemoteRoute("ssh", fixture, scenario);
+    const powershellResult = await runRemoteRoute("powershell", fixture, scenario);
 
     const expected = semanticProjection(fixtureResult);
     expect(semanticProjection(localResult)).toEqual(expected);
@@ -158,9 +163,12 @@ async function runNodeRoute(kind: "fixture" | "local", fixture: Awaited<ReturnTy
   });
 }
 
-async function runRemoteRoute(transport: "ssh" | "powershell", source: ToolResult): Promise<ToolResult> {
-  const payload = structuredClone(source.releaseCandidate) as Record<string, unknown>;
-  delete payload.normalization;
+async function runRemoteRoute(
+  transport: "ssh" | "powershell",
+  fixture: Awaited<ReturnType<typeof createReadyFixture>>,
+  scenario: "success" | "required-path-blocked"
+): Promise<ToolResult> {
+  const payload = await deriveRemoteContractPayload(fixture, scenario);
   return (handleTool as any)("preflight_release_candidate", {
     target: { kind: "remote", name: "private", transport, host: "example.test", dotaRoot: "C:/Dota" },
     addonName: "fixture_addon"
@@ -172,6 +180,138 @@ async function runRemoteRoute(transport: "ssh" | "powershell", source: ToolResul
       executor: async () => ({ exitCode: 0, stdout: JSON.stringify(payload), stderr: "" })
     })
   });
+}
+
+async function deriveRemoteContractPayload(
+  fixture: Awaited<ReturnType<typeof createReadyFixture>>,
+  scenario: "success" | "required-path-blocked"
+): Promise<Record<string, unknown>> {
+  const script = buildRemoteReleaseCandidateScript({ dotaRoot: "C:/Dota", addonName: fixture.addonName });
+  const artifactStatus = extractPowerShellString(script, "PrecreationArtifactStatus");
+  const warning = extractPowerShellString(script, "ContractEvidenceWarning");
+  const files = await observeFixtureFiles(fixture);
+  const textPaths = files.filter((file) => isReleaseTextPath(file.path)).map((file) => file.path);
+  const binaryPaths = files.filter((file) => !isReleaseTextPath(file.path)).map((file) => file.path);
+  const scanCoverage = {
+    schemaVersion: "1.0",
+    totalFileCount: files.length,
+    text: { count: textPaths.length, paths: textPaths },
+    binary: { count: binaryPaths.length, paths: binaryPaths },
+    unreadable: { count: 0, paths: [] },
+    oversized: { count: 0, paths: [] }
+  };
+  const common = {
+    schemaVersion: "1.0",
+    paths: {
+      gameAddon: `game/dota_addons/${fixture.addonName}`,
+      contentAddon: `content/dota_addons/${fixture.addonName}`
+    },
+    warnings: [warning],
+    commands: [],
+    logs: [],
+    boundaries: RELEASE_CANDIDATE_BOUNDARIES,
+    scanCoverage
+  };
+
+  if (scenario === "required-path-blocked") {
+    return {
+      ...common,
+      ok: false,
+      operation: { status: "not-reached" },
+      artifactValidation: { status: artifactStatus },
+      blockers: [{
+        code: "REQUIRED_PATH_MISSING",
+        category: "required-structure",
+        disposition: "blocker",
+        field: "lua entry"
+      }],
+      cleanup: {
+        schemaVersion: "1.0",
+        attempted: false,
+        attempts: 0,
+        status: "not-reached",
+        verified: false
+      }
+    };
+  }
+
+  const entries = files.map((file) => ({
+    schemaVersion: "1.0" as const,
+    root: file.root,
+    path: file.path,
+    bytes: file.bytes.length,
+    sha256: createHash("sha256").update(file.bytes).digest("hex")
+  }));
+  const manifest = {
+    schemaVersion: "1.0" as const,
+    entries,
+    combinedSha256: computeReleaseCandidateCombinedDigest(entries)
+  };
+  const inclusionLedger = {
+    schemaVersion: "1.0" as const,
+    expectedFileCount: entries.length,
+    observedFileCount: entries.length,
+    matchedFileCount: entries.length
+  };
+  return {
+    ...common,
+    ok: true,
+    operation: { status: "completed" },
+    artifactValidation: { status: "passed", manifest, inclusionLedger, scanCoverage },
+    manifest,
+    inclusionLedger,
+    blockers: [],
+    cleanup: {
+      schemaVersion: "1.0",
+      attempted: true,
+      attempts: 1,
+      status: "verified",
+      verified: true,
+      identityMatched: true,
+      removed: true,
+      absent: true
+    }
+  };
+}
+
+function extractPowerShellString(script: string, name: string): string {
+  const match = script.match(new RegExp(`\\$${name} = '((?:''|[^'])*)'`));
+  if (match === null) throw new Error(`missing generated contract value: ${name}`);
+  return match[1]!.replaceAll("''", "'");
+}
+
+async function observeFixtureFiles(
+  fixture: Awaited<ReturnType<typeof createReadyFixture>>
+): Promise<Array<{ root: "content" | "game"; path: string; bytes: Uint8Array }>> {
+  const observations: Array<{ root: "content" | "game"; path: string; bytes: Uint8Array }> = [];
+  for (const [root, sourceRoot] of [
+    ["content", fixture.contentAddonRoot],
+    ["game", fixture.gameAddonRoot]
+  ] as const) {
+    const walk = async (directory: string): Promise<void> => {
+      for (const name of (await readdir(directory)).sort(compareOrdinal)) {
+        const source = join(directory, name);
+        const stats = await lstat(source);
+        if (stats.isDirectory()) {
+          await walk(source);
+        } else if (stats.isFile()) {
+          const suffix = relative(sourceRoot, source).replaceAll("\\", "/");
+          observations.push({
+            root,
+            path: `${root}/dota_addons/${fixture.addonName}/${suffix}`,
+            bytes: await readFile(source)
+          });
+        }
+      }
+    };
+    await walk(sourceRoot);
+  }
+  observations.sort((left, right) => compareOrdinal(left.root, right.root) || compareOrdinal(left.path, right.path));
+  return observations;
+}
+
+function compareOrdinal(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function semanticProjection(result: ToolResult): unknown {

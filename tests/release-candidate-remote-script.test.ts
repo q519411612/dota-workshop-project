@@ -206,6 +206,33 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).toContain("SOURCE_CHANGED_DURING_ASSEMBLY");
   });
 
+  test("projects the manifest only from a final candidate byte observation", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+    const sourceFinalIndex = script.indexOf("Assert-SourceStable $script:allFiles $before");
+    const candidateFinalIndex = script.indexOf("$finalEntries = Get-FinalCandidateEntries", sourceFinalIndex);
+    const manifestIndex = script.indexOf("entries = @($finalEntries)", candidateFinalIndex);
+
+    expect(script).toContain("function Get-FinalCandidateEntries");
+    expect(script).toContain("Get-FileSha256 $candidate");
+    expect(sourceFinalIndex).toBeGreaterThan(0);
+    expect(candidateFinalIndex).toBeGreaterThan(sourceFinalIndex);
+    expect(manifestIndex).toBeGreaterThan(candidateFinalIndex);
+    expect(script).toContain("Assert-CandidateLedger $script:allFiles $finalEntries");
+    expect(script).toContain("Get-CanonicalManifestDigest $finalEntries");
+    expect(script).not.toContain("$entries += [ordered]@");
+  });
+
+  test("embeds and uses the shared precreation and warning contract", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).toContain("$PrecreationArtifactStatus = 'not-reached'");
+    expect(script).toContain("$ContractEvidenceWarning = 'contract evidence only; real Windows runtime behavior is not proven'");
+    expect(script).toContain("artifactValidation = [ordered]@{ status = $PrecreationArtifactStatus }");
+    expect(script).toContain("warnings = @($ContractEvidenceWarning)");
+    expect(script).not.toContain("$result.warnings += 'non-text file included'");
+    expect(script).toContain("if ($result.artifactValidation.status -eq 'not-reached' -and $candidateCreated)");
+  });
+
   test("rejects reparse aliases and revalidates canonical isolation identities", () => {
     const script = buildRemoteReleaseCandidateScript(input);
 
