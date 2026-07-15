@@ -2508,7 +2508,9 @@ describe("release candidate input validation", () => {
       const mutablePath = join(fixture.contentAddonRoot, "maps", "mutable.bin");
       await writeFile(mutablePath, Buffer.from([0x10, 0x20, 0x30, 0x40]));
       let mutated = false;
+      let mutationAttempts = 0;
       const mutateOnce = async (): Promise<void> => {
+        mutationAttempts += 1;
         if (mutated) return;
         mutated = true;
         await scenario.mutate(mutablePath, fixture);
@@ -2562,6 +2564,7 @@ describe("release candidate input validation", () => {
 
       expect(result, scenario.name).toEqual({ ok: false, blockers: [{ code: "SOURCE_CHANGED_DURING_ASSEMBLY", category: "assembly" }] });
       expect(mutated, scenario.name).toBe(true);
+      expect(mutationAttempts, scenario.name).toBe(1);
       expect(inspect, scenario.name).toHaveBeenCalledTimes(scenario.callbackInvoked ? 1 : 0);
       expect(cleanupCandidateLease, scenario.name).toHaveBeenCalledTimes(1);
       if (candidateRoot !== undefined) await expect(lstat(candidateRoot)).rejects.toMatchObject({ code: "ENOENT" });
@@ -2575,6 +2578,7 @@ describe("release candidate input validation", () => {
       const before = await snapshotSourceTrees(fixture);
       const materializedDestinations: string[] = [];
       const cleanupCandidateLease = vi.fn(async (identity: { root: string }) => {
+        materializedDestinations.push(identity.root);
         await rm(identity.root, { recursive: true, force: false });
         return outcome === "removal-failure"
           ? { ok: false as const, removed: true, absent: true, identityMatched: true, code: "CANDIDATE_REMOVAL_FAILED" as const }
