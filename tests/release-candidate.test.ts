@@ -1,4 +1,16 @@
-import { lstat, mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  symlink,
+  utimes,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, expectTypeOf, test, vi } from "vitest";
@@ -59,6 +71,161 @@ afterEach(async () => {
 });
 
 describe("release candidate input validation", () => {
+  test("assembles the complete fixed two-root layout", async () => {
+    const fixture = await createFixture();
+    const addonInfo = `
+"AddonInfo"
+{
+  "addonSteamAppID" "570"
+  "addontitle" "Fixture Addon"
+  "addonAuthor" "Fixture Author"
+  "addonDescription" "Complete release candidate fixture"
+  "addonVersion" "1.0.0"
+  "DefaultMap" "fixture_map"
+  "maps" "fixture_map"
+}
+`;
+    const binaryBytes = Buffer.from([0x00, 0xff, 0x10, 0x80, 0x42]);
+    const requiredFiles: Array<[string, string | Buffer]> = [
+      [join(fixture.gameAddonRoot, "addoninfo.txt"), addonInfo],
+      [join(fixture.gameAddonRoot, "scripts", "vscripts", "addon_game_mode.lua"), "function Activate() end\n"],
+      [join(fixture.gameAddonRoot, "resource", "addon_fixture_addon_english.txt"), "fixture localization\n"],
+      [join(fixture.gameAddonRoot, "scripts", "npc", "herolist.txt"), "heroes\n"],
+      [join(fixture.gameAddonRoot, "scripts", "npc", "npc_heroes_custom.txt"), "heroes custom\n"],
+      [join(fixture.gameAddonRoot, "scripts", "npc", "npc_units_custom.txt"), "units custom\n"],
+      [join(fixture.gameAddonRoot, "scripts", "npc", "npc_abilities_custom.txt"), "abilities custom\n"],
+      [join(fixture.gameAddonRoot, ".hidden-config"), "hidden\n"],
+      [join(fixture.gameAddonRoot, "scripts", "vscripts", "generated_runtime.lua"), "generated-looking\n"],
+      [join(fixture.contentAddonRoot, "materials", "texture.bin"), binaryBytes],
+      [join(fixture.contentAddonRoot, "panorama", "extensionless"), "extensionless\n"],
+      [join(fixture.contentAddonRoot, ".gitignore"), "ignored-looking but included\n"],
+      [join(fixture.contentAddonRoot, "maps", "fixture_map.vmap"), "map source\n"]
+    ];
+    for (const [path, content] of requiredFiles) {
+      await mkdir(join(path, ".."), { recursive: true });
+      await writeFile(path, content);
+    }
+    const oldFile = join(fixture.contentAddonRoot, "old-timestamp.txt");
+    await writeFile(oldFile, "old but included\n");
+    await utimes(oldFile, new Date("2001-01-01T00:00:00Z"), new Date("2001-01-01T00:00:00Z"));
+    await Promise.all([
+      mkdir(join(fixture.gameAddonRoot, "empty", "nested"), { recursive: true }),
+      mkdir(join(fixture.contentAddonRoot, ".empty", "nested"), { recursive: true })
+    ]);
+
+    let candidateRoot: string | undefined;
+    const copiedDestinations: string[] = [];
+    const createFilesystem = (options: {
+      failCopy?: boolean;
+      aliasDestinationParent?: boolean;
+    } = {}): ReleaseCandidateFilesystem & {
+      makeDirectory(path: string): Promise<void>;
+      copySourceFile(source: string, destination: string): Promise<void>;
+    } => ({
+      lstat,
+      realpath: async (path) => {
+        if (
+          options.aliasDestinationParent === true
+          && candidateRoot !== undefined
+          && path === join(candidateRoot, "game", "dota_addons", "fixture_addon")
+        ) {
+          return await realpath(fixture.repositoryRoot);
+        }
+        return await realpath(path);
+      },
+      readDirectory: async (path) => (await readdir(path)).reverse(),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot: vi.fn(async () => {
+        throw new Error("raw candidate creation must not be used");
+      }),
+      makeDirectory: async (path) => await mkdir(path),
+      copySourceFile: async (source, destination) => {
+        copiedDestinations.push(destination);
+        if (options.failCopy === true && source.endsWith("texture.bin")) {
+          throw new Error(`copy failed at ${fixture.root}/credential_password=private-value`);
+        }
+        await copyFile(source, destination);
+      },
+      candidateLifecycle: createIdentityBoundCandidateLifecycle({
+        createCandidateLease: async (validated) => {
+          candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+        },
+        cleanupCandidateLease: async (identity) => {
+          await rm(identity.root, { recursive: true, force: false });
+          return { ok: true, removed: true, absent: true, identityMatched: true };
+        }
+      })
+    });
+
+    const inspect = vi.fn(async (root: string) => {
+      const gameRoot = join(root, "game", "dota_addons", "fixture_addon");
+      const contentRoot = join(root, "content", "dota_addons", "fixture_addon");
+      expect((await lstat(gameRoot)).isDirectory()).toBe(true);
+      expect((await lstat(contentRoot)).isDirectory()).toBe(true);
+      expect(await readFile(join(contentRoot, "materials", "texture.bin"))).toEqual(binaryBytes);
+      for (const [source, content] of requiredFiles) {
+        const sourceRoot = source.startsWith(fixture.gameAddonRoot)
+          ? fixture.gameAddonRoot
+          : fixture.contentAddonRoot;
+        const destinationRoot = sourceRoot === fixture.gameAddonRoot ? gameRoot : contentRoot;
+        const relativePath = source.slice(sourceRoot.length + 1);
+        expect(await readFile(join(destinationRoot, relativePath))).toEqual(Buffer.from(content));
+      }
+      expect(await readFile(join(contentRoot, "old-timestamp.txt"), "utf8")).toBe("old but included\n");
+      expect((await lstat(join(gameRoot, "empty", "nested"))).isDirectory()).toBe(true);
+      expect((await lstat(join(contentRoot, ".empty", "nested"))).isDirectory()).toBe(true);
+      return "complete";
+    });
+
+    const success = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      inspect,
+      { repositoryRoot: fixture.repositoryRoot, filesystem: createFilesystem() }
+    );
+    expect(success).toEqual({ ok: true, value: "complete" });
+    expect(inspect).toHaveBeenCalledTimes(1);
+    if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
+    expect(copiedDestinations.every((path) => path.startsWith(`${candidateRoot}/`))).toBe(true);
+    await expect(lstat(candidateRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    candidateRoot = undefined;
+    copiedDestinations.length = 0;
+    const failedInspect = vi.fn(async () => "unexpected");
+    const copyFailure = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      failedInspect,
+      { repositoryRoot: fixture.repositoryRoot, filesystem: createFilesystem({ failCopy: true }) }
+    );
+    expect(copyFailure).toEqual({
+      ok: false,
+      blockers: [{ code: "CANDIDATE_ASSEMBLY_FAILED", category: "assembly" }]
+    });
+    expect(failedInspect).not.toHaveBeenCalled();
+    expect(JSON.stringify(copyFailure)).not.toContain(fixture.root);
+    expect(JSON.stringify(copyFailure)).not.toContain("private-value");
+    if (candidateRoot === undefined) throw new Error("failed candidate root was not recorded");
+    await expect(lstat(candidateRoot)).rejects.toMatchObject({ code: "ENOENT" });
+
+    candidateRoot = undefined;
+    copiedDestinations.length = 0;
+    const aliasInspect = vi.fn(async () => "unexpected");
+    const destinationAlias = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      aliasInspect,
+      { repositoryRoot: fixture.repositoryRoot, filesystem: createFilesystem({ aliasDestinationParent: true }) }
+    );
+    expect(destinationAlias).toEqual({
+      ok: false,
+      blockers: [{ code: "CANDIDATE_DESTINATION_UNSAFE", category: "unsafe-isolation" }]
+    });
+    expect(aliasInspect).not.toHaveBeenCalled();
+    expect(copiedDestinations).toEqual([]);
+    expect(await readdir(fixture.repositoryRoot)).toEqual([]);
+    if (candidateRoot === undefined) throw new Error("aliased candidate root was not recorded");
+    await expect(lstat(candidateRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   test("keeps the candidate canonically isolated and callback scoped", async () => {
     const createLifecycleFilesystem = (fixture: Fixture, options: {
       aliasCreatedRootTo?: string;
