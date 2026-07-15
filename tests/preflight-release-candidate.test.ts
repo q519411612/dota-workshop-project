@@ -33,6 +33,12 @@ describe("preflight_release_candidate MCP surface", () => {
     const registered = server._registeredTools ?? server.registeredTools;
     expect(registered).toBeDefined();
     expect(Object.keys(registered)).toContain("preflight_release_candidate");
+    const schema = registered.preflight_release_candidate.inputSchema;
+    expect(schema.safeParse({
+      target: { kind: "fixture", root: "/fixture" },
+      addonName: "demo",
+      retention: true
+    }).success).toBe(false);
   });
 
   test.each([
