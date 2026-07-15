@@ -406,18 +406,15 @@ describe("release candidate input validation", () => {
       createCandidateRoot
     };
 
+    const realpathSpy = vi.fn(async (path: string) => await realpath(path));
     const prepared = await prepareReleaseCandidateInput(
       { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
-      { repositoryRoot: fixture.repositoryRoot, filesystem }
+      { repositoryRoot: fixture.repositoryRoot, filesystem: { ...filesystem, realpath: realpathSpy } }
     );
     expect(prepared.ok).toBe(true);
     if (!prepared.ok) throw new Error("fixture input was rejected");
 
-    const realpathSpy = vi.fn(async (path: string) => await realpath(path));
-    const realSymlinkResult = await inventoryReleaseCandidateSources(prepared.value, {
-      ...filesystem,
-      realpath: realpathSpy
-    });
+    const realSymlinkResult = await inventoryReleaseCandidateSources(prepared.value);
     expect(realSymlinkResult).toEqual({
       ok: false,
       blockers: [{
@@ -544,6 +541,11 @@ describe("release candidate input validation", () => {
         expected: [
           {
             code: "SOURCE_IDENTITY_COLLISION",
+            path: "game/dota_addons/fixture_addon/Scripts",
+            category: "case-fold"
+          },
+          {
+            code: "SOURCE_IDENTITY_COLLISION",
             path: "game/dota_addons/fixture_addon/scripts",
             category: "case-fold"
           },
@@ -560,8 +562,8 @@ describe("release candidate input validation", () => {
       const classifiedPaths: string[] = [];
       const canonicalizedPaths: string[] = [];
       const enumeratedPaths: string[] = [];
-      const gameRoot = prepared.value.gameAddonRoot;
-      const contentRoot = prepared.value.contentAddonRoot;
+      const gameRoot = fixture.gameAddonRoot;
+      const contentRoot = fixture.contentAddonRoot;
       const keyForPath = (path: string): string => {
         if (path.startsWith(`${gameRoot}/`)) return `game/${path.slice(gameRoot.length + 1)}`;
         if (path.startsWith(`${contentRoot}/`)) return `content/${path.slice(contentRoot.length + 1)}`;
@@ -587,7 +589,13 @@ describe("release candidate input validation", () => {
         })
       };
 
-      const result = await inventoryReleaseCandidateSources(prepared.value, scenarioFilesystem);
+      const scenarioPrepared = await prepareReleaseCandidateInput(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        { repositoryRoot: fixture.repositoryRoot, filesystem: scenarioFilesystem }
+      );
+      expect(scenarioPrepared.ok, scenario.name).toBe(true);
+      if (!scenarioPrepared.ok) throw new Error(`${scenario.name} fixture input was rejected`);
+      const result = await inventoryReleaseCandidateSources(scenarioPrepared.value);
 
       expect(result, scenario.name).toEqual({ ok: false, blockers: scenario.expected });
       expect(createCandidateRoot, scenario.name).not.toHaveBeenCalled();
@@ -616,10 +624,17 @@ describe("release candidate input validation", () => {
       writeFile(join(fixture.gameAddonRoot, "Alpha.txt"), "alpha\n"),
       writeFile(join(fixture.contentAddonRoot, "beta.txt"), "beta\n")
     ]);
-    const accepted = await inventoryReleaseCandidateSources(prepared.value, {
+    const acceptedFilesystem: ReleaseCandidateFilesystem = {
       ...filesystem,
       readDirectory: async (path) => (await readdir(path)).reverse()
-    });
+    };
+    const acceptedPrepared = await prepareReleaseCandidateInput(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      { repositoryRoot: fixture.repositoryRoot, filesystem: acceptedFilesystem }
+    );
+    expect(acceptedPrepared.ok).toBe(true);
+    if (!acceptedPrepared.ok) throw new Error("accepted fixture input was rejected");
+    const accepted = await inventoryReleaseCandidateSources(acceptedPrepared.value);
     expect(accepted).toEqual({
       ok: true,
       entries: [
@@ -656,11 +671,18 @@ describe("release candidate input validation", () => {
     expect(prepared.ok).toBe(true);
     if (!prepared.ok) throw new Error("fixture input was rejected");
 
-    const forward = await inventoryReleaseCandidateSources(prepared.value, baseFilesystem);
-    const reversed = await inventoryReleaseCandidateSources(prepared.value, {
+    const forward = await inventoryReleaseCandidateSources(prepared.value);
+    const reversedFilesystem: ReleaseCandidateFilesystem = {
       ...baseFilesystem,
       readDirectory: async (path) => (await readdir(path)).reverse()
-    });
+    };
+    const reversedPrepared = await prepareReleaseCandidateInput(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      { repositoryRoot: fixture.repositoryRoot, filesystem: reversedFilesystem }
+    );
+    expect(reversedPrepared.ok).toBe(true);
+    if (!reversedPrepared.ok) throw new Error("reversed fixture input was rejected");
+    const reversed = await inventoryReleaseCandidateSources(reversedPrepared.value);
     const expected = {
       ok: true,
       entries: [
@@ -674,5 +696,169 @@ describe("release candidate input validation", () => {
     expect(forward).toEqual(expected);
     expect(reversed).toEqual(expected);
     expect(createCandidateRoot).not.toHaveBeenCalled();
+  });
+
+  test("binds inventory to the validated filesystem capability", async () => {
+    const fixture = await createFixture();
+    const virtualPath = join(fixture.gameAddonRoot, "virtual.txt");
+    const readDirectory = vi.fn(async (path: string) => (
+      path === fixture.gameAddonRoot ? ["virtual.txt"] : []
+    ));
+    const classifySourceEntry = vi.fn(async (path: string): Promise<ReleaseCandidateEntryKind> => (
+      path === virtualPath ? "file" : classifyFixtureEntry(path)
+    ));
+    const adapterRealpath = vi.fn(async (path: string) => path);
+    const filesystem: ReleaseCandidateFilesystem = {
+      lstat,
+      realpath: adapterRealpath,
+      readDirectory,
+      classifySourceEntry,
+      createCandidateRoot: vi.fn(async (validated) => join(validated.tempParent, "candidate"))
+    };
+    const prepared = await prepareReleaseCandidateInput(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      { repositoryRoot: fixture.repositoryRoot, filesystem }
+    );
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) throw new Error("virtual fixture input was rejected");
+
+    const result = await inventoryReleaseCandidateSources(prepared.value);
+
+    expect(result).toEqual({
+      ok: true,
+      entries: [{
+        root: "game",
+        path: "game/dota_addons/fixture_addon/virtual.txt",
+        kind: "file"
+      }]
+    });
+    expect(readDirectory).toHaveBeenCalledWith(fixture.gameAddonRoot);
+    expect(classifySourceEntry).toHaveBeenCalledExactlyOnceWith(virtualPath);
+    expect(adapterRealpath).toHaveBeenCalledWith(virtualPath);
+  });
+
+  test("fails closed on Windows without a reparse-capable classifier", async () => {
+    const fixture = await createFixture();
+    await writeFile(join(fixture.gameAddonRoot, "regular.txt"), "regular\n");
+    await symlink(join(fixture.gameAddonRoot, "regular.txt"), join(fixture.contentAddonRoot, "linked.txt"));
+
+    const prepared = await prepareReleaseCandidateInput(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      { repositoryRoot: fixture.repositoryRoot, platform: "win32" }
+    );
+    expect(prepared).toEqual({
+      ok: false,
+      blockers: [{
+        code: "WINDOWS_REPARSE_CLASSIFIER_REQUIRED",
+        field: "dotaRoot",
+        category: "unsafe-isolation"
+      }]
+    });
+
+    const classifySourceEntry = vi.fn(async (path: string): Promise<ReleaseCandidateEntryKind> => (
+      path.endsWith("linked.txt") ? "reparse" : "file"
+    ));
+    const capableFilesystem: ReleaseCandidateFilesystem = {
+      lstat,
+      realpath,
+      readDirectory: async (path) => await readdir(path),
+      classifySourceEntry,
+      createCandidateRoot: vi.fn(async (validated) => join(validated.tempParent, "candidate"))
+    };
+    const unmarkedPrepared = await prepareReleaseCandidateInput(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      { repositoryRoot: fixture.repositoryRoot, filesystem: capableFilesystem, platform: "win32" }
+    );
+    expect(unmarkedPrepared).toEqual({
+      ok: false,
+      blockers: [{
+        code: "WINDOWS_REPARSE_CLASSIFIER_REQUIRED",
+        field: "dotaRoot",
+        category: "unsafe-isolation"
+      }]
+    });
+    const markedCapableFilesystem: ReleaseCandidateFilesystem = {
+      ...capableFilesystem,
+      reparsePointAware: true
+    };
+    const capablePrepared = await prepareReleaseCandidateInput(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      { repositoryRoot: fixture.repositoryRoot, filesystem: markedCapableFilesystem, platform: "win32" }
+    );
+    expect(capablePrepared.ok).toBe(true);
+    if (!capablePrepared.ok) throw new Error("capable Windows fixture input was rejected");
+
+    const capableResult = await inventoryReleaseCandidateSources(capablePrepared.value);
+
+    expect(capableResult).toEqual({
+      ok: false,
+      blockers: [{
+        code: "SOURCE_ENTRY_UNSAFE",
+        path: "content/dota_addons/fixture_addon/linked.txt",
+        category: "reparse"
+      }]
+    });
+    expect(classifySourceEntry).toHaveBeenCalledTimes(2);
+  });
+
+  test("reports every member of deterministic case-fold collision groups", async () => {
+    const fixture = await createFixture();
+    const expected = {
+      ok: false,
+      blockers: [
+        {
+          code: "SOURCE_IDENTITY_COLLISION",
+          path: "content/dota_addons/fixture_addon/BETA.TXT",
+          category: "case-fold"
+        },
+        {
+          code: "SOURCE_IDENTITY_COLLISION",
+          path: "content/dota_addons/fixture_addon/Beta.txt",
+          category: "case-fold"
+        },
+        {
+          code: "SOURCE_IDENTITY_COLLISION",
+          path: "content/dota_addons/fixture_addon/beta.txt",
+          category: "case-fold"
+        },
+        {
+          code: "SOURCE_IDENTITY_COLLISION",
+          path: "game/dota_addons/fixture_addon/Alpha.txt",
+          category: "case-fold"
+        },
+        {
+          code: "SOURCE_IDENTITY_COLLISION",
+          path: "game/dota_addons/fixture_addon/alpha.txt",
+          category: "case-fold"
+        }
+      ]
+    };
+
+    for (const reverse of [false, true]) {
+      const gameNames = ["Alpha.txt", "alpha.txt"];
+      const contentNames = ["Beta.txt", "BETA.TXT", "beta.txt"];
+      const filesystem: ReleaseCandidateFilesystem = {
+        lstat,
+        realpath: async (path) => path,
+        readDirectory: async (path) => {
+          const names = path === fixture.gameAddonRoot
+            ? [...gameNames]
+            : path === fixture.contentAddonRoot
+              ? [...contentNames]
+              : [];
+          return reverse ? names.reverse() : names;
+        },
+        classifySourceEntry: async () => "file",
+        createCandidateRoot: vi.fn(async (validated) => join(validated.tempParent, "candidate"))
+      };
+      const prepared = await prepareReleaseCandidateInput(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+      expect(prepared.ok).toBe(true);
+      if (!prepared.ok) throw new Error("collision fixture input was rejected");
+
+      expect(await inventoryReleaseCandidateSources(prepared.value)).toEqual(expected);
+    }
   });
 });
