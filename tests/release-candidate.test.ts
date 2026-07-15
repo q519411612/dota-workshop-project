@@ -175,11 +175,11 @@ describe("release candidate input validation", () => {
       blockers: [{ code: "CANDIDATE_ROOT_NOT_ISOLATED", category: "unsafe-isolation" }]
     });
     expect(aliasLifecycle.createCandidateRoot).toHaveBeenCalledTimes(1);
-    expect(aliasLifecycle.removeCandidateRoot).toHaveBeenCalledTimes(1);
+    expect(aliasLifecycle.removeCandidateRoot).not.toHaveBeenCalled();
     expect(inspectAlias).not.toHaveBeenCalled();
     const aliasRoot = aliasLifecycle.candidateRoot();
     if (aliasRoot === undefined) throw new Error("aliased candidate root was not recorded");
-    await expect(lstat(aliasRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await lstat(aliasRoot)).isDirectory()).toBe(true);
 
     const removalFixture = await createFixture();
     const removalLifecycle = createLifecycleFilesystem(removalFixture, { failRemoval: true });
