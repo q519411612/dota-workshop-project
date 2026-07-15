@@ -346,17 +346,14 @@ export async function withAssembledReleaseCandidate<T>(
   }
 
   let outcome: ReleaseCandidateLifecycleResult<T>;
-  let cleanupResult: CandidateLeaseCleanupResult | undefined;
+  let cleanupFailure: ReleaseCandidateLifecycleResult<never> | undefined;
   try {
     outcome = await inspectCandidateLease(created.inspectionRoot, prepared.value, lifecycle, inspect);
   } finally {
-    try {
-      cleanupResult = await lifecycle.cleanupCandidateLease(created.lease);
-    } catch {
-      cleanupResult = undefined;
-    }
+    cleanupFailure = await parseCandidateCleanupResult(
+      async () => await lifecycle.cleanupCandidateLease(created.lease)
+    );
   }
-  const cleanupFailure = candidateCleanupFailure(cleanupResult);
   return cleanupFailure ?? outcome;
 }
 
@@ -414,25 +411,37 @@ async function inspectCandidateLease<T>(
   }
 }
 
-function candidateCleanupFailure(
-  result: CandidateLeaseCleanupResult | undefined
-): ReleaseCandidateLifecycleResult<never> | undefined {
-  if (
-    result?.ok === true
-    && result.removed === true
-    && result.absent === true
-    && result.identityMatched === true
-  ) {
-    return undefined;
+async function parseCandidateCleanupResult(
+  acquire: () => Promise<unknown>
+): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+  try {
+    const result = await acquire();
+    if (result === null || typeof result !== "object") {
+      return lifecycleBlocked("CANDIDATE_CLEANUP_RESULT_INVALID", "removal");
+    }
+
+    const ok = Reflect.get(result, "ok");
+    const removed = Reflect.get(result, "removed");
+    const absent = Reflect.get(result, "absent");
+    const identityMatched = Reflect.get(result, "identityMatched");
+    if (ok === true && removed === true && absent === true && identityMatched === true) {
+      return undefined;
+    }
+
+    const code = Reflect.get(result, "code");
+    if (
+      ok === false
+      && typeof removed === "boolean"
+      && typeof absent === "boolean"
+      && typeof identityMatched === "boolean"
+      && isCandidateLeaseCleanupFailureCode(code)
+    ) {
+      return lifecycleBlocked(code, "removal");
+    }
+  } catch {
+    return lifecycleBlocked("CANDIDATE_CLEANUP_RESULT_INVALID", "removal");
   }
-  const code = result?.ok === false
-    && typeof result.removed === "boolean"
-    && typeof result.absent === "boolean"
-    && typeof result.identityMatched === "boolean"
-    && isCandidateLeaseCleanupFailureCode(result.code)
-    ? result.code
-    : "CANDIDATE_CLEANUP_RESULT_INVALID";
-  return lifecycleBlocked(code, "removal");
+  return lifecycleBlocked("CANDIDATE_CLEANUP_RESULT_INVALID", "removal");
 }
 
 function isCandidateLeaseCleanupFailureCode(
