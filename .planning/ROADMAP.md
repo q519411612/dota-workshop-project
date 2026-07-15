@@ -103,7 +103,40 @@ Plans:
   4. An agent receives explicit failure for malformed, incomplete, uncertain, or invariant-violating remote results, including zero-exit false success, with no local fallback.
   5. An agent can verify equivalent fixture, local, SSH, and PowerShell Remoting semantics on macOS fixtures while the result explicitly disclaims Steam/Workshop actions and real Windows runtime proof.
 
-**Plans**: TBD
+**Plans**: 7 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 05-02: Define the versioned release-candidate detail and shared invariant authority.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 05-03: Implement the production fixture/local adapter and mandatory release boundaries.
+- [ ] 05-04: Build the target-native PowerShell lifecycle and bind both remote transports.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 05-05: Reject hostile, uncertain, or invariant-violating remote results with no fallback.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 05-01: Register and route the additive MCP operation without changing dry-run behavior.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 05-07: Prove and package the minimal executable runtime import closure.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 05-06: Verify golden cross-target parity, documentation, and the complete quality gate.
+
+Cross-cutting constraints:
+
+- Preserve the root-owned graph hash baseline and keep `.planning/graphs/` unstaged in every plan.
+- Derive success only from the shared strict invariant authority; never retry, repair, or fall back across targets.
+- Preserve source-tree immutability, verified cleanup precedence, sanitized evidence, and the contract-only Windows disclaimer.
 
 ## Progress
 
@@ -111,4 +144,4 @@ Plans:
 |-------|----------------|--------|-----------|
 | 3. Safe Candidate Assembly | 6/6 | Complete    | 2026-07-15 |
 | 4. Integrity Manifest and Verified Cleanup | 6/6 | Complete    | 2026-07-15 |
-| 5. Unified MCP and Remote Target Parity | 0/TBD | Not started | - |
+| 5. Unified MCP and Remote Target Parity | 0/7 | Planned | - |

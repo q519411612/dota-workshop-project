@@ -4,21 +4,21 @@ milestone: v1.14
 milestone_name: Workshop Addon Release Candidate Preflight
 current_phase: 5
 current_phase_name: Unified MCP and Remote Target Parity
-status: planning
-last_updated: "2026-07-15T17:46:14.499Z"
-last_activity: 2026-07-15
-last_activity_desc: Phase 4 complete, transitioned to Phase 5
+status: planned
+last_updated: "2026-07-16T02:56:48+08:00"
+last_activity: 2026-07-16
+last_activity_desc: Phase 5 planned with 7 verified plans in 6 waves
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 12
+  total_plans: 19
   completed_plans: 12
-  percent: 67
+  percent: 63
 ---
 
 # Project State: Dota Workshop Project
 
-**Updated:** 2026-07-15
+**Updated:** 2026-07-16
 
 ## Project Reference
 
@@ -36,10 +36,10 @@ See: `.planning/PROJECT.md` (updated 2026-07-15)
 ## Current Position
 
 Phase: 5 of 5 (Unified MCP and Remote Target Parity)
-Plan: Not started
-Status: Ready for phase planning
-Progress: [████████████████████] 12/12 completed plans
-Last activity: 2026-07-15 — Phase 4 complete, transitioned to Phase 5
+Plan: 0 of 7
+Status: Ready to execute
+Progress: [█████████████░░░░░░░] 12/19 plans (63%)
+Last activity: 2026-07-16 — Phase 5 planned with 7 verified plans in 6 waves
 
 ## Performance Metrics
 
@@ -48,7 +48,7 @@ Last activity: 2026-07-15 — Phase 4 complete, transitioned to Phase 5
 | Milestone phases | 3 |
 | Completed phases | 2 |
 | Requirements mapped | 19/19 |
-| Plans completed | 12 |
+| Plans completed | 12/19 |
 
 ## Accumulated Context
 
@@ -102,7 +102,7 @@ Last activity: 2026-07-15 — Phase 4 complete, transitioned to Phase 5
 
 ### Todos
 
-- Discuss and plan Phase 5 from the six remaining MCP and target-parity requirements.
+- Execute Phase 5 in six dependency waves with atomic RED/GREEN commits and independent review.
 - Preserve exact one-phase traceability while wiring fixture, local Windows, SSH Windows, and PowerShell Remoting to one result contract.
 
 ### Blockers
@@ -111,9 +111,9 @@ Last activity: 2026-07-15 — Phase 4 complete, transitioned to Phase 5
 
 ## Session Continuity
 
-**Last completed action:** Closed Phase 4 after clean independent review and 5/5 verification.
-**Next action:** Run `$gsd-discuss-phase 5 --auto`.
-**Resume context:** Phase 5 owns the dedicated MCP schema/server route, fixture/local/SSH/PowerShell normalization, strict remote JSON evidence, and no-fallback parity.
+**Last completed action:** Planned Phase 5 with 7 plans, 6 waves, and a clean independent plan check.
+**Next action:** Execute Wave 1 Plan 05-02 after creating the immutable Phase 5 graph baseline and start marker.
+**Resume context:** Execute 05-02 → (05-03, 05-04) → 05-05 → 05-01 → 05-07 → 05-06. Keep fixture/local/SSH/PowerShell behind one strict result authority.
 
 ---
-*Last updated: 2026-07-15 after Phase 4 transition*
+*Last updated: 2026-07-16 after Phase 5 planning*
