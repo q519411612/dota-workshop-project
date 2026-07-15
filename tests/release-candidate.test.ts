@@ -3881,7 +3881,10 @@ describe("release candidate input validation", () => {
       expect(result, candidateFailure).toEqual(candidateFailure === "malformed"
         ? {
             ok: false,
-            blockers: [{ code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" }]
+            blockers: [
+              { code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" },
+              { code: "CANDIDATE_INTEGRITY_RESULT_INVALID", category: "integrity" }
+            ]
           }
         : {
             ok: false,
@@ -4005,7 +4008,10 @@ describe("release candidate input validation", () => {
       expect(result, candidateFailure).toEqual(candidateFailure === "malformed"
         ? {
             ok: false,
-            blockers: [{ code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" }]
+            blockers: [
+              { code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" },
+              { code: "CANDIDATE_INTEGRITY_RESULT_INVALID", category: "integrity" }
+            ]
           }
         : {
             ok: false,

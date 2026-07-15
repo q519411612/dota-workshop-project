@@ -892,11 +892,12 @@ async function inspectCandidateLease<T>(
       && !sameIntegritySets(sourceBefore, sourceAfter.value);
     const candidateIntegrityChanged = candidateAfter.ok
       && !sameIntegritySets(sourceBefore, candidateAfter.value.observations);
-    if (sourceIntegrityChanged) return integrityMismatchWithCandidateEvidence(candidateAfter);
-    if (candidateIntegrityChanged) return integrityMismatch();
-    if (finalStability !== undefined) return finalStability;
-    if (finalReconciliation !== undefined) return finalReconciliation;
-    if (!sourceAfter.ok) return sourceAfter;
+    const primaryFailure = sourceIntegrityChanged || candidateIntegrityChanged
+      ? integrityMismatch()
+      : finalStability
+        ?? finalReconciliation
+        ?? (!sourceAfter.ok ? sourceAfter : undefined);
+    if (primaryFailure !== undefined) return composeFinalFailure(primaryFailure, candidateAfter);
     if (!candidateAfter.ok) return candidateAfter;
     if (inspectionFailed) return lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
     const manifest = projectReleaseCandidateManifest(inventory, candidateAfter.value.observations);
@@ -1042,7 +1043,7 @@ async function reconcileReleaseCandidate(
   input: ValidatedReleaseCandidateInput,
   inventory: ReleaseCandidateSourceEntry[],
   lifecycle: BoundCandidateLifecycle
-): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+): Promise<ReleaseCandidateLifecycleFailure | undefined> {
   const expected = expectedCandidateTree(input, inventory);
   return await parseCandidateReconciliation(
     async () => await lifecycle.reconcileCandidateTree(lease, expected)
@@ -1464,21 +1465,21 @@ function integrityMismatch(): ReleaseCandidateLifecycleFailure {
   return lifecycleBlocked("RELEASE_CANDIDATE_INTEGRITY_MISMATCH", "integrity");
 }
 
-function integrityMismatchWithCandidateEvidence(
+function composeFinalFailure(
+  primary: ReleaseCandidateLifecycleFailure,
   candidate: { ok: true; value: CandidateIntegrityCapture } | ReleaseCandidateLifecycleFailure
 ): ReleaseCandidateLifecycleFailure {
-  const mismatch = integrityMismatch();
-  if (candidate.ok || candidate.inclusionLedger === undefined) return mismatch;
+  if (candidate.ok) return primary;
   return {
     ok: false,
-    inclusionLedger: candidate.inclusionLedger,
-    blockers: [...mismatch.blockers, ...candidate.blockers]
+    ...(candidate.inclusionLedger === undefined ? {} : { inclusionLedger: candidate.inclusionLedger }),
+    blockers: [...primary.blockers, ...candidate.blockers]
   };
 }
 
 async function parseCandidateReconciliation(
   acquire: () => Promise<unknown>
-): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+): Promise<ReleaseCandidateLifecycleFailure | undefined> {
   try {
     const result = await acquire();
     if (result === null || typeof result !== "object") {
