@@ -25,6 +25,7 @@ export type ReleaseCandidateInputBlocker = {
 
 const validatedReleaseCandidateInputBrand: unique symbol = Symbol("validatedReleaseCandidateInput");
 const releaseCandidateFilesystemCapability: unique symbol = Symbol("releaseCandidateFilesystemCapability");
+const ownedCandidateLeaseBrand: unique symbol = Symbol("ownedCandidateLease");
 
 export type ValidatedReleaseCandidateInput = Readonly<{
   [validatedReleaseCandidateInputBrand]: true;
@@ -111,6 +112,21 @@ export type ReleaseCandidateLifecycleResult<T> =
         | ReleaseCandidateLifecycleBlocker
       >;
     };
+
+type CandidateLifecycleAdapter = Readonly<{
+  lstat: ReleaseCandidateFilesystem["lstat"];
+  realpath: ReleaseCandidateFilesystem["realpath"];
+  createCandidateRoot: ReleaseCandidateFilesystem["createCandidateRoot"];
+  removeCandidateRoot: NonNullable<ReleaseCandidateFilesystem["removeCandidateRoot"]>;
+}>;
+
+type OwnedCandidateLease = Readonly<{
+  [ownedCandidateLeaseBrand]: true;
+  root: string;
+  canonicalRoot: string;
+  adapter: CandidateLifecycleAdapter;
+  remove: () => Promise<void>;
+}>;
 
 export type ReleaseCandidateContinuationResult<T> =
   | { ok: true; value: T }
@@ -254,39 +270,118 @@ export async function withAssembledReleaseCandidate<T>(
   if (!inventory.ok) return inventory;
 
   const filesystem = prepared.value[releaseCandidateFilesystemCapability];
-  if (filesystem.removeCandidateRoot === undefined) {
+  const adapter = bindCandidateLifecycleAdapter(filesystem);
+  if (adapter === undefined) {
     return lifecycleBlocked("CANDIDATE_LIFECYCLE_ADAPTER_REQUIRED", "creation");
   }
 
-  let candidateRoot: string;
-  try {
-    candidateRoot = resolve(await filesystem.createCandidateRoot(prepared.value));
-  } catch {
-    return lifecycleBlocked("CANDIDATE_CREATION_FAILED", "creation");
-  }
+  const leased = await createOwnedCandidateLease(prepared.value, adapter);
+  if (!leased.ok) return leased.result;
 
   let outcome: ReleaseCandidateLifecycleResult<T>;
+  let cleanupFailure: ReleaseCandidateLifecycleResult<never> | undefined;
   try {
-    const canonicalCandidateRoot = await filesystem.realpath(candidateRoot);
-    if (!isCandidateRootIsolated(canonicalCandidateRoot, prepared.value)) {
-      outcome = lifecycleBlocked("CANDIDATE_ROOT_NOT_ISOLATED", "unsafe-isolation");
-    } else {
-      try {
-        outcome = { ok: true, value: await inspect(canonicalCandidateRoot) };
-      } catch {
-        outcome = lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
-      }
+    try {
+      outcome = { ok: true, value: await inspect(leased.value.canonicalRoot) };
+    } catch {
+      outcome = lifecycleBlocked("CANDIDATE_INSPECTION_FAILED", "inspection");
     }
+  } finally {
+    cleanupFailure = await removeOwnedCandidate(leased.value, prepared.value);
+  }
+  return cleanupFailure ?? outcome;
+}
+
+function bindCandidateLifecycleAdapter(
+  filesystem: ReleaseCandidateFilesystem
+): CandidateLifecycleAdapter | undefined {
+  const removeCandidateRoot = filesystem.removeCandidateRoot;
+  if (removeCandidateRoot === undefined) return undefined;
+  return Object.freeze({
+    lstat: filesystem.lstat.bind(filesystem),
+    realpath: filesystem.realpath.bind(filesystem),
+    createCandidateRoot: filesystem.createCandidateRoot.bind(filesystem),
+    removeCandidateRoot: removeCandidateRoot.bind(filesystem)
+  });
+}
+
+type CandidateLeaseResult =
+  | { ok: true; value: OwnedCandidateLease }
+  | { ok: false; result: ReleaseCandidateLifecycleResult<never> };
+
+async function createOwnedCandidateLease(
+  input: ValidatedReleaseCandidateInput,
+  adapter: CandidateLifecycleAdapter
+): Promise<CandidateLeaseResult> {
+  let root: string;
+  try {
+    root = resolve(await adapter.createCandidateRoot(input));
   } catch {
-    outcome = lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
+    return { ok: false, result: lifecycleBlocked("CANDIDATE_CREATION_FAILED", "creation") };
+  }
+
+  if (!isPathInside(root, input.tempParent)) {
+    return { ok: false, result: lifecycleBlocked("CANDIDATE_ROOT_NOT_OWNED", "unsafe-isolation") };
   }
 
   try {
-    await filesystem.removeCandidateRoot(candidateRoot);
+    const stats = await adapter.lstat(root);
+    if (!stats.isDirectory()) {
+      return { ok: false, result: lifecycleBlocked("CANDIDATE_ROOT_NOT_OWNED", "unsafe-isolation") };
+    }
+    const canonicalRoot = await adapter.realpath(root);
+    if (!isCandidateRootIsolated(canonicalRoot, input)) {
+      return { ok: false, result: lifecycleBlocked("CANDIDATE_ROOT_NOT_ISOLATED", "unsafe-isolation") };
+    }
+    return {
+      ok: true,
+      value: Object.freeze({
+        [ownedCandidateLeaseBrand]: true as const,
+        root,
+        canonicalRoot,
+        adapter,
+        remove: async () => await adapter.removeCandidateRoot(root)
+      })
+    };
+  } catch {
+    return { ok: false, result: lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation") };
+  }
+}
+
+async function removeOwnedCandidate(
+  lease: OwnedCandidateLease,
+  input: ValidatedReleaseCandidateInput
+): Promise<ReleaseCandidateLifecycleResult<never> | undefined> {
+  try {
+    const stats = await lease.adapter.lstat(lease.root);
+    if (!stats.isDirectory()) {
+      return lifecycleBlocked("CANDIDATE_REMOVAL_UNVERIFIED", "removal");
+    }
+    const currentCanonicalRoot = await lease.adapter.realpath(lease.root);
+    if (
+      currentCanonicalRoot !== lease.canonicalRoot
+      || !isCandidateRootIsolated(currentCanonicalRoot, input)
+    ) {
+      return lifecycleBlocked("CANDIDATE_REMOVAL_UNVERIFIED", "removal");
+    }
+  } catch {
+    return lifecycleBlocked("CANDIDATE_REMOVAL_UNVERIFIED", "removal");
+  }
+
+  try {
+    await lease.remove();
   } catch {
     return lifecycleBlocked("CANDIDATE_REMOVAL_FAILED", "removal");
   }
-  return outcome;
+
+  try {
+    await lease.adapter.lstat(lease.root);
+    return lifecycleBlocked("CANDIDATE_REMOVAL_UNVERIFIED", "removal");
+  } catch (error) {
+    return errorCode(error) === "ENOENT"
+      ? undefined
+      : lifecycleBlocked("CANDIDATE_REMOVAL_UNVERIFIED", "removal");
+  }
 }
 
 function isCandidateRootIsolated(
