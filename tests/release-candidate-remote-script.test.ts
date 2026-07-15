@@ -160,6 +160,44 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).toContain("New-CandidateRoot $dotaRoot $gameAddonRoot $contentAddonRoot");
   });
 
+  test("registers candidate ownership before fallible identity acquisition", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    const createIndex = script.indexOf("[IO.Directory]::CreateDirectory($path)");
+    const registerIndex = script.indexOf("$script:candidateRoot = $path", createIndex);
+    const identityIndex = script.indexOf("Get-WindowsFileIdentity $path", createIndex);
+    expect(createIndex).toBeGreaterThan(0);
+    expect(registerIndex).toBeGreaterThan(createIndex);
+    expect(identityIndex).toBeGreaterThan(registerIndex);
+    expect(script).toContain("$script:candidateCreated = $true");
+    expect(script).toContain("CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE");
+    expect(script).toContain("if ($candidateCreated)");
+  });
+
+  test("re-inventories exact file and directory topology before success", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).toContain("function Assert-SafeSourceDirectory");
+    expect(script).toContain("fileIdentity = Get-WindowsFileIdentity $Root");
+    expect(script).toContain("function Get-InventoryTopology");
+    expect(script).toContain("$finalGameInventory = Get-SourceInventory 'game' $GameRoot");
+    expect(script).toContain("$finalContentInventory = Get-SourceInventory 'content' $ContentRoot");
+    expect(script).toContain("SOURCE_CHANGED_DURING_ASSEMBLY");
+  });
+
+  test("rejects reparse aliases and revalidates canonical isolation identities", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).toContain("function Assert-NoReparseAncestry");
+    expect(script).toContain("Assert-NoReparseAncestry $parent 'TEMP_PARENT_NOT_ISOLATED'");
+    expect(script).toContain("Assert-NoReparseAncestry $DotaRoot 'SOURCE_ENTRY_UNSAFE'");
+    expect(script).toContain("function New-IsolationLease");
+    expect(script).toContain("function Test-IsolationLease");
+    expect(script).toContain("tempIdentity = Get-WindowsFileIdentity $parent");
+    expect(script).toContain("dotaIdentity = Get-WindowsFileIdentity $DotaRoot");
+    expect(script).toContain("Test-IsolationLease $IsolationLease");
+  });
+
   test("has one compact JSON stdout path and suppresses incidental cmdlet output", () => {
     const script = buildRemoteReleaseCandidateScript(input);
 
