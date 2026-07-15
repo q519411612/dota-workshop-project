@@ -188,6 +188,37 @@ describe("production Node release candidate preflight", () => {
     expect(await readdir(fixture.tempParent)).toEqual([]);
   });
 
+  test("runs local Windows contract execution only with a positive reparse-aware classifier", async () => {
+    const fixture = await createReadyFixture();
+    const filesystem = createNodeReleaseCandidateFilesystem({
+      platform: "win32",
+      windowsClassifySourceEntry: async (path) => {
+        const stats = await lstat(path);
+        if (stats.isSymbolicLink()) return "reparse";
+        if (stats.isFile()) return "file";
+        if (stats.isDirectory()) return "directory";
+        return "special";
+      }
+    });
+    const detail = await preflightNodeReleaseCandidate(
+      { target: { kind: "local", dotaRoot: fixture.dotaRoot }, addonName: fixture.addonName },
+      {
+        filesystem,
+        repositoryRoot: fixture.repositoryRoot,
+        tempParent: fixture.tempParent,
+        platform: "win32"
+      }
+    );
+
+    expect(filesystem.reparsePointAware).toBe(true);
+    expect(detail).toMatchObject({
+      ok: true,
+      execution: { kind: "local", outcome: "completed" },
+      cleanup: { status: "verified", absent: true }
+    });
+    expect(await readdir(fixture.tempParent)).toEqual([]);
+  });
+
   test("preserves sources and cleans exactly once after an inspection failure", async () => {
     const fixture = await createReadyFixture();
     let cleanupAttempts = 0;
@@ -282,6 +313,48 @@ describe("production Node release candidate preflight", () => {
     expect(await readdir(fixture.tempParent)).toEqual([]);
   });
 
+  test("cleans once after a candidate hash read failure without mutating sources", async () => {
+    const fixture = await createReadyFixture();
+    const before = await snapshot(fixture.dotaRoot);
+    let cleanupAttempts = 0;
+    let candidateReadFailed = false;
+    const filesystem = createNodeReleaseCandidateFilesystem({
+      platform: "darwin",
+      onCleanupAttempt: () => { cleanupAttempts += 1; },
+      operations: {
+        openFile: async (path, flags) => {
+          if (
+            !candidateReadFailed
+            && path.includes("dota-release-candidate-")
+            && (flags & filesystemConstants.O_WRONLY) === 0
+          ) {
+            candidateReadFailed = true;
+            throw new Error("hash read failed");
+          }
+          return await open(path, flags);
+        }
+      }
+    });
+    const detail = await preflightNodeReleaseCandidate(
+      { target: { kind: "fixture", root: fixture.dotaRoot }, addonName: fixture.addonName },
+      {
+        filesystem,
+        repositoryRoot: fixture.repositoryRoot,
+        tempParent: fixture.tempParent,
+        platform: "darwin"
+      }
+    );
+
+    expect(detail).toMatchObject({
+      ok: false,
+      artifactValidation: { status: "blocked" },
+      cleanup: { attempted: true, attempts: 1, status: "verified", absent: true }
+    });
+    expect(cleanupAttempts).toBe(1);
+    expect(await snapshot(fixture.dotaRoot)).toEqual(before);
+    expect(await readdir(fixture.tempParent)).toEqual([]);
+  });
+
   test("reports cleanup failure truthfully and never masks passed artifact evidence", async () => {
     const fixture = await createReadyFixture();
     const before = await snapshot(fixture.dotaRoot);
@@ -365,5 +438,36 @@ describe("production Node release candidate preflight", () => {
     });
     expect(await snapshot(fixture.dotaRoot)).toEqual(before);
     expect((await readdir(fixture.tempParent)).length).toBe(1);
+  });
+
+  test("rejects an adapter-selected protected root without registering destructive cleanup", async () => {
+    const fixture = await createReadyFixture();
+    const before = await snapshot(fixture.dotaRoot);
+    let cleanupAttempts = 0;
+    const filesystem = createNodeReleaseCandidateFilesystem({
+      platform: "darwin",
+      onCleanupAttempt: () => { cleanupAttempts += 1; },
+      operations: {
+        createTemporaryDirectory: async () => fixture.dotaRoot
+      }
+    });
+    const detail = await preflightNodeReleaseCandidate(
+      { target: { kind: "fixture", root: fixture.dotaRoot }, addonName: fixture.addonName },
+      {
+        filesystem,
+        repositoryRoot: fixture.repositoryRoot,
+        tempParent: fixture.tempParent,
+        platform: "darwin"
+      }
+    );
+
+    expect(cleanupAttempts).toBe(0);
+    expect(detail).toMatchObject({
+      ok: false,
+      operation: { status: "not-reached" },
+      artifactValidation: { status: "not-reached" },
+      cleanup: { attempted: false, attempts: 0, status: "failed", code: "CANDIDATE_CLEANUP_IDENTITY_UNAVAILABLE" }
+    });
+    expect(await snapshot(fixture.dotaRoot)).toEqual(before);
   });
 });
