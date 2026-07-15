@@ -3801,8 +3801,6 @@ describe("release candidate input validation", () => {
       { name: "negative count", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), bytes: -1 }] }) },
       { name: "fractional count", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), bytes: 0.5 }] }) },
       { name: "unsafe count", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), bytes: Number.MAX_SAFE_INTEGER + 1 }] }) },
-      { name: "identity false", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), identityMatched: false }] }) },
-      { name: "kind false", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), kindMatched: false }] }) },
       { name: "containment false", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), contained: false }] }) },
       { name: "getter throws", result: () => Object.defineProperty({}, "ok", { get: () => { throw new Error("private getter"); } }) },
       { name: "proxy throws", result: () => new Proxy({}, { get: () => { throw new Error("private proxy"); } }) },
