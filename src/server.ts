@@ -141,7 +141,7 @@ export function createServer(): McpServer {
     {
       title: "Preflight Release Candidate",
       description: "Assemble, validate, report, and remove one temporary evidence-only release candidate without uploading or retaining it.",
-      inputSchema: PreflightReleaseCandidateInputSchema.shape
+      inputSchema: PreflightReleaseCandidateInputSchema
     },
     async (input) => asToolContent(await handleTool("preflight_release_candidate", input))
   );
