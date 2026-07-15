@@ -925,6 +925,44 @@ describe("release candidate input validation", () => {
     }
   });
 
+  test("fails before creation when identity-bound assembly operations are incomplete", async () => {
+    const fixture = await createFixture();
+    await populateReadyFixture(fixture);
+    const createCandidateLease = vi.fn(async () => {
+      throw new Error("incomplete capability must not create");
+    });
+    const filesystem: ReleaseCandidateFilesystem = {
+      lstat,
+      realpath,
+      readDirectory: async (path) => await readdir(path),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot: vi.fn(async () => {
+        throw new Error("raw candidate creation must not be used");
+      }),
+      candidateLifecycle: createIdentityBoundCandidateLifecycle({
+        createCandidateLease,
+        cleanupCandidateLease: vi.fn(async () => ({
+          ok: true as const,
+          removed: true as const,
+          absent: true as const,
+          identityMatched: true as const
+        }))
+      })
+    };
+
+    const result = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      async () => "unexpected",
+      { repositoryRoot: fixture.repositoryRoot, filesystem }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      blockers: [{ code: "IDENTITY_BOUND_ASSEMBLY_REQUIRED", category: "creation" }]
+    });
+    expect(createCandidateLease).not.toHaveBeenCalled();
+  });
+
   test("keeps the candidate canonically isolated and callback scoped", async () => {
     const createLifecycleFilesystem = (fixture: Fixture, options: {
       aliasCreatedRootTo?: string;
