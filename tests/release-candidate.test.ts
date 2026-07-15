@@ -3999,6 +3999,141 @@ describe("release candidate input validation", () => {
     }
   });
 
+  test("preserves candidate ledger evidence with changed final source hashes", async () => {
+    const fixture = await createFixture();
+    await populateReadyFixture(fixture);
+    const events: string[] = [];
+    const stableMetadata = new Map<string, AcceptedSourceObservationResult>();
+    const observeSourceEntry = createAcceptedSourceObserver();
+    let callbackSettled = false;
+    let candidateCalls = 0;
+    let finalSourceIntegrityRecorded = false;
+    let finalSourceStabilityRecorded = false;
+    const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+      createCandidateLease: async (validated) => {
+        const root = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+        return { inspectionRoot: root, identity: { root } };
+      },
+      cleanupCandidateLease: async (identity) => {
+        events.push("cleanup");
+        await rm(identity.root, { recursive: true, force: false });
+        return { ok: true, removed: true, absent: true, identityMatched: true };
+      },
+      observeAcceptedSourceEntry: async (input, entry) => {
+        if (callbackSettled && !finalSourceStabilityRecorded) {
+          finalSourceStabilityRecorded = true;
+          events.push("final-source-stability");
+        }
+        const cached = stableMetadata.get(entry.path);
+        if (cached !== undefined) return cached;
+        const observed = await observeSourceEntry(input, entry);
+        stableMetadata.set(entry.path, observed);
+        return observed;
+      },
+      observeAcceptedSource: async (input, entry) => {
+        if (callbackSettled && !finalSourceIntegrityRecorded) {
+          finalSourceIntegrityRecorded = true;
+          events.push("final-source-integrity");
+        }
+        const prefix = `${entry.root}/dota_addons/${input.addonName}/`;
+        const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+        return await streamFixtureIntegrity(
+          join(sourceRoot, ...entry.path.slice(prefix.length).split("/")),
+          entry.root,
+          entry.path
+        );
+      },
+      observeCandidate: async (identity, expected) => {
+        candidateCalls += 1;
+        if (callbackSettled) events.push("final-candidate-integrity");
+        const observations = await Promise.all(expected
+          .filter((entry) => entry.kind === "file")
+          .map(async (entry) => {
+            const [root] = entry.path.split("/");
+            return await streamFixtureIntegrity(
+              join(identity.root, ...entry.path.split("/")),
+              root as "game" | "content",
+              entry.path
+            );
+          }));
+        if (candidateCalls === 1) return { ok: true, schemaVersion: "1.0", observations };
+        const first = observations[0];
+        if (first === undefined) throw new Error("candidate fixture has no files");
+        return {
+          ok: true,
+          schemaVersion: "1.0",
+          observations: [
+            first,
+            first,
+            ...observations.slice(1, -1),
+            { ...first, path: "game/dota_addons/fixture_addon/unexpected.bin" }
+          ]
+        };
+      }
+    });
+
+    const result = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      async () => {
+        events.push("callback");
+        await writeFile(join(fixture.gameAddonRoot, "addoninfo.txt"), "changed bytes with stable metadata\n");
+        callbackSettled = true;
+        return "must not survive";
+      },
+      {
+        repositoryRoot: fixture.repositoryRoot,
+        filesystem: {
+          lstat,
+          realpath,
+          readDirectory: async (path) => await readdir(path),
+          classifySourceEntry: classifyFixtureEntry,
+          createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+          candidateLifecycle: lifecycle
+        }
+      }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      inclusionLedger: {
+        schemaVersion: "1.0",
+        expectedFileCount: 7,
+        observedFileCount: 8,
+        matchedFileCount: 5
+      },
+      blockers: [
+        { code: "RELEASE_CANDIDATE_INTEGRITY_MISMATCH", category: "integrity" },
+        {
+          code: "CANDIDATE_LEDGER_DUPLICATE",
+          category: "integrity-duplicate",
+          path: "game/dota_addons/fixture_addon/addoninfo.txt",
+          count: 2
+        },
+        {
+          code: "CANDIDATE_LEDGER_MISSING",
+          category: "integrity-missing",
+          path: "game/dota_addons/fixture_addon/scripts/vscripts/addon_game_mode.lua",
+          count: 0
+        },
+        {
+          code: "CANDIDATE_LEDGER_UNEXPECTED",
+          category: "integrity-unexpected",
+          path: "game/dota_addons/fixture_addon/unexpected.bin",
+          count: 1
+        }
+      ]
+    });
+    expect(events).toEqual([
+      "callback",
+      "final-source-stability",
+      "final-candidate-integrity",
+      "final-source-integrity",
+      "cleanup"
+    ]);
+    expect(candidateCalls).toBe(2);
+    expect(JSON.stringify(result)).not.toContain("manifest");
+  });
+
   test("reconciles final candidate topology after inspection", async () => {
     for (const scenario of [
       { name: "missing empty directory", mutation: "remove", callbackThrows: false },
