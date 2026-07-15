@@ -604,11 +604,19 @@ async function inspectCandidateLease<T>(
   }
 
   try {
-    const stats = await lifecycle.lstat(root);
-    if (!stats.isDirectory()) {
+    const stats = await parseDirectoryAdapterResult(async () => await lifecycle.lstat(root));
+    if (stats === "invalid") {
+      return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
+    }
+    if (stats === "not-directory") {
       return lifecycleBlocked("CANDIDATE_ROOT_NOT_OWNED", "unsafe-isolation");
     }
-    const canonicalRoot = await lifecycle.realpath(root);
+    const canonicalRoot = await parseCanonicalPathAdapterResult(
+      async () => await lifecycle.realpath(root)
+    );
+    if (canonicalRoot === undefined) {
+      return lifecycleBlocked("CANDIDATE_ROOT_UNREADABLE", "unsafe-isolation");
+    }
     if (!isCandidateRootIsolated(canonicalRoot, input)) {
       return lifecycleBlocked("CANDIDATE_ROOT_NOT_ISOLATED", "unsafe-isolation");
     }
@@ -1217,10 +1225,10 @@ type InventoryDirectoryInput = {
 };
 
 async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise<void> {
-  let names: string[];
-  try {
-    names = await input.filesystem.readDirectory(input.sourcePath);
-  } catch {
+  const names = await parseDirectoryNamesAdapterResult(
+    async () => await input.filesystem.readDirectory(input.sourcePath)
+  );
+  if (names === undefined) {
     input.blockers.push({
       code: "SOURCE_ENTRY_UNREADABLE",
       path: input.identity,
@@ -1229,7 +1237,7 @@ async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise
     return;
   }
 
-  for (const name of [...names].sort(compareOrdinal)) {
+  for (const name of names.sort(compareOrdinal)) {
     const identity = safeChildIdentity(input.identity, name);
     const invalidCategory = invalidSourceNameCategory(name);
     if (invalidCategory !== undefined) {
@@ -1260,10 +1268,10 @@ async function inventorySourceDirectory(input: InventoryDirectoryInput): Promise
       continue;
     }
 
-    let canonicalPath: string;
-    try {
-      canonicalPath = await input.filesystem.realpath(sourcePath);
-    } catch {
+    const canonicalPath = await parseCanonicalPathAdapterResult(
+      async () => await input.filesystem.realpath(sourcePath)
+    );
+    if (canonicalPath === undefined) {
       input.blockers.push({
         code: "SOURCE_ENTRY_UNREADABLE",
         path: identity,
@@ -1384,23 +1392,79 @@ async function validateDirectory(
   }
 
   const path = resolve(value);
-  let stats: Pick<Stats, "isDirectory">;
-  try {
-    stats = await filesystem.lstat(path);
-  } catch (error) {
-    const category = errorCode(error) === "ENOENT" ? "missing" : "unreadable";
+  let lstatFailure: unknown;
+  const stats = await parseDirectoryAdapterResult(
+    async () => await filesystem.lstat(path),
+    (error) => { lstatFailure = error; }
+  );
+  if (stats === "invalid") {
+    const category = errorCode(lstatFailure) === "ENOENT" ? "missing" : "unreadable";
     const suffix = category === "missing" ? "MISSING" : "UNREADABLE";
     return { ok: false, result: blocked(`${codePrefix}_${suffix}`, field, category) };
   }
-
-  if (!stats.isDirectory()) {
+  if (stats === "not-directory") {
     return { ok: false, result: blocked(`${codePrefix}_NOT_DIRECTORY`, field, "not-directory") };
   }
 
-  try {
-    return { ok: true, path: await filesystem.realpath(path) };
-  } catch {
+  const canonicalPath = await parseCanonicalPathAdapterResult(
+    async () => await filesystem.realpath(path)
+  );
+  if (canonicalPath === undefined) {
     return { ok: false, result: blocked(`${codePrefix}_UNREADABLE`, field, "unreadable") };
+  }
+  return { ok: true, path: canonicalPath };
+}
+
+type DirectoryAdapterResult = "directory" | "not-directory" | "invalid";
+
+async function parseDirectoryAdapterResult(
+  acquire: () => Promise<unknown>,
+  onFailure?: (error: unknown) => void
+): Promise<DirectoryAdapterResult> {
+  try {
+    const result = await acquire();
+    if ((typeof result !== "object" && typeof result !== "function") || result === null) return "invalid";
+    const predicate = Reflect.get(result, "isDirectory");
+    if (typeof predicate !== "function") return "invalid";
+    const directory = Reflect.apply(predicate, result, []);
+    if (typeof directory !== "boolean") return "invalid";
+    return directory ? "directory" : "not-directory";
+  } catch (error) {
+    onFailure?.(error);
+    return "invalid";
+  }
+}
+
+async function parseCanonicalPathAdapterResult(
+  acquire: () => Promise<unknown>
+): Promise<string | undefined> {
+  try {
+    const result = await acquire();
+    if (typeof result !== "string" || result.trim() === "" || !isAbsolute(result)) return undefined;
+    return result;
+  } catch {
+    return undefined;
+  }
+}
+
+async function parseDirectoryNamesAdapterResult(
+  acquire: () => Promise<unknown>
+): Promise<string[] | undefined> {
+  try {
+    const result = await acquire();
+    if (!Array.isArray(result)) return undefined;
+    if (Reflect.get(result, Symbol.iterator) !== Array.prototype[Symbol.iterator]) return undefined;
+    const length = Reflect.get(result, "length");
+    if (!Number.isSafeInteger(length) || length < 0) return undefined;
+    const names: string[] = [];
+    for (let index = 0; index < length; index += 1) {
+      const name = Reflect.get(result, String(index));
+      if (typeof name !== "string") return undefined;
+      names.push(name);
+    }
+    return names;
+  } catch {
+    return undefined;
   }
 }
 
@@ -1413,8 +1477,13 @@ function blocked(
 }
 
 function errorCode(error: unknown): string | undefined {
-  if (error === null || typeof error !== "object" || !("code" in error)) return undefined;
-  return typeof error.code === "string" ? error.code : undefined;
+  try {
+    if (error === null || (typeof error !== "object" && typeof error !== "function")) return undefined;
+    const code = Reflect.get(error, "code");
+    return typeof code === "string" ? code : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function isPathAtOrInside(child: string, parent: string): boolean {

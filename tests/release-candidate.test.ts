@@ -1951,6 +1951,156 @@ describe("release candidate input validation", () => {
     }
   });
 
+  test("normalizes hostile filesystem results at preparation boundaries", async () => {
+    const scenarios: Array<Readonly<{
+      name: string;
+      lstatResult?: unknown;
+      realpathResult?: unknown;
+    }>> = [
+      {
+        name: "throwing directory predicate getter",
+        lstatResult: Object.defineProperty({}, "isDirectory", {
+          get: () => { throw new Error(credentialPasswordFixture("predicate-getter")); }
+        })
+      },
+      { name: "non-callable directory predicate", lstatResult: { isDirectory: true } },
+      { name: "non-boolean directory predicate", lstatResult: { isDirectory: () => "yes" } },
+      { name: "empty canonical path", realpathResult: "" },
+      { name: "relative canonical path", realpathResult: credentialPasswordFixture("relative-realpath") }
+    ];
+
+    for (const scenario of scenarios) {
+      const fixture = await createFixture();
+      const privateValue = credentialPasswordFixture("private-adapter-value");
+      const filesystem: ReleaseCandidateFilesystem = {
+        lstat: vi.fn(async (path) => (
+          path === fixture.dotaRoot && scenario.lstatResult !== undefined
+            ? scenario.lstatResult as Awaited<ReturnType<ReleaseCandidateFilesystem["lstat"]>>
+            : await lstat(path)
+        )),
+        realpath: vi.fn(async (path) => (
+          path === fixture.dotaRoot && scenario.realpathResult !== undefined
+            ? scenario.realpathResult as string
+            : await realpath(path)
+        )),
+        readDirectory: async (path) => await readdir(path),
+        classifySourceEntry: classifyFixtureEntry,
+        createCandidateRoot: vi.fn(async () => { throw new Error(privateValue); })
+      };
+
+      const result = await prepareReleaseCandidateInput(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+
+      expect(result, scenario.name).toEqual({
+        ok: false,
+        blockers: [{ code: "DOTA_ROOT_UNREADABLE", field: "dotaRoot", category: "unreadable" }]
+      });
+      expect(JSON.stringify(result), scenario.name).not.toContain(privateValue);
+      expect(JSON.stringify(result), scenario.name).not.toContain("relative-realpath");
+    }
+  });
+
+  test("normalizes hostile filesystem results at inventory and lifecycle boundaries", async () => {
+    const inventoryScenarios: Array<Readonly<{ name: string; names?: unknown; canonical?: unknown }>> = [
+      { name: "malformed directory array", names: ["safe.txt", 7] },
+      {
+        name: "throwing directory index getter",
+        names: Object.defineProperty(["safe.txt"], "0", {
+          get: () => { throw new Error(credentialPasswordFixture("index-getter")); }
+        })
+      },
+      {
+        name: "throwing directory iterator",
+        names: Object.defineProperty(["safe.txt"], Symbol.iterator, {
+          get: () => { throw new Error(credentialPasswordFixture("iterator-getter")); }
+        })
+      },
+      { name: "empty entry canonical path", names: ["safe.txt"], canonical: "" },
+      { name: "relative entry canonical path", names: ["safe.txt"], canonical: "relative/private" }
+    ];
+
+    for (const scenario of inventoryScenarios) {
+      const fixture = await createFixture();
+      const createCandidateRoot = vi.fn(async () => join(fixture.tempParent, "candidate"));
+      const filesystem: ReleaseCandidateFilesystem = {
+        lstat,
+        realpath: vi.fn(async (path) => (
+          path.endsWith("/game/dota_addons/fixture_addon/safe.txt") && scenario.canonical !== undefined
+            ? scenario.canonical as string
+            : await realpath(path)
+        )),
+        readDirectory: vi.fn(async (path) => (
+          path.endsWith("/game/dota_addons/fixture_addon") && scenario.names !== undefined
+            ? scenario.names as string[]
+            : []
+        )),
+        classifySourceEntry: async () => "file",
+        createCandidateRoot
+      };
+      const prepared = await prepareReleaseCandidateInput(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+      expect(prepared.ok, scenario.name).toBe(true);
+      if (!prepared.ok) throw new Error("hostile inventory fixture input was rejected");
+
+      const result = await inventoryReleaseCandidateSources(prepared.value);
+
+      expect(result, scenario.name).toEqual({
+        ok: false,
+        blockers: [{
+          code: "SOURCE_ENTRY_UNREADABLE",
+          path: scenario.canonical === undefined
+            ? "game/dota_addons/fixture_addon"
+            : "game/dota_addons/fixture_addon/safe.txt",
+          category: "unreadable"
+        }]
+      });
+      expect(createCandidateRoot, scenario.name).not.toHaveBeenCalled();
+      expect(JSON.stringify(result), scenario.name).not.toContain("private");
+    }
+
+    const fixture = await createFixture();
+    await populateReadyFixture(fixture);
+    const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+      createCandidateLease: async (validated) => {
+        const root = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+        return { inspectionRoot: root, identity: { root } };
+      },
+      cleanupCandidateLease: async (identity) => {
+        await rm(identity.root, { recursive: true, force: false });
+        return { ok: true, removed: true, absent: true, identityMatched: true };
+      }
+    });
+    const filesystem: ReleaseCandidateFilesystem = {
+      lstat: vi.fn(async (path) => {
+        if (path.includes("dota-release-candidate-")) {
+          return Object.defineProperty({}, "isDirectory", {
+            get: () => { throw new Error(credentialPasswordFixture("lifecycle-getter")); }
+          }) as Awaited<ReturnType<ReleaseCandidateFilesystem["lstat"]>>;
+        }
+        return await lstat(path);
+      }),
+      realpath,
+      readDirectory: async (path) => await readdir(path),
+      classifySourceEntry: classifyFixtureEntry,
+      createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+      candidateLifecycle: lifecycle
+    };
+    const result = await withAssembledReleaseCandidate(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      async () => "must not inspect",
+      { repositoryRoot: fixture.repositoryRoot, filesystem }
+    );
+    expect(result).toEqual({
+      ok: false,
+      blockers: [{ code: "CANDIDATE_ROOT_UNREADABLE", category: "unsafe-isolation" }]
+    });
+    expect(JSON.stringify(result)).not.toContain("lifecycle-getter");
+  });
+
   test("requires a validated handle before candidate continuation", async () => {
     type RawValidatedInput = Readonly<{
       addonName: string;
