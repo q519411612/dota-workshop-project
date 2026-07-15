@@ -3245,6 +3245,56 @@ describe("release candidate input validation", () => {
     }
   });
 
+  test("keeps large-file stability metadata-only while streaming integrity bytes", async () => {
+    const fixture = await createFixture();
+    const largePath = join(fixture.contentAddonRoot, "materials", "large-stability.bin");
+    const largeBytes = Buffer.alloc(1024 * 1024 + 17, 0x5a);
+    await mkdir(join(largePath, ".."), { recursive: true });
+    await writeFile(largePath, largeBytes);
+    const entry = {
+      root: "content" as const,
+      path: "content/dota_addons/fixture_addon/materials/large-stability.bin",
+      kind: "file" as const
+    };
+    const prepared = await prepareReleaseCandidateInput(
+      { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+      {
+        repositoryRoot: fixture.repositoryRoot,
+        filesystem: {
+          lstat,
+          realpath,
+          readDirectory: async (path) => await readdir(path),
+          classifySourceEntry: classifyFixtureEntry,
+          createCandidateRoot: vi.fn(async () => { throw new Error("candidate creation is forbidden"); })
+        }
+      }
+    );
+    if (!prepared.ok) throw new Error("large stability fixture input was rejected");
+
+    const stability = await createAcceptedSourceObserver()(prepared.value, entry);
+    expect(stability).toMatchObject({
+      ok: true,
+      kind: "file",
+      size: largeBytes.byteLength,
+      identityMatched: true,
+      contained: true
+    });
+    expect(Reflect.has(stability, "bytes")).toBe(false);
+
+    const integrity = await streamFixtureIntegrity(
+      largePath,
+      "content",
+      entry.path,
+      [1, 63, 64, 65, 4096, 64 * 1024]
+    );
+    expect(integrity).toMatchObject({
+      ok: true,
+      bytes: largeBytes.byteLength,
+      sha256: createHash("sha256").update(largeBytes).digest("hex")
+    });
+    expect(Reflect.has(integrity, "content")).toBe(false);
+  });
+
   test("reobserves triple integrity after inspection before cleanup", async () => {
     for (const scenario of [
       { name: "success", mutation: "none", callbackThrows: false, expectedCode: undefined },
