@@ -7,6 +7,7 @@ import {
 import {
   normalizeReleaseCandidateDetail,
   RELEASE_CANDIDATE_BOUNDARIES,
+  RELEASE_CANDIDATE_CONTRACT_WARNING,
   type ReleaseCandidateDetail,
   type ValidReleaseCandidateDetail
 } from "./release-candidate-result.js";
@@ -121,7 +122,7 @@ function precreationDetail(
       contentAddon: `content/dota_addons/${safeAddonName}`
     },
     execution: { kind: transport, outcome: "failed" },
-    warnings: ["contract evidence only"],
+    warnings: [RELEASE_CANDIDATE_CONTRACT_WARNING],
     commands: [],
     logs: [],
     boundaries: RELEASE_CANDIDATE_BOUNDARIES
@@ -211,7 +212,7 @@ function uncertainDetail(
       outcome: "uncertain",
       ...(exitCode === undefined ? {} : { exitCode })
     },
-    warnings: ["contract evidence only"],
+    warnings: [RELEASE_CANDIDATE_CONTRACT_WARNING],
     commands: [{
       description: commandDescription(transport),
       outcome: exitCode === undefined ? "uncertain" : "failed",

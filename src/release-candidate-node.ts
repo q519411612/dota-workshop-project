@@ -35,6 +35,7 @@ import type { ReleaseScanCoverage } from "./release-readiness.js";
 import {
   normalizeReleaseCandidateDetail,
   RELEASE_CANDIDATE_BOUNDARIES,
+  RELEASE_CANDIDATE_CONTRACT_WARNING,
   type ReleaseCandidateDetail
 } from "./release-candidate-result.js";
 import { isReleaseTextPath } from "./release-readiness.js";
@@ -254,7 +255,7 @@ function projectLifecycleDetail(
       kind: executionKind,
       outcome: lifecycle.ok ? "completed" : "failed"
     },
-    warnings: ["contract evidence only; real Windows runtime behavior is not proven"],
+    warnings: [RELEASE_CANDIDATE_CONTRACT_WARNING],
     commands: [{
       description: `${executionKind} release candidate preflight`,
       outcome: lifecycle.ok ? "completed" : "failed"

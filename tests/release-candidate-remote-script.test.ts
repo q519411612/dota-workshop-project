@@ -32,6 +32,8 @@ describe("remote release candidate PowerShell lifecycle", () => {
       releaseMetadataKeys: RELEASE_METADATA_KEYS,
       sensitiveMaterialRules: RELEASE_SENSITIVE_MATERIAL_RULES,
       boundaries: RELEASE_CANDIDATE_BOUNDARIES,
+      precreationArtifactStatus: "not-reached",
+      contractEvidenceWarning: "contract evidence only; real Windows runtime behavior is not proven",
       canonicalVector: {
         value: canonicalValue,
         sha256: createHash("sha256").update(JSON.stringify(canonicalValue), "utf8").digest("hex")
@@ -219,7 +221,7 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(manifestIndex).toBeGreaterThan(candidateFinalIndex);
     expect(script).toContain("Assert-CandidateLedger $script:allFiles $finalEntries");
     expect(script).toContain("Get-CanonicalManifestDigest $finalEntries");
-    expect(script).not.toContain("$entries += [ordered]@");
+    expect(script).not.toContain("$entries = @(); foreach ($file in $script:allFiles)");
   });
 
   test("embeds and uses the shared precreation and warning contract", () => {

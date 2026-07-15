@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { executeRemoteReleaseCandidateScript } from "./release-candidate-remote-executor.js";
-import { normalizeReleaseCandidateDetail, RELEASE_CANDIDATE_BOUNDARIES } from "./release-candidate-result.js";
+import { normalizeReleaseCandidateDetail, RELEASE_CANDIDATE_BOUNDARIES, RELEASE_CANDIDATE_CONTRACT_WARNING } from "./release-candidate-result.js";
 import { createFailureResult, createSuccessResult } from "./result.js";
 const OPERATION = "preflight_release_candidate";
 export async function preflightRemoteReleaseCandidate(input) {
@@ -79,7 +79,7 @@ function precreationDetail(transport, addonName, code) {
             contentAddon: `content/dota_addons/${safeAddonName}`
         },
         execution: { kind: transport, outcome: "failed" },
-        warnings: ["contract evidence only"],
+        warnings: [RELEASE_CANDIDATE_CONTRACT_WARNING],
         commands: [],
         logs: [],
         boundaries: RELEASE_CANDIDATE_BOUNDARIES
@@ -163,7 +163,7 @@ function uncertainDetail(transport, exitCode) {
             outcome: "uncertain",
             ...(exitCode === undefined ? {} : { exitCode })
         },
-        warnings: ["contract evidence only"],
+        warnings: [RELEASE_CANDIDATE_CONTRACT_WARNING],
         commands: [{
                 description: commandDescription(transport),
                 outcome: exitCode === undefined ? "uncertain" : "failed",

@@ -299,6 +299,8 @@ const BOUNDARY_KEYS = [
   "realWindowsRuntimeProven"
 ] as const;
 
+export const RELEASE_CANDIDATE_CONTRACT_WARNING = "contract evidence only; real Windows runtime behavior is not proven";
+
 export const RELEASE_CANDIDATE_BOUNDARIES: ReleaseCandidateBoundaryDetail = Object.freeze({
   steamLogin: false,
   workshopCreate: false,

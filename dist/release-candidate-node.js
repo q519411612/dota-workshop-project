@@ -4,7 +4,7 @@ import { lstat, mkdir, mkdtemp, open, readdir, realpath, rm } from "node:fs/prom
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createIdentityBoundCandidateLifecycle, observeIdentityBoundIntegrityStream, withAssembledReleaseCandidate } from "./release-candidate.js";
-import { normalizeReleaseCandidateDetail, RELEASE_CANDIDATE_BOUNDARIES } from "./release-candidate-result.js";
+import { normalizeReleaseCandidateDetail, RELEASE_CANDIDATE_BOUNDARIES, RELEASE_CANDIDATE_CONTRACT_WARNING } from "./release-candidate-result.js";
 import { isReleaseTextPath } from "./release-readiness.js";
 const DEFAULT_OPERATIONS = Object.freeze({
     lstat,
@@ -133,7 +133,7 @@ function projectLifecycleDetail(input, lifecycle) {
             kind: executionKind,
             outcome: lifecycle.ok ? "completed" : "failed"
         },
-        warnings: ["contract evidence only; real Windows runtime behavior is not proven"],
+        warnings: [RELEASE_CANDIDATE_CONTRACT_WARNING],
         commands: [{
                 description: `${executionKind} release candidate preflight`,
                 outcome: lifecycle.ok ? "completed" : "failed"
