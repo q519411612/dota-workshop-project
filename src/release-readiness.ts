@@ -158,15 +158,13 @@ function appendScanFindings(
   file: ReleaseReadinessInput["scanRoots"][number]["files"][number]
 ): void {
   if (file.state === "text") {
-    for (const secret of SECRET_PATTERNS) {
-      if (secret.pattern.test(file.content)) {
-        findings.push({
-          code: "SENSITIVE_MATERIAL",
-          category: secret.category,
-          disposition: "blocker",
-          ...findingPath(file.relativePath)
-        });
-      }
+    for (const category of sensitiveCategories(file.content)) {
+      findings.push({
+        code: "SENSITIVE_MATERIAL",
+        category,
+        disposition: "blocker",
+        ...findingPath(file.relativePath)
+      });
     }
     return;
   }
@@ -204,11 +202,20 @@ function findingPath(path: string): { path: string } | Record<string, never> {
   if (path.includes("\\") || path.split("/").some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
     return {};
   }
-  return { path };
+  return {
+    path: path
+      .split("/")
+      .map((segment) => (sensitiveCategories(segment).length > 0 ? "[redacted]" : segment))
+      .join("/")
+  };
 }
 
 function findingField(field: string, allowed: ReadonlySet<string>): { field: string } | Record<string, never> {
   return allowed.has(field) ? { field } : {};
+}
+
+function sensitiveCategories(value: string): string[] {
+  return SECRET_PATTERNS.filter(({ pattern }) => pattern.test(value)).map(({ category }) => category);
 }
 
 function parseAddonInfo(content: string): Map<string, string> {

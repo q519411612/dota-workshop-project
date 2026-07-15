@@ -99,4 +99,46 @@ describe("release readiness policy", () => {
     expect(JSON.stringify(findings)).not.toContain(tokenShapedLabel);
     expect(JSON.stringify(findings)).not.toContain(privateScanRoot);
   });
+
+  test("redacts credential-bearing metadata paths and unsafe required identities", () => {
+    const credential = ["ghp", "12345678901234567890"].join("_");
+    const findings = evaluateReleaseReadiness({
+      requiredPaths: [{ label: `addon ${credential}`, present: false }],
+      metadata: { state: "unreadable", path: `metadata/${credential}.txt` },
+      scanRoots: []
+    });
+
+    expect(findings).toEqual([
+      { code: "REQUIRED_PATH_MISSING", category: "required-structure", disposition: "blocker" },
+      {
+        code: "REQUIRED_TEXT_UNREADABLE",
+        category: "unreadable-required-text",
+        disposition: "blocker",
+        path: "metadata/[redacted]"
+      }
+    ]);
+    expect(JSON.stringify(findings)).not.toContain(credential);
+  });
+
+  test("redacts credential-bearing scanned-file path segments", () => {
+    const credential = ["ghp", "12345678901234567890"].join("_");
+    const findings = evaluateReleaseReadiness({
+      requiredPaths: [],
+      metadata: { state: "missing" },
+      scanRoots: [
+        {
+          root: "game",
+          files: [{ relativePath: `scripts/${credential}.lua`, state: "non-text" }]
+        }
+      ]
+    });
+
+    expect(findings.at(-2)).toEqual({
+      code: "NON_TEXT_INCLUDED",
+      category: "non-text",
+      disposition: "warning",
+      path: "scripts/[redacted]"
+    });
+    expect(JSON.stringify(findings)).not.toContain(credential);
+  });
 });
