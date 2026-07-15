@@ -9,17 +9,17 @@
 ### MCP Contract and Boundaries
 
 - [ ] **RCOP-01**: An AI agent can invoke a dedicated `preflight_release_candidate` MCP operation with a validated addon name through fixture, local Windows, SSH Windows, or PowerShell Remoting targets without changing `dry_run_release_report` behavior.
-- [ ] **RCOP-02**: An AI agent receives explicit input and source-root blockers before any temporary candidate directory is created when the addon name, target root, game addon root, or content addon root is invalid or missing.
+- [x] **RCOP-02**: An AI agent receives explicit input and source-root blockers before any temporary candidate directory is created when the addon name, target root, game addon root, or content addon root is invalid or missing.
 - [ ] **RCOP-03**: An AI agent receives versioned machine-readable manifest, validation, blocker, path, command, log, warning, and cleanup details in the common MCP result envelope.
 - [ ] **RCOP-04**: An AI agent receives explicit evidence that candidate preflight performed no Steam login, Workshop item creation or mutation, upload, archive creation, signing, encryption, game launch, or runtime validation, and the operation schema exposes no credential fields.
 
 ### Candidate Assembly and Filesystem Safety
 
-- [ ] **RCFS-01**: An AI agent can assemble a candidate only under a target-local temporary directory whose canonical path is outside the Dota root, both source addon roots, and the project repository.
-- [ ] **RCFS-02**: An AI agent receives a candidate layout preserving `game/dota_addons/<addon>` and `content/dota_addons/<addon>` with every regular source file and empty directory included without ignore-file, extension, timestamp, or hidden-file heuristics.
-- [ ] **RCFS-03**: An AI agent receives explicit relative-path blockers for symbolic links, junctions, other Windows reparse points, special or unknown filesystem entries, root escapes, absolute candidate paths, parent traversal, or case-folded path collisions, with no dereference or repair.
-- [ ] **RCFS-04**: An AI agent receives the existing required-structure, addon metadata, placeholder-value, and redacted sensitive-material blockers through shared policy that remains consistent with existing release preflight behavior.
-- [ ] **RCFS-05**: An AI agent receives an explicit source-changed failure if either addon source tree changes during assembly, and the operation never writes to or repairs either source tree.
+- [x] **RCFS-01**: An AI agent can assemble a candidate only under a target-local temporary directory whose canonical path is outside the Dota root, both source addon roots, and the project repository.
+- [x] **RCFS-02**: An AI agent receives a candidate layout preserving `game/dota_addons/<addon>` and `content/dota_addons/<addon>` with every regular source file and empty directory included without ignore-file, extension, timestamp, or hidden-file heuristics.
+- [x] **RCFS-03**: An AI agent receives explicit relative-path blockers for symbolic links, junctions, other Windows reparse points, special or unknown filesystem entries, root escapes, absolute candidate paths, parent traversal, or case-folded path collisions, with no dereference or repair.
+- [x] **RCFS-04**: An AI agent receives the existing required-structure, addon metadata, placeholder-value, and redacted sensitive-material blockers through shared policy that remains consistent with existing release preflight behavior.
+- [x] **RCFS-05**: An AI agent receives an explicit source-changed failure if either addon source tree changes during assembly, and the operation never writes to or repairs either source tree.
 
 ### Integrity Manifest and Audit Evidence
 
@@ -66,14 +66,14 @@ Traceability is populated during roadmap creation. Each v1.14 requirement must m
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | RCOP-01 | Phase 5 | Pending |
-| RCOP-02 | Phase 3 | Pending |
+| RCOP-02 | Phase 3 | Complete |
 | RCOP-03 | Phase 5 | Pending |
 | RCOP-04 | Phase 5 | Pending |
-| RCFS-01 | Phase 3 | Pending |
-| RCFS-02 | Phase 3 | Pending |
-| RCFS-03 | Phase 3 | Pending |
-| RCFS-04 | Phase 3 | Pending |
-| RCFS-05 | Phase 3 | Pending |
+| RCFS-01 | Phase 3 | Complete |
+| RCFS-02 | Phase 3 | Complete |
+| RCFS-03 | Phase 3 | Complete |
+| RCFS-04 | Phase 3 | Complete |
+| RCFS-05 | Phase 3 | Complete |
 | RCIN-01 | Phase 4 | Pending |
 | RCIN-02 | Phase 4 | Pending |
 | RCIN-03 | Phase 4 | Pending |
@@ -86,6 +86,7 @@ Traceability is populated during roadmap creation. Each v1.14 requirement must m
 | RCCL-05 | Phase 5 | Pending |
 
 **Coverage:**
+
 - v1.14 requirements: 19 total
 - Mapped to phases: 19
 - Unmapped: 0
