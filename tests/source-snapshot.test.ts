@@ -81,6 +81,8 @@ describe("source snapshot manifest dry run", () => {
     await rm(join(root, ".planning/REQUIREMENTS.md"));
     await mkdir(join(root, ".planning/milestones/v1.14-phases/03-safe-candidate-assembly"), { recursive: true });
     await writeFile(join(root, ".planning/milestones/v1.14-REQUIREMENTS.md"), "# Archived Requirements\n");
+    await writeFile(join(root, ".planning/milestones/v1.14-ROADMAP.md"), "# Archived Roadmap\n");
+    await writeFile(join(root, ".planning/milestones/v1.14-MILESTONE-AUDIT.md"), "# Archived Audit\n");
     await writeFile(
       join(root, ".planning/milestones/v1.14-phases/03-safe-candidate-assembly/03-SUMMARY.md"),
       "# Archived Phase Summary\n"
@@ -95,11 +97,64 @@ describe("source snapshot manifest dry run", () => {
 
     expect(result.ok).toBe(true);
     expect(paths).toContain(".planning/milestones/v1.14-REQUIREMENTS.md");
+    expect(paths).toContain(".planning/milestones/v1.14-ROADMAP.md");
+    expect(paths).toContain(".planning/milestones/v1.14-MILESTONE-AUDIT.md");
     expect(paths).toContain(".planning/milestones/v1.14-phases/03-safe-candidate-assembly/03-SUMMARY.md");
     expect(result.manifest.blockers).not.toContainEqual(expect.objectContaining({
       code: "REQUIRED_SOURCE_PATH_MISSING",
       path: ".planning/REQUIREMENTS.md"
     }));
+  });
+
+  test.each([
+    "v1.14-ROADMAP.md",
+    "v1.14-MILESTONE-AUDIT.md",
+    "v1.14-phases"
+  ])("blocks incomplete archived planning source when %s is absent", async (missingPath) => {
+    await rm(join(root, ".planning/REQUIREMENTS.md"));
+    await mkdir(join(root, ".planning/milestones/v1.14-phases"), { recursive: true });
+    await writeFile(join(root, ".planning/milestones/v1.14-REQUIREMENTS.md"), "# Archived Requirements\n");
+    await writeFile(join(root, ".planning/milestones/v1.14-ROADMAP.md"), "# Archived Roadmap\n");
+    await writeFile(join(root, ".planning/milestones/v1.14-MILESTONE-AUDIT.md"), "# Archived Audit\n");
+    await rm(join(root, `.planning/milestones/${missingPath}`), { recursive: true, force: true });
+
+    const result = await generateSourceSnapshotManifest({
+      root,
+      generatedAt: FIXED_TIME,
+      commit: FIXED_COMMIT
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.manifest.blockers).toContainEqual({
+      code: "REQUIRED_SOURCE_PATH_MISSING",
+      path: `.planning/milestones/${missingPath}`,
+      field: "files",
+      category: "source coverage"
+    });
+  });
+
+  test("blocks an active requirements directory instead of falling back to an archive", async () => {
+    await rm(join(root, ".planning/REQUIREMENTS.md"));
+    await mkdir(join(root, ".planning/REQUIREMENTS.md"));
+    await mkdir(join(root, ".planning/milestones/v1.14-phases"), { recursive: true });
+    await writeFile(join(root, ".planning/milestones/v1.14-REQUIREMENTS.md"), "# Archived Requirements\n");
+    await writeFile(join(root, ".planning/milestones/v1.14-ROADMAP.md"), "# Archived Roadmap\n");
+    await writeFile(join(root, ".planning/milestones/v1.14-MILESTONE-AUDIT.md"), "# Archived Audit\n");
+
+    const result = await generateSourceSnapshotManifest({
+      root,
+      generatedAt: FIXED_TIME,
+      commit: FIXED_COMMIT
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.manifest.blockers).toContainEqual({
+      code: "REQUIRED_SOURCE_PATH_INVALID",
+      path: ".planning/REQUIREMENTS.md",
+      field: "files",
+      category: "source coverage"
+    });
+    expect(result.manifest.files.some((file) => file.path.includes("v1.14"))).toBe(false);
   });
 
   test("blocks requirements coverage when active and archived sources are both absent", async () => {
@@ -130,6 +185,8 @@ describe("source snapshot manifest dry run", () => {
       `legacy path: ${["", "Users", "private", "legacy"].join("/")}\n`
     );
     await writeFile(join(root, ".planning/milestones/v1.14-REQUIREMENTS.md"), "# Current Requirements\n");
+    await writeFile(join(root, ".planning/milestones/v1.14-ROADMAP.md"), "# Current Roadmap\n");
+    await writeFile(join(root, ".planning/milestones/v1.14-MILESTONE-AUDIT.md"), "# Current Audit\n");
     await writeFile(join(root, ".planning/milestones/v1.14-phases/03-current/03-SUMMARY.md"), "# Current Summary\n");
 
     const result = await generateSourceSnapshotManifest({
