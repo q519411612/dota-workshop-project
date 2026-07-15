@@ -8,6 +8,7 @@ import {
   inventoryReleaseCandidateSources,
   prepareReleaseCandidateInput,
   withAssembledReleaseCandidate,
+  type IdentityBoundCandidateLifecycle,
   type ReleaseCandidateEntryKind,
   type ReleaseCandidateFilesystem,
   type ValidatedReleaseCandidateInput
@@ -439,6 +440,39 @@ describe("release candidate input validation", () => {
       blockers: [{ code: "IDENTITY_BOUND_CLEANUP_REQUIRED", category: "creation" }]
     });
     expect(unmarkedCreate).not.toHaveBeenCalled();
+
+    const forgedCreate = vi.fn(async () => {
+      throw new Error("forged lifecycle must not create");
+    });
+    const forgedCleanup = vi.fn(async () => ({
+      ok: true as const,
+      removed: true as const,
+      absent: true as const,
+      identityMatched: true as const
+    }));
+    const forgedFilesystem: ReleaseCandidateFilesystem = {
+      ...unmarkedFilesystem,
+      candidateLifecycle: {
+        identityBoundCleanup: true,
+        createCandidateLease: forgedCreate,
+        cleanupCandidateLease: forgedCleanup
+      } as unknown as IdentityBoundCandidateLifecycle
+    };
+    const forgedResult = await withAssembledReleaseCandidate(
+      {
+        addonName: "fixture_addon",
+        dotaRoot: unmarkedFixture.dotaRoot,
+        tempParent: unmarkedFixture.tempParent
+      },
+      async () => "unexpected",
+      { repositoryRoot: unmarkedFixture.repositoryRoot, filesystem: forgedFilesystem }
+    );
+    expect(forgedResult).toEqual({
+      ok: false,
+      blockers: [{ code: "IDENTITY_BOUND_CLEANUP_REQUIRED", category: "creation" }]
+    });
+    expect(forgedCreate).not.toHaveBeenCalled();
+    expect(forgedCleanup).not.toHaveBeenCalled();
   });
 
   test("blocks invalid inputs before candidate creation", async () => {
