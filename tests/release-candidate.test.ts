@@ -13,7 +13,7 @@ import {
   writeFile
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { constants as filesystemConstants } from "node:fs";
 import { afterEach, describe, expect, expectTypeOf, test, vi } from "vitest";
 import {
@@ -23,6 +23,12 @@ import {
   prepareReleaseCandidateInput,
   withAssembledReleaseCandidate,
   type CandidateLeaseCleanupResult,
+  type CandidateExpectedEntry,
+  type CandidateMaterializationOperation,
+  type CandidateMaterializationResult,
+  type CandidateRootInspectionResult,
+  type CandidateTreeReconciliationResult,
+  type AcceptedSourceReadResult,
   type IdentityBoundCandidateLifecycle,
   type ReleaseCandidateEntryKind,
   type ReleaseCandidateFilesystem,
@@ -118,8 +124,8 @@ function createNoFollowSourceReader() {
       try {
         const info = await handle.stat();
         if (!info.isFile()) return { ok: false as const, code: "SOURCE_FILE_IDENTITY_CHANGED" as const };
-        if (info.size > maxBytes) return { ok: true as const, state: "oversized" as const, size: info.size };
-        return { ok: true as const, state: "readable" as const, size: info.size, content: await handle.readFile("utf8") };
+        if (info.size > maxBytes) return { ok: true as const, state: "oversized" as const, size: info.size, identityMatched: true as const, kindMatched: true as const, contained: true as const };
+        return { ok: true as const, state: "readable" as const, size: info.size, content: await handle.readFile("utf8"), identityMatched: true as const, kindMatched: true as const, contained: true as const };
       } finally {
         await handle.close();
       }
@@ -127,6 +133,127 @@ function createNoFollowSourceReader() {
       return { ok: false as const, code: "SOURCE_FILE_IDENTITY_CHANGED" as const };
     }
   };
+}
+
+function createFixtureIdentityBoundCandidateLifecycle<TIdentity extends object>(operations: {
+  createCandidateLease(input: ValidatedReleaseCandidateInput): Promise<{ inspectionRoot: string; identity: TIdentity }>;
+  cleanupCandidateLease(identity: TIdentity): Promise<CandidateLeaseCleanupResult>;
+  readAcceptedSourceFile?(input: ValidatedReleaseCandidateInput, entry: Parameters<ReturnType<typeof createNoFollowSourceReader>>[1], maxBytes: number): Promise<AcceptedSourceReadResult>;
+  inspectCandidateRoot?(identity: TIdentity): Promise<CandidateRootInspectionResult>;
+  materializeCandidateEntry?(identity: TIdentity, input: ValidatedReleaseCandidateInput, operation: CandidateMaterializationOperation): Promise<CandidateMaterializationResult>;
+  reconcileCandidateTree?(identity: TIdentity, expected: CandidateExpectedEntry[]): Promise<CandidateTreeReconciliationResult>;
+}) {
+  const identityRoot = (identity: TIdentity): string => {
+    const record = identity as Record<string, unknown>;
+    const root = typeof record.root === "string" ? record.root : record.candidateRoot;
+    if (typeof root !== "string") throw new Error("fixture identity does not expose its candidate root");
+    return root;
+  };
+  const defaultInspect = async (identity: TIdentity): Promise<CandidateRootInspectionResult> => {
+    const entries = await readdir(identityRoot(identity));
+    return entries.length === 0
+      ? { ok: true, empty: true, identityMatched: true }
+      : { ok: false, code: "CANDIDATE_ROOT_NOT_EMPTY", entries };
+  };
+  const defaultMaterialize = async (
+    identity: TIdentity,
+    input: ValidatedReleaseCandidateInput,
+    operation: CandidateMaterializationOperation
+  ): Promise<CandidateMaterializationResult> => {
+    const root = identityRoot(identity);
+    const identityRecord = identity as Record<string, unknown>;
+    if (
+      identityRecord.failCopy === true
+      && operation.kind === "file"
+      && operation.source.path.endsWith("/texture.bin")
+    ) return { ok: false, code: "CANDIDATE_MATERIALIZATION_FAILED" };
+    if (
+      identityRecord.aliasDestinationParent === true
+      && operation.destination === `game/dota_addons/${input.addonName}`
+    ) return { ok: false, code: "CANDIDATE_DESTINATION_IDENTITY_MISMATCH" };
+    const destination = join(root, ...operation.destination.split("/"));
+    try {
+      const canonicalParent = await realpath(join(destination, ".."));
+      if (canonicalParent !== root && !canonicalParent.startsWith(`${root}/`)) {
+        return { ok: false, code: "CANDIDATE_DESTINATION_IDENTITY_MISMATCH" };
+      }
+      if (operation.kind === "directory") {
+        await mkdir(destination);
+      } else {
+        if (Array.isArray(identityRecord.copiedDestinations)) {
+          identityRecord.copiedDestinations.push(destination);
+        }
+        const prefix = `${operation.source.root}/dota_addons/${input.addonName}/`;
+        const sourceRoot = operation.source.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+        const source = join(sourceRoot, ...operation.source.path.slice(prefix.length).split("/"));
+        const sourceHandle = await open(source, filesystemConstants.O_RDONLY | filesystemConstants.O_NOFOLLOW);
+        try {
+          const sourceInfo = await sourceHandle.stat();
+          if (!sourceInfo.isFile()) return { ok: false, code: "SOURCE_ENTRY_CHANGED" };
+          const destinationHandle = await open(
+            destination,
+            filesystemConstants.O_WRONLY | filesystemConstants.O_CREAT | filesystemConstants.O_EXCL
+          );
+          try {
+            await destinationHandle.writeFile(await sourceHandle.readFile());
+          } finally {
+            await destinationHandle.close();
+          }
+        } finally {
+          await sourceHandle.close();
+        }
+      }
+      const created = await lstat(destination);
+      if (created.isSymbolicLink() || (operation.kind === "file" ? !created.isFile() : !created.isDirectory())) {
+        return { ok: false, code: "CANDIDATE_DESTINATION_IDENTITY_MISMATCH" };
+      }
+      return { ok: true, created: true, identityMatched: true, kindMatched: true, contained: true };
+    } catch {
+      return { ok: false, code: "CANDIDATE_MATERIALIZATION_FAILED" };
+    }
+  };
+  const defaultReconcile = async (
+    identity: TIdentity,
+    expected: CandidateExpectedEntry[]
+  ): Promise<CandidateTreeReconciliationResult> => {
+    const root = identityRoot(identity);
+    const actual: CandidateExpectedEntry[] = [];
+    const walk = async (directory: string): Promise<void> => {
+      for (const name of (await readdir(directory)).sort()) {
+        const path = join(directory, name);
+        const info = await lstat(path);
+        const identityPath = relative(root, path).replaceAll("\\", "/");
+        if (info.isSymbolicLink() || (!info.isFile() && !info.isDirectory())) {
+          actual.push({ path: identityPath, kind: "file" });
+          continue;
+        }
+        actual.push({ path: identityPath, kind: info.isDirectory() ? "directory" : "file" });
+        if (info.isDirectory()) await walk(path);
+      }
+    };
+    await walk(root);
+    const expectedMap = new Map(expected.map((entry) => [entry.path, entry.kind]));
+    const actualMap = new Map(actual.map((entry) => [entry.path, entry.kind]));
+    const issues: Extract<CandidateTreeReconciliationResult, { ok: false }>["issues"] = [];
+    for (const entry of expected) {
+      const kind = actualMap.get(entry.path);
+      if (kind === undefined) issues.push({ code: "CANDIDATE_TREE_MISSING", path: entry.path });
+      else if (kind !== entry.kind) issues.push({ code: "CANDIDATE_TREE_WRONG_KIND", path: entry.path, kind });
+    }
+    for (const entry of actual) {
+      if (!expectedMap.has(entry.path)) issues.push({ code: "CANDIDATE_TREE_UNEXPECTED", path: entry.path, kind: entry.kind });
+    }
+    return issues.length === 0
+      ? { ok: true, exact: true, identityMatched: true }
+      : { ok: false, code: "CANDIDATE_TREE_MISMATCH", issues };
+  };
+  return createIdentityBoundCandidateLifecycle({
+    readAcceptedSourceFile: createNoFollowSourceReader(),
+    inspectCandidateRoot: defaultInspect,
+    materializeCandidateEntry: defaultMaterialize,
+    reconcileCandidateTree: defaultReconcile,
+    ...operations
+  });
 }
 
 afterEach(async () => {
@@ -182,10 +309,7 @@ describe("release candidate input validation", () => {
     const createFilesystem = (options: {
       failCopy?: boolean;
       aliasDestinationParent?: boolean;
-    } = {}): ReleaseCandidateFilesystem & {
-      makeDirectory(path: string): Promise<void>;
-      copySourceFile(source: string, destination: string): Promise<void>;
-    } => ({
+    } = {}): ReleaseCandidateFilesystem => ({
       lstat,
       realpath: async (path) => {
         if (
@@ -202,20 +326,18 @@ describe("release candidate input validation", () => {
       createCandidateRoot: vi.fn(async () => {
         throw new Error("raw candidate creation must not be used");
       }),
-      makeDirectory: async (path) => await mkdir(path),
-      copySourceFile: async (source, destination) => {
-        copiedDestinations.push(destination);
-        if (options.failCopy === true && source.endsWith("texture.bin")) {
-          throw new Error(`copy failed at ${fixture.root}/credential_password=private-value`);
-        }
-        await copyFile(source, destination);
-      },
-      readSourceFile: async (path) => await readFile(path, "utf8"),
-      sourceFileSize: async (path) => (await lstat(path)).size,
-      candidateLifecycle: createIdentityBoundCandidateLifecycle({
+      candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
         createCandidateLease: async (validated) => {
           candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
-          return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
+          return {
+            inspectionRoot: candidateRoot,
+            identity: {
+              root: candidateRoot,
+              failCopy: options.failCopy === true,
+              aliasDestinationParent: options.aliasDestinationParent === true,
+              copiedDestinations
+            }
+          };
         },
         cleanupCandidateLease: async (identity) => {
           await rm(identity.root, { recursive: true, force: false });
@@ -266,7 +388,7 @@ describe("release candidate input validation", () => {
     );
     expect(copyFailure).toEqual({
       ok: false,
-      blockers: [{ code: "CANDIDATE_ASSEMBLY_FAILED", category: "assembly" }]
+      blockers: [{ code: "CANDIDATE_MATERIALIZATION_FAILED", category: "assembly" }]
     });
     expect(failedInspect).not.toHaveBeenCalled();
     expect(JSON.stringify(copyFailure)).not.toContain(fixture.root);
@@ -284,7 +406,7 @@ describe("release candidate input validation", () => {
     );
     expect(destinationAlias).toEqual({
       ok: false,
-      blockers: [{ code: "CANDIDATE_DESTINATION_UNSAFE", category: "unsafe-isolation" }]
+      blockers: [{ code: "CANDIDATE_DESTINATION_IDENTITY_MISMATCH", category: "unsafe-isolation" }]
     });
     expect(aliasInspect).not.toHaveBeenCalled();
     if (candidateRoot === undefined) throw new Error("aliased candidate root was not recorded");
@@ -342,10 +464,6 @@ describe("release candidate input validation", () => {
       const fixture = await createFixture();
       await populateReadyFixture(fixture);
       let candidateRoot: string | undefined;
-      const makeDirectory = vi.fn(async (path: string) => await mkdir(path));
-      const copySourceFile = vi.fn(async (source: string, destination: string) => (
-        await copyFile(source, destination)
-      ));
       const cleanupCandidateLease = vi.fn(async (identity: { root: string; rogues: string[] }) => {
         for (const rogue of identity.rogues) expect(await lstat(rogue)).toBeDefined();
         await rm(identity.root, { recursive: true, force: false });
@@ -353,8 +471,6 @@ describe("release candidate input validation", () => {
       });
       const filesystem: ReleaseCandidateFilesystem = {
         ...assemblyOperations,
-        makeDirectory,
-        copySourceFile,
         lstat,
         realpath,
         readDirectory: async (path) => (await readdir(path)).reverse(),
@@ -362,7 +478,7 @@ describe("release candidate input validation", () => {
         createCandidateRoot: vi.fn(async () => {
           throw new Error("raw candidate creation must not be used");
         }),
-        candidateLifecycle: createIdentityBoundCandidateLifecycle({
+        candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
           createCandidateLease: async (validated) => {
             candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
             const rogue = join(candidateRoot, `rogue-${kind}`);
@@ -399,8 +515,6 @@ describe("release candidate input validation", () => {
           path
         }))
       });
-      expect(makeDirectory, kind).not.toHaveBeenCalled();
-      expect(copySourceFile, kind).not.toHaveBeenCalled();
       expect(inspect, kind).not.toHaveBeenCalled();
       expect(cleanupCandidateLease, kind).toHaveBeenCalledTimes(1);
       if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
@@ -446,7 +560,7 @@ describe("release candidate input validation", () => {
         const prefix = `${entry.root}/dota_addons/${input.addonName}/`;
         const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
         const source = join(sourceRoot, ...entry.path.slice(prefix.length).split("/"));
-        if (source === addonInfoPath && !swapped) {
+        if (entry.path.endsWith("/addoninfo.txt") && !swapped) {
           await rm(source);
           await symlink(externalPath, source);
           swapped = true;
@@ -457,18 +571,21 @@ describe("release candidate input validation", () => {
             const info = await handle.stat();
             if (!info.isFile()) return { ok: false as const, code: "SOURCE_FILE_IDENTITY_CHANGED" as const };
             if (info.size > maxBytes) {
-              return { ok: true as const, state: "oversized" as const, size: info.size };
+              return { ok: true as const, state: "oversized" as const, size: info.size, identityMatched: true as const, kindMatched: true as const, contained: true as const };
             }
-            return { ok: true as const, state: "readable" as const, size: info.size, content: await handle.readFile("utf8") };
+            return { ok: true as const, state: "readable" as const, size: info.size, content: await handle.readFile("utf8"), identityMatched: true as const, kindMatched: true as const, contained: true as const };
           } finally {
             await handle.close();
           }
         } catch {
           return { ok: false as const, code: "SOURCE_FILE_IDENTITY_CHANGED" as const };
         }
-      })
+      }),
+      inspectCandidateRoot: vi.fn(async () => ({ ok: true as const, empty: true as const, identityMatched: true as const })),
+      materializeCandidateEntry: vi.fn(async () => ({ ok: true as const, created: true as const, identityMatched: true as const, kindMatched: true as const, contained: true as const })),
+      reconcileCandidateTree: vi.fn(async () => ({ ok: true as const, exact: true as const, identityMatched: true as const }))
     };
-    const filesystem: ReleaseCandidateFilesystem = {
+    const filesystem: ReleaseCandidateFilesystem & { readSourceFile(path: string): Promise<string> } = {
       ...assemblyOperations,
       readSourceFile: legacyRead,
       lstat,
@@ -478,7 +595,7 @@ describe("release candidate input validation", () => {
       createCandidateRoot: vi.fn(async () => {
         throw new Error("raw candidate creation must not be used");
       }),
-      candidateLifecycle: createIdentityBoundCandidateLifecycle(operations)
+      candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle(operations)
     };
 
     const result = await withAssembledReleaseCandidate(
@@ -522,19 +639,22 @@ describe("release candidate input validation", () => {
       ) => {
         const relativePath = entry.path.split(`/dota_addons/${input.addonName}/`)[1];
         if (relativePath === "addoninfo.txt") {
-          return { ok: true as const, state: "oversized" as const, size: maxBytes + 1 };
+          return { ok: true as const, state: "oversized" as const, size: maxBytes + 1, identityMatched: true as const, kindMatched: true as const, contained: true as const };
         }
         const sourceRoot = entry.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
         const handle = await open(join(sourceRoot, ...relativePath.split("/")), filesystemConstants.O_RDONLY | filesystemConstants.O_NOFOLLOW);
         try {
           const info = await handle.stat();
-          return { ok: true as const, state: "readable" as const, size: info.size, content: await handle.readFile("utf8") };
+          return { ok: true as const, state: "readable" as const, size: info.size, content: await handle.readFile("utf8"), identityMatched: true as const, kindMatched: true as const, contained: true as const };
         } finally {
           await handle.close();
         }
-      })
+      }),
+      inspectCandidateRoot: vi.fn(async () => ({ ok: true as const, empty: true as const, identityMatched: true as const })),
+      materializeCandidateEntry: vi.fn(async () => ({ ok: true as const, created: true as const, identityMatched: true as const, kindMatched: true as const, contained: true as const })),
+      reconcileCandidateTree: vi.fn(async () => ({ ok: true as const, exact: true as const, identityMatched: true as const }))
     };
-    const oversizedFilesystem: ReleaseCandidateFilesystem = {
+    const oversizedFilesystem: ReleaseCandidateFilesystem & { readSourceFile(path: string): Promise<string> } = {
       ...assemblyOperations,
       readSourceFile: rawRead,
       lstat,
@@ -544,7 +664,7 @@ describe("release candidate input validation", () => {
       createCandidateRoot: vi.fn(async () => {
         throw new Error("raw candidate creation must not be used");
       }),
-      candidateLifecycle: createIdentityBoundCandidateLifecycle(operations)
+      candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle(operations)
     };
 
     const oversized = await withAssembledReleaseCandidate(
@@ -582,14 +702,13 @@ describe("release candidate input validation", () => {
         inspect,
         { repositoryRoot: fixture.repositoryRoot, filesystem: oversizedFilesystem }
       );
-      expect(result, wrongKind).toMatchObject({
-        ok: false,
-        blockers: [{
+      expect(result.ok, wrongKind).toBe(false);
+      if (result.ok) throw new Error(`${wrongKind} unexpectedly passed`);
+      expect(result.blockers, wrongKind).toContainEqual({
           code: "REQUIRED_PATH_WRONG_KIND",
           category: "required-structure",
           disposition: "blocker",
           field: wrongKind === "lua-directory" ? "lua entry" : "content maps directory"
-        }]
       });
       expect(inspect).not.toHaveBeenCalled();
     }
@@ -622,7 +741,7 @@ describe("release candidate input validation", () => {
       materializeCandidateEntry,
       reconcileCandidateTree: vi.fn(async () => ({ ok: true as const, exact: true as const, identityMatched: true as const }))
     };
-    const filesystem: ReleaseCandidateFilesystem = {
+    const filesystem: ReleaseCandidateFilesystem & { makeDirectory(path: string): Promise<void> } = {
       ...assemblyOperations,
       makeDirectory: legacyMakeDirectory,
       lstat,
@@ -668,17 +787,28 @@ describe("release candidate input validation", () => {
     });
     const materializeCandidateEntry = vi.fn(async (
       identity: { root: string },
-      _input: ValidatedReleaseCandidateInput,
-      operation: { destination: string; kind: "file" | "directory"; source?: string }
+      input: ValidatedReleaseCandidateInput,
+      operation: {
+        destination: string;
+        kind: "file" | "directory";
+        source: { root: "game" | "content"; path: string; kind: "file" | "directory" };
+      }
     ) => {
       const destination = join(identity.root, ...operation.destination.split("/"));
       if (operation.kind === "directory") await mkdir(destination);
-      else if (operation.source !== undefined) await copyFile(operation.source, destination);
+      else {
+        const prefix = `${operation.source.root}/dota_addons/${input.addonName}/`;
+        const sourceRoot = operation.source.root === "game" ? input.gameAddonRoot : input.contentAddonRoot;
+        await copyFile(
+          join(sourceRoot, ...operation.source.path.slice(prefix.length).split("/")),
+          destination
+        );
+      }
       if (!injected) {
         injected = true;
         await writeFile(join(identity.root, "rogue-mid-assembly"), "rogue\n");
       }
-      return { ok: true as const, created: true as const, identityMatched: true as const, kindMatched: true as const };
+      return { ok: true as const, created: true as const, identityMatched: true as const, kindMatched: true as const, contained: true as const };
     });
     const reconcileCandidateTree = vi.fn(async () => ({
       ok: false as const,
@@ -701,7 +831,7 @@ describe("release candidate input validation", () => {
       materializeCandidateEntry,
       reconcileCandidateTree
     };
-    const filesystem: ReleaseCandidateFilesystem = {
+    const filesystem: ReleaseCandidateFilesystem & { makeDirectory(path: string): Promise<void> } = {
       ...assemblyOperations,
       makeDirectory: legacyMakeDirectory,
       lstat,
@@ -729,6 +859,70 @@ describe("release candidate input validation", () => {
     expect(reconcileCandidateTree).toHaveBeenCalledTimes(1);
     expect(inspect).not.toHaveBeenCalled();
     expect(cleanupCandidateLease).toHaveBeenCalledTimes(1);
+  });
+
+  test("sanitizes malformed identity-bound assembly results", async () => {
+    for (const stage of ["source", "materialization", "reconciliation"] as const) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      const privateFailure = `${fixture.root}/credential_password=synthetic-private-value`;
+      const throwingResult = new Proxy({}, {
+        get: () => {
+          throw new Error(privateFailure);
+        }
+      });
+      const cleanup = vi.fn(async (identity: { root: string }) => {
+        await rm(identity.root, { recursive: true, force: false });
+        return { ok: true as const, removed: true as const, absent: true as const, identityMatched: true as const };
+      });
+      const operations = {
+        createCandidateLease: async (validated: ValidatedReleaseCandidateInput) => {
+          const root = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return { inspectionRoot: root, identity: { root } };
+        },
+        cleanupCandidateLease: cleanup,
+        ...(stage === "source" ? {
+          readAcceptedSourceFile: vi.fn(async () => throwingResult as AcceptedSourceReadResult)
+        } : {}),
+        ...(stage === "materialization" ? {
+          materializeCandidateEntry: vi.fn(async () => throwingResult as CandidateMaterializationResult)
+        } : {}),
+        ...(stage === "reconciliation" ? {
+          reconcileCandidateTree: vi.fn(async () => throwingResult as CandidateTreeReconciliationResult)
+        } : {})
+      };
+      const filesystem: ReleaseCandidateFilesystem = {
+        ...assemblyOperations,
+        lstat,
+        realpath,
+        readDirectory: async (path) => await readdir(path),
+        classifySourceEntry: classifyFixtureEntry,
+        createCandidateRoot: vi.fn(async () => {
+          throw new Error("raw candidate creation must not be used");
+        }),
+        candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle(operations)
+      };
+
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        async () => "unexpected",
+        { repositoryRoot: fixture.repositoryRoot, filesystem }
+      );
+      expect(result, stage).toEqual({
+        ok: false,
+        blockers: [{
+          code: stage === "source"
+            ? "SOURCE_READ_RESULT_INVALID"
+            : stage === "materialization"
+              ? "CANDIDATE_MATERIALIZATION_RESULT_INVALID"
+              : "CANDIDATE_TREE_RECONCILIATION_RESULT_INVALID",
+          category: "assembly"
+        }]
+      });
+      expect(JSON.stringify(result), stage).not.toContain(fixture.root);
+      expect(JSON.stringify(result), stage).not.toContain("synthetic-private-value");
+      expect(cleanup, stage).toHaveBeenCalledTimes(stage === "source" ? 0 : 1);
+    }
   });
 
   test("keeps the candidate canonically isolated and callback scoped", async () => {
@@ -777,7 +971,7 @@ describe("release candidate input validation", () => {
         createCandidateRoot: vi.fn(async () => {
           throw new Error("raw candidate creation must not be used");
         }),
-        candidateLifecycle: createIdentityBoundCandidateLifecycle({
+        candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
           createCandidateLease,
           cleanupCandidateLease
         })
@@ -941,7 +1135,7 @@ describe("release candidate input validation", () => {
         readDirectory: async (path: string) => await readdir(path),
         classifySourceEntry: classifyFixtureEntry,
         createCandidateRoot: vi.fn(async () => target),
-        candidateLifecycle: createIdentityBoundCandidateLifecycle({
+        candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
           createCandidateLease: vi.fn(async () => ({
             inspectionRoot: target,
             identity: { target, rawRemoval }
@@ -1003,7 +1197,7 @@ describe("release candidate input validation", () => {
       createCandidateRoot: vi.fn(async () => {
         throw new Error("raw candidate creation must not be used");
       }),
-      candidateLifecycle: createIdentityBoundCandidateLifecycle({
+      candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
         createCandidateLease: vi.fn(async (validated: ValidatedReleaseCandidateInput) => {
           swappedRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
           return {
@@ -1064,7 +1258,7 @@ describe("release candidate input validation", () => {
       }),
       cleanupCandidateLease: capturedCleanup
     };
-    const originalLifecycle = createIdentityBoundCandidateLifecycle(mutableOperations);
+    const originalLifecycle = createFixtureIdentityBoundCandidateLifecycle(mutableOperations);
     const mutableFilesystem = {
       ...assemblyOperations,
       lstat,
@@ -1091,7 +1285,7 @@ describe("release candidate input validation", () => {
           identityMatched: false,
           code: "CANDIDATE_IDENTITY_MISMATCH" as const
         }));
-        mutableFilesystem.candidateLifecycle = createIdentityBoundCandidateLifecycle({
+        mutableFilesystem.candidateLifecycle = createFixtureIdentityBoundCandidateLifecycle({
           createCandidateLease: vi.fn(async () => {
             throw new Error("replacement create must not run");
           }),
@@ -1189,7 +1383,7 @@ describe("release candidate input validation", () => {
       createCandidateRoot: vi.fn(async () => {
         throw new Error("raw candidate creation must not be used");
       }),
-      candidateLifecycle: createIdentityBoundCandidateLifecycle({
+      candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
         createCandidateLease: vi.fn(async (validated) => {
           candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
           return { inspectionRoot: candidateRoot, identity: { root: candidateRoot } };
@@ -1266,7 +1460,7 @@ describe("release candidate input validation", () => {
         createCandidateRoot: vi.fn(async () => {
           throw new Error("raw candidate creation must not be used");
         }),
-        candidateLifecycle: createIdentityBoundCandidateLifecycle({
+        candidateLifecycle: createFixtureIdentityBoundCandidateLifecycle({
           createCandidateLease: vi.fn(async (validated) => {
             const candidateRoot = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
             return { inspectionRoot: candidateRoot, identity: { candidateRoot } };
