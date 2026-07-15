@@ -27,6 +27,7 @@ const BLOCKER_CODES = new Set([
     "CANDIDATE_MATERIALIZATION_RESULT_INVALID",
     "CANDIDATE_REMOVAL_FAILED",
     "CANDIDATE_ROOT_IDENTITY_MISMATCH",
+    "CANDIDATE_ROOT_IDENTITY_CHANGED",
     "CANDIDATE_ROOT_INSPECTION_FAILED",
     "CANDIDATE_ROOT_INSPECTION_RESULT_INVALID",
     "CANDIDATE_ROOT_NOT_EMPTY",
@@ -50,6 +51,7 @@ const BLOCKER_CODES = new Set([
     "METADATA_PLACEHOLDER",
     "POLICY_INPUT_INVALID",
     "RELEASE_CANDIDATE_INTEGRITY_MISMATCH",
+    "RELEASE_CANDIDATE_IDENTITY_CHANGED",
     "REMOTE_RELEASE_CANDIDATE_TRANSPORT_UNCERTAIN",
     "REMOTE_DOTA_ROOT_INVALID",
     "REMOTE_DOTA_ROOT_REQUIRED",
@@ -80,6 +82,10 @@ const BLOCKER_CODES = new Set([
     "TEMP_PARENT_NOT_ISOLATED",
     "WINDOWS_FILE_IDENTITY_REQUIRED",
     "WINDOWS_REPARSE_CLASSIFIER_REQUIRED"
+]);
+const BLOCKER_CATEGORY_BY_CODE = new Map([
+    ["CANDIDATE_ROOT_IDENTITY_CHANGED", "candidate-identity"],
+    ["RELEASE_CANDIDATE_IDENTITY_CHANGED", "candidate-identity"]
 ]);
 const CLEANUP_FAILURE_CODES = new Set([
     "CANDIDATE_IDENTITY_MISMATCH",
@@ -431,6 +437,7 @@ function normalizeBlockers(input) {
             || !BLOCKER_CODES.has(code)
             || typeof category !== "string"
             || !isSafeText(category)
+            || (BLOCKER_CATEGORY_BY_CODE.has(code) && BLOCKER_CATEGORY_BY_CODE.get(code) !== category)
             || (field !== undefined && (typeof field !== "string" || !isSafeText(field)))
             || (path !== undefined && (typeof path !== "string" || !isSafeRelativePath(path)))
             || (count !== undefined && !isCount(count))
