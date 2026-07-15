@@ -76,35 +76,40 @@ async function streamFixtureIntegrity(
   path: string,
   chunkSizes?: number[]
 ): Promise<FixtureIntegrityObservation> {
-  const handle = await open(absolutePath, filesystemConstants.O_RDONLY | filesystemConstants.O_NOFOLLOW);
-  const hash = createHash("sha256");
-  let bytes = 0;
-  let chunkIndex = 0;
-  try {
-    for (;;) {
-      const requested = chunkSizes?.[chunkIndex] ?? 64;
-      const buffer = Buffer.alloc(requested);
-      const read = await handle.read(buffer, 0, requested, null);
-      if (read.bytesRead === 0) break;
-      const chunk = buffer.subarray(0, read.bytesRead);
-      bytes += chunk.byteLength;
-      hash.update(chunk);
-      chunkIndex += 1;
-    }
-  } finally {
-    await handle.close();
-  }
-  return {
-    ok: true,
-    schemaVersion: "1.0",
+  const releaseCandidate = await import("../src/release-candidate.js") as unknown as {
+    observeIdentityBoundIntegrityStream?: (input: unknown) => Promise<unknown>;
+  };
+  const observe = releaseCandidate.observeIdentityBoundIntegrityStream;
+  if (observe === undefined) throw new Error("production integrity stream helper missing");
+  const result = await observe({
     root,
     path,
-    bytes,
-    sha256: hash.digest("hex"),
     identityMatched: true,
     kindMatched: true,
-    contained: true
-  };
+    contained: true,
+    openByteStream: async () => {
+      const handle = await open(absolutePath, filesystemConstants.O_RDONLY | filesystemConstants.O_NOFOLLOW);
+      return (async function* (): AsyncGenerator<Uint8Array> {
+        let chunkIndex = 0;
+        try {
+          for (;;) {
+            const requested = chunkSizes?.[chunkIndex] ?? 64;
+            const buffer = Buffer.alloc(requested);
+            const read = await handle.read(buffer, 0, requested, null);
+            if (read.bytesRead === 0) return;
+            chunkIndex += 1;
+            yield buffer.subarray(0, read.bytesRead);
+          }
+        } finally {
+          await handle.close();
+        }
+      })();
+    }
+  });
+  if (result === null || typeof result !== "object" || Reflect.get(result, "ok") !== true) {
+    throw new Error("production integrity stream helper rejected fixture stream");
+  }
+  return result as FixtureIntegrityObservation;
 }
 
 async function snapshotSourceTrees(fixture: Fixture): Promise<SourceTreeSnapshotEntry[]> {
@@ -3118,6 +3123,120 @@ describe("release candidate input validation", () => {
       expect(cleanupCandidateLease, outcome).toHaveBeenCalledTimes(1);
       if (outcome === "success") expect(result).toEqual({ ok: true, value: "inspected" });
       else expect(result.ok, outcome).toBe(false);
+    }
+  });
+
+  test("streams identity-bound integrity through the production primitive", async () => {
+    const releaseCandidate = await import("../src/release-candidate.js") as unknown as {
+      observeIdentityBoundIntegrityStream?: (input: unknown) => Promise<unknown>;
+    };
+    expect(releaseCandidate.observeIdentityBoundIntegrityStream).toBeTypeOf("function");
+    const observe = releaseCandidate.observeIdentityBoundIntegrityStream;
+    if (observe === undefined) throw new Error("production integrity stream helper missing");
+
+    const chunks = [
+      Uint8Array.from([0x00]),
+      Uint8Array.from([0xff, 0x10, 0x80]),
+      Uint8Array.from([0x42, 0x00])
+    ];
+    let yielded = 0;
+    const binary = await observe({
+      root: "content",
+      path: "content/dota_addons/fixture_addon/materials/stream.bin",
+      identityMatched: true,
+      kindMatched: true,
+      contained: true,
+      openByteStream: async () => (async function* (): AsyncGenerator<Uint8Array> {
+        for (const chunk of chunks) {
+          yielded += 1;
+          yield chunk;
+        }
+      })()
+    });
+    expect(binary).toEqual({
+      ok: true,
+      schemaVersion: "1.0",
+      root: "content",
+      path: "content/dota_addons/fixture_addon/materials/stream.bin",
+      bytes: 6,
+      sha256: createHash("sha256").update(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))).digest("hex"),
+      identityMatched: true,
+      kindMatched: true,
+      contained: true
+    });
+    expect(yielded).toBe(3);
+    expect(JSON.stringify(binary)).not.toContain("absolutePath");
+    expect(JSON.stringify(binary)).not.toContain("chunks");
+
+    const empty = await observe({
+      root: "game",
+      path: "game/dota_addons/fixture_addon/empty.bin",
+      identityMatched: true,
+      kindMatched: true,
+      contained: true,
+      openByteStream: async () => (async function* (): AsyncGenerator<Uint8Array> {})()
+    });
+    expect(empty).toMatchObject({
+      ok: true,
+      bytes: 0,
+      sha256: createHash("sha256").digest("hex")
+    });
+
+    const invalidInputs: Array<Readonly<{ name: string; input: unknown }>> = [
+      {
+        name: "absolute identity",
+        input: {
+          root: "game", path: "/private/addon.bin", identityMatched: true, kindMatched: true, contained: true,
+          openByteStream: async () => (async function* (): AsyncGenerator<Uint8Array> {})()
+        }
+      },
+      {
+        name: "whole-file buffer",
+        input: {
+          root: "game", path: "game/dota_addons/fixture_addon/addon.bin", identityMatched: true, kindMatched: true, contained: true,
+          openByteStream: async () => Buffer.from([0x01, 0x02])
+        }
+      },
+      {
+        name: "invalid chunk",
+        input: {
+          root: "game", path: "game/dota_addons/fixture_addon/addon.bin", identityMatched: true, kindMatched: true, contained: true,
+          openByteStream: async () => (async function* (): AsyncGenerator<unknown> { yield "not bytes"; })()
+        }
+      },
+      {
+        name: "oversized chunk",
+        input: {
+          root: "game", path: "game/dota_addons/fixture_addon/addon.bin", identityMatched: true, kindMatched: true, contained: true,
+          openByteStream: async () => (async function* (): AsyncGenerator<Uint8Array> { yield new Uint8Array(64 * 1024 + 1); })()
+        }
+      },
+      {
+        name: "iterator throws",
+        input: {
+          root: "game", path: "game/dota_addons/fixture_addon/addon.bin", identityMatched: true, kindMatched: true, contained: true,
+          openByteStream: async () => ({ [Symbol.asyncIterator]: () => ({ next: async () => { throw new Error("private iterator"); } }) })
+        }
+      },
+      {
+        name: "iterator getter throws",
+        input: {
+          root: "game", path: "game/dota_addons/fixture_addon/addon.bin", identityMatched: true, kindMatched: true, contained: true,
+          openByteStream: async () => Object.defineProperty({}, Symbol.asyncIterator, { get: () => { throw new Error("private getter"); } })
+        }
+      },
+      {
+        name: "thenable throws",
+        input: {
+          root: "game", path: "game/dota_addons/fixture_addon/addon.bin", identityMatched: true, kindMatched: true, contained: true,
+          openByteStream: () => ({ then: () => { throw new Error("private thenable"); } })
+        }
+      }
+    ];
+    for (const scenario of invalidInputs) {
+      const result = await observe(scenario.input);
+      expect(result, scenario.name).toEqual({ ok: false, code: "INTEGRITY_STREAM_RESULT_INVALID" });
+      expect(JSON.stringify(result), scenario.name).not.toContain("private");
     }
   });
 
