@@ -4362,6 +4362,7 @@ describe("release candidate input validation", () => {
           : {}),
         blockers: [scenario.expectedPrimary, ...expectedCandidateBlockers]
       });
+      if (result.ok) throw new Error(`${scenario.name}: expected final failure`);
       expect.soft(result.blockers.filter((blocker) => blocker.code === expectedCandidateBlockers[0]?.code), scenario.name)
         .toHaveLength(1);
       expect.soft(events.at(-1), scenario.name).toBe("cleanup");
