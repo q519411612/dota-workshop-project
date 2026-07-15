@@ -23,14 +23,16 @@ key-decisions:
   - "Keep filesystem observation in preflight while release-readiness owns deterministic classification."
   - "Represent unreadable or oversized required text as blockers in structured policy while preserving existing dry-run warning rendering."
   - "Omit unsafe absolute or traversal-like paths from findings instead of exposing private roots."
+  - "Redact any credential-bearing evidence-path segment through the same classifier used for sensitive content."
 
 patterns-established:
   - "Policy findings contain stable code, category, disposition, and only safe field or relative-path identity."
   - "Legacy operations render structured findings through an explicit compatibility seam."
+  - "Structurally safe evidence paths pass through one segment-level credential redaction boundary before serialization."
 
 requirements-completed: [RCFS-04]
 
-duration: 14min
+duration: 19min
 completed: 2026-07-15
 status: complete
 ---
@@ -41,9 +43,9 @@ status: complete
 
 ## Performance
 
-- **Duration:** 14 min
+- **Duration:** 19 min
 - **Started:** 2026-07-15T04:20:00Z
-- **Completed:** 2026-07-15T04:35:00Z
+- **Completed:** 2026-07-15T04:40:00Z
 - **Tasks:** 2
 - **Files modified:** 6
 
@@ -54,6 +56,7 @@ status: complete
 - Proved findings omit matched secret values and unsafe private absolute paths.
 - Restricted structure labels and scan-root identities to stable allowlists so all serialized input-derived fields remain redacted.
 - Synchronized tracked runtime output with the TypeScript source contract.
+- Redacted credential-bearing segments in metadata and scanned-file paths without hiding ordinary safe relative paths.
 
 ## Task Commits
 
@@ -62,6 +65,8 @@ status: complete
 3. **Harden unsafe observation-path redaction** - `4a35d76` (fix)
 4. **Sanitize caller-provided finding identities** - `7c258d1` (fix)
 5. **Synchronize release policy runtime build** - `73419bc` (chore)
+6. **Redact credential-bearing evidence-path segments** - `daeeb0d` (fix)
+7. **Synchronize segment-redaction runtime build** - `942c98d` (chore)
 
 ## Files Created/Modified
 
@@ -106,14 +111,22 @@ status: complete
 - **Verification:** `npm run build` passed and the staged-file audit contained only the two release-policy runtime files.
 - **Committed in:** `73419bc`
 
+**4. [Rule 1 - Information Disclosure] Redacted credential-bearing path segments**
+- **Found during:** Second independent specification review
+- **Issue:** Structurally valid relative paths could still serialize credential-shaped metadata or scanned-file segments verbatim.
+- **Fix:** Reused the sensitive-category classifier inside the single safe evidence-path boundary and replaced each matched segment with `[redacted]`; required-path identities remain allowlisted.
+- **Files modified:** `src/release-readiness.ts`, `tests/release-readiness.test.ts`, `dist/release-readiness.js`
+- **Verification:** RED produced 2 expected failures with the credential value visible in both paths; GREEN passed 14/14 focused tests and typecheck before the full gate.
+- **Committed in:** `daeeb0d`, `942c98d`
+
 ---
 
-**Total deviations:** 3 auto-fixed issues (2 information-disclosure controls, 1 runtime synchronization requirement)
+**Total deviations:** 4 auto-fixed issues (3 information-disclosure controls, 1 runtime synchronization requirement)
 **Impact on plan:** The changes strengthen redaction and keep the packaged runtime synchronized without expanding candidate lifecycle or public MCP scope.
 
 ## Issues Encountered
 
-The independent review found two confirmed issues; both were reproduced, corrected, and verified as documented above.
+Two independent review passes found three confirmed redaction/runtime issues; each was reproduced, corrected, and verified as documented above.
 
 ## User Setup Required
 
