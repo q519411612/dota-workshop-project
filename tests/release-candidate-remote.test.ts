@@ -127,9 +127,9 @@ function blockedPayload() {
 }
 
 function semanticProjection(result: Awaited<ReturnType<typeof preflightRemoteReleaseCandidate>>) {
-  const detail = structuredClone(result.releaseCandidate);
+  const detail: any = structuredClone(result.releaseCandidate);
   if (detail && "execution" in detail) {
-    detail.execution.kind = "ssh" as never;
+    detail.execution.kind = "ssh";
     detail.commands = [];
   }
   return detail;
@@ -279,7 +279,8 @@ describe("remote release-candidate normalization", () => {
       addonName: "demo",
       executor: async (invocation) => {
         calls += 1;
-        return executor(invocation) as never;
+        void invocation;
+        return executor() as never;
       }
     });
     expect(calls).toBe(1);
