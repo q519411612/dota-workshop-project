@@ -23,7 +23,10 @@ export type ReleaseCandidateInputBlocker = {
   category: "invalid" | "required" | "missing" | "not-directory" | "unreadable" | "unsafe-isolation";
 };
 
+const validatedReleaseCandidateInputBrand: unique symbol = Symbol("validatedReleaseCandidateInput");
+
 export type ValidatedReleaseCandidateInput = Readonly<{
+  [validatedReleaseCandidateInputBrand]: true;
   addonName: string;
   dotaRoot: string;
   repositoryRoot: string;
@@ -39,7 +42,7 @@ export type ReleaseCandidateInputResult =
 export type ReleaseCandidateFilesystem = {
   lstat(path: string): Promise<Pick<Stats, "isDirectory">>;
   realpath(path: string): Promise<string>;
-  createCandidateRoot(tempParent: string): Promise<string>;
+  createCandidateRoot(input: ValidatedReleaseCandidateInput): Promise<string>;
 };
 
 export type ReleaseCandidateDependencies = {
@@ -50,8 +53,22 @@ export type ReleaseCandidateDependencies = {
 const defaultFilesystem: ReleaseCandidateFilesystem = {
   lstat,
   realpath,
-  createCandidateRoot: async (tempParent) => await mkdtemp(join(tempParent, "dota-release-candidate-"))
+  createCandidateRoot: async (input) => await mkdtemp(join(input.tempParent, "dota-release-candidate-"))
 };
+
+export type ReleaseCandidateContinuationResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; blockers: ReleaseCandidateInputBlocker[] };
+
+export async function continueReleaseCandidatePreparation<T>(
+  input: ReleaseCandidateInput,
+  dependencies: ReleaseCandidateDependencies,
+  continuation: (validated: ValidatedReleaseCandidateInput) => Promise<T>
+): Promise<ReleaseCandidateContinuationResult<T>> {
+  const prepared = await prepareReleaseCandidateInput(input, dependencies);
+  if (!prepared.ok) return prepared;
+  return { ok: true, value: await continuation(prepared.value) };
+}
 
 export async function prepareReleaseCandidateInput(
   input: ReleaseCandidateInput,
@@ -104,6 +121,7 @@ export async function prepareReleaseCandidateInput(
   return {
     ok: true,
     value: Object.freeze({
+      [validatedReleaseCandidateInputBrand]: true as const,
       addonName: input.addonName,
       dotaRoot: dotaRoot.path,
       repositoryRoot: repositoryRoot.path,
