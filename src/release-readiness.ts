@@ -12,6 +12,25 @@ export const RELEASE_METADATA_KEYS = [
 
 export const MAX_SECRET_SCAN_BYTES = 1024 * 1024;
 
+export const REQUIRED_PATH_LABELS = [
+  "game addon root",
+  "content addon root",
+  "addon metadata",
+  "lua entry",
+  "localization file",
+  "content maps directory",
+  "hero list",
+  "hero data",
+  "unit support file",
+  "ability support file"
+] as const;
+
+export const SCAN_ROOT_IDENTITIES = ["game", "content"] as const;
+
+export type ReleaseMetadataKey = (typeof RELEASE_METADATA_KEYS)[number];
+export type RequiredPathLabel = (typeof REQUIRED_PATH_LABELS)[number];
+export type ScanRootIdentity = (typeof SCAN_ROOT_IDENTITIES)[number];
+
 const TEXT_SCAN_EXTENSIONS = new Set([
   ".cfg",
   ".css",
@@ -31,19 +50,8 @@ const TEXT_SCAN_EXTENSIONS = new Set([
   ".yml"
 ]);
 const PLACEHOLDER_VALUES = new Set(["", "changeme", "change me", "placeholder", "tbd", "todo", "unknown", "your name"]);
-const REQUIRED_PATH_LABELS = new Set([
-  "game addon root",
-  "content addon root",
-  "addon metadata",
-  "lua entry",
-  "localization file",
-  "content maps directory",
-  "hero list",
-  "hero data",
-  "unit support file",
-  "ability support file"
-]);
-const SCAN_ROOT_IDENTITIES = new Set(["game", "content"]);
+const REQUIRED_PATH_LABEL_SET: ReadonlySet<string> = new Set(REQUIRED_PATH_LABELS);
+const SCAN_ROOT_IDENTITY_SET: ReadonlySet<string> = new Set(SCAN_ROOT_IDENTITIES);
 const SECRET_PATTERNS = [
   { category: "private key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/i },
   { category: "github token", pattern: /gh[pousr]_[A-Za-z0-9_]{20,}/ },
@@ -53,34 +61,33 @@ const SECRET_PATTERNS = [
   { category: "host credential", pattern: /\b(?:remote_|windows_)?(?:host|username)\b\s*[:=].*\b(?:password|token|secret|key)\b/i }
 ] as const;
 
-export type ReleaseReadinessFinding = {
-  code:
-    | "REQUIRED_PATH_PRESENT"
-    | "REQUIRED_PATH_MISSING"
-    | "METADATA_PRESENT"
-    | "METADATA_MISSING"
-    | "METADATA_PLACEHOLDER"
-    | "SENSITIVE_MATERIAL"
-    | "NON_TEXT_INCLUDED"
-    | "TEXT_OVERSIZED"
-    | "TEXT_UNREADABLE"
-    | "REQUIRED_TEXT_OVERSIZED"
-    | "REQUIRED_TEXT_UNREADABLE"
-    | "SECRET_SCAN_COMPLETED";
-  category: string;
-  disposition: "evidence" | "warning" | "blocker";
-  field?: string;
-  path?: string;
-};
+export type ReleaseReadinessFinding =
+  | { code: "REQUIRED_PATH_PRESENT"; category: "required-structure"; disposition: "evidence"; field: RequiredPathLabel }
+  | { code: "REQUIRED_PATH_MISSING"; category: "required-structure"; disposition: "blocker"; field: RequiredPathLabel }
+  | { code: "METADATA_PRESENT"; category: "metadata"; disposition: "evidence"; field: ReleaseMetadataKey }
+  | { code: "METADATA_MISSING"; category: "metadata"; disposition: "blocker"; field: ReleaseMetadataKey }
+  | { code: "METADATA_PLACEHOLDER"; category: "metadata"; disposition: "blocker"; field: ReleaseMetadataKey }
+  | { code: "SENSITIVE_MATERIAL"; category: string; disposition: "blocker"; path: string }
+  | { code: "NON_TEXT_INCLUDED"; category: "non-text"; disposition: "warning"; path: string }
+  | { code: "TEXT_OVERSIZED"; category: "oversized"; disposition: "warning"; path: string }
+  | { code: "TEXT_UNREADABLE"; category: "unreadable"; disposition: "warning"; path: string }
+  | { code: "REQUIRED_TEXT_OVERSIZED"; category: "oversized-required-text"; disposition: "blocker"; path: string }
+  | { code: "REQUIRED_TEXT_UNREADABLE"; category: "unreadable-required-text"; disposition: "blocker"; path: string }
+  | { code: "SECRET_SCAN_COMPLETED"; category: "sensitive-material"; disposition: "evidence"; field: ScanRootIdentity }
+  | {
+      code: "POLICY_INPUT_INVALID";
+      category: "required-structure-identity" | "scan-root-identity" | "relative-path-identity" | "metadata-observation";
+      disposition: "blocker";
+    };
 
 export type ReleaseReadinessInput = {
-  requiredPaths: Array<{ label: string; present: boolean }>;
+  requiredPaths: Array<{ label: RequiredPathLabel; present: boolean }>;
   metadata:
     | { state: "missing" }
     | { state: "readable"; content: string }
     | { state: "oversized" | "unreadable"; path: string };
   scanRoots: Array<{
-    root: string;
+    root: ScanRootIdentity;
     files: Array<
       | { relativePath: string; state: "text"; content: string; requiredText?: boolean }
       | { relativePath: string; state: "non-text"; requiredText?: boolean }
@@ -96,26 +103,33 @@ export function isReleaseTextPath(path: string): boolean {
 export function evaluateReleaseReadiness(input: ReleaseReadinessInput): ReleaseReadinessFinding[] {
   const findings: ReleaseReadinessFinding[] = [];
 
-  for (const requiredPath of input.requiredPaths) {
-    findings.push({
-      code: requiredPath.present ? "REQUIRED_PATH_PRESENT" : "REQUIRED_PATH_MISSING",
-      category: "required-structure",
-      disposition: requiredPath.present ? "evidence" : "blocker",
-      ...findingField(requiredPath.label, REQUIRED_PATH_LABELS)
-    });
+  for (const requiredPath of canonicalRequiredPaths(input.requiredPaths)) {
+    if (!isRequiredPathLabel(requiredPath.label) || typeof requiredPath.present !== "boolean") {
+      findings.push({ code: "POLICY_INPUT_INVALID", category: "required-structure-identity", disposition: "blocker" });
+      continue;
+    }
+    findings.push(
+      requiredPath.present
+        ? { code: "REQUIRED_PATH_PRESENT", category: "required-structure", disposition: "evidence", field: requiredPath.label }
+        : { code: "REQUIRED_PATH_MISSING", category: "required-structure", disposition: "blocker", field: requiredPath.label }
+    );
   }
 
   appendMetadataFindings(findings, input.metadata);
 
-  for (const scanRoot of input.scanRoots) {
-    for (const file of scanRoot.files) {
+  for (const scanRoot of canonicalScanRoots(input.scanRoots)) {
+    if (!isScanRootIdentity(scanRoot.root) || !Array.isArray(scanRoot.files)) {
+      findings.push({ code: "POLICY_INPUT_INVALID", category: "scan-root-identity", disposition: "blocker" });
+      continue;
+    }
+    for (const file of canonicalScanFiles(scanRoot.files)) {
       appendScanFindings(findings, file);
     }
     findings.push({
       code: "SECRET_SCAN_COMPLETED",
       category: "sensitive-material",
       disposition: "evidence",
-      ...findingField(scanRoot.root, SCAN_ROOT_IDENTITIES)
+      field: scanRoot.root
     });
   }
 
@@ -123,6 +137,10 @@ export function evaluateReleaseReadiness(input: ReleaseReadinessInput): ReleaseR
 }
 
 function appendMetadataFindings(findings: ReleaseReadinessFinding[], metadata: ReleaseReadinessInput["metadata"]): void {
+  if (metadata === null || typeof metadata !== "object" || !("state" in metadata)) {
+    findings.push({ code: "POLICY_INPUT_INVALID", category: "metadata-observation", disposition: "blocker" });
+    return;
+  }
   if (metadata.state === "missing") {
     for (const field of RELEASE_METADATA_KEYS) {
       findings.push({ code: "METADATA_MISSING", category: "metadata", disposition: "blocker", field });
@@ -131,12 +149,25 @@ function appendMetadataFindings(findings: ReleaseReadinessFinding[], metadata: R
   }
 
   if (metadata.state !== "readable") {
-    findings.push({
-      code: metadata.state === "oversized" ? "REQUIRED_TEXT_OVERSIZED" : "REQUIRED_TEXT_UNREADABLE",
-      category: `${metadata.state}-required-text`,
-      disposition: "blocker",
-      ...findingPath(metadata.path)
-    });
+    if ((metadata.state !== "oversized" && metadata.state !== "unreadable") || typeof metadata.path !== "string") {
+      findings.push({ code: "POLICY_INPUT_INVALID", category: "metadata-observation", disposition: "blocker" });
+      return;
+    }
+    const path = safeFindingPath(metadata.path);
+    if (path === undefined) {
+      findings.push({ code: "POLICY_INPUT_INVALID", category: "relative-path-identity", disposition: "blocker" });
+      return;
+    }
+    findings.push(
+      metadata.state === "oversized"
+        ? { code: "REQUIRED_TEXT_OVERSIZED", category: "oversized-required-text", disposition: "blocker", path }
+        : { code: "REQUIRED_TEXT_UNREADABLE", category: "unreadable-required-text", disposition: "blocker", path }
+    );
+    return;
+  }
+
+  if (typeof metadata.content !== "string") {
+    findings.push({ code: "POLICY_INPUT_INVALID", category: "metadata-observation", disposition: "blocker" });
     return;
   }
 
@@ -157,13 +188,26 @@ function appendScanFindings(
   findings: ReleaseReadinessFinding[],
   file: ReleaseReadinessInput["scanRoots"][number]["files"][number]
 ): void {
+  if (file === null || typeof file !== "object" || typeof file.relativePath !== "string") {
+    findings.push({ code: "POLICY_INPUT_INVALID", category: "relative-path-identity", disposition: "blocker" });
+    return;
+  }
+  const path = safeFindingPath(file.relativePath);
+  if (path === undefined) {
+    findings.push({ code: "POLICY_INPUT_INVALID", category: "relative-path-identity", disposition: "blocker" });
+    return;
+  }
   if (file.state === "text") {
+    if (typeof file.content !== "string") {
+      findings.push({ code: "POLICY_INPUT_INVALID", category: "metadata-observation", disposition: "blocker" });
+      return;
+    }
     for (const category of sensitiveCategories(file.content)) {
       findings.push({
         code: "SENSITIVE_MATERIAL",
         category,
         disposition: "blocker",
-        ...findingPath(file.relativePath)
+        path
       });
     }
     return;
@@ -174,48 +218,80 @@ function appendScanFindings(
       code: "NON_TEXT_INCLUDED",
       category: "non-text",
       disposition: "warning",
-      ...findingPath(file.relativePath)
+      path
     });
     return;
   }
 
-  const required = file.requiredText === true;
-  findings.push({
-    code:
-      file.state === "oversized"
-        ? required
-          ? "REQUIRED_TEXT_OVERSIZED"
-          : "TEXT_OVERSIZED"
-        : required
-          ? "REQUIRED_TEXT_UNREADABLE"
-          : "TEXT_UNREADABLE",
-    category: required ? `${file.state}-required-text` : file.state,
-    disposition: required ? "blocker" : "warning",
-    ...findingPath(file.relativePath)
-  });
+  if (file.state !== "oversized" && file.state !== "unreadable") {
+    findings.push({ code: "POLICY_INPUT_INVALID", category: "metadata-observation", disposition: "blocker" });
+    return;
+  }
+
+  if (file.state === "oversized") {
+    findings.push(
+      file.requiredText === true
+        ? { code: "REQUIRED_TEXT_OVERSIZED", category: "oversized-required-text", disposition: "blocker", path }
+        : { code: "TEXT_OVERSIZED", category: "oversized", disposition: "warning", path }
+    );
+    return;
+  }
+  findings.push(
+    file.requiredText === true
+      ? { code: "REQUIRED_TEXT_UNREADABLE", category: "unreadable-required-text", disposition: "blocker", path }
+      : { code: "TEXT_UNREADABLE", category: "unreadable", disposition: "warning", path }
+  );
 }
 
-function findingPath(path: string): { path: string } | Record<string, never> {
+function safeFindingPath(path: string): string | undefined {
   if (path.length === 0 || path.startsWith("/") || path.startsWith("\\") || /^[A-Za-z]:[\\/]/.test(path)) {
-    return {};
+    return undefined;
   }
   if (path.includes("\\") || path.split("/").some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
-    return {};
+    return undefined;
   }
-  return {
-    path: path
-      .split("/")
-      .map((segment) => (sensitiveCategories(segment).length > 0 ? "[redacted]" : segment))
-      .join("/")
-  };
-}
-
-function findingField(field: string, allowed: ReadonlySet<string>): { field: string } | Record<string, never> {
-  return allowed.has(field) ? { field } : {};
+  return path
+    .split("/")
+    .map((segment) => (sensitiveCategories(segment).length > 0 ? "[redacted]" : segment))
+    .join("/");
 }
 
 function sensitiveCategories(value: string): string[] {
   return SECRET_PATTERNS.filter(({ pattern }) => pattern.test(value)).map(({ category }) => category);
+}
+
+function isRequiredPathLabel(value: unknown): value is RequiredPathLabel {
+  return typeof value === "string" && REQUIRED_PATH_LABEL_SET.has(value);
+}
+
+function isScanRootIdentity(value: unknown): value is ScanRootIdentity {
+  return typeof value === "string" && SCAN_ROOT_IDENTITY_SET.has(value);
+}
+
+function canonicalRequiredPaths(input: ReleaseReadinessInput["requiredPaths"]): ReleaseReadinessInput["requiredPaths"] {
+  return [...input].sort((left, right) => requiredPathOrder(left?.label) - requiredPathOrder(right?.label));
+}
+
+function requiredPathOrder(value: unknown): number {
+  return isRequiredPathLabel(value) ? REQUIRED_PATH_LABELS.indexOf(value) : REQUIRED_PATH_LABELS.length;
+}
+
+function canonicalScanRoots(input: ReleaseReadinessInput["scanRoots"]): ReleaseReadinessInput["scanRoots"] {
+  return [...input].sort((left, right) => scanRootOrder(left?.root) - scanRootOrder(right?.root));
+}
+
+function scanRootOrder(value: unknown): number {
+  return isScanRootIdentity(value) ? SCAN_ROOT_IDENTITIES.indexOf(value) : SCAN_ROOT_IDENTITIES.length;
+}
+
+function canonicalScanFiles(
+  input: ReleaseReadinessInput["scanRoots"][number]["files"]
+): ReleaseReadinessInput["scanRoots"][number]["files"] {
+  return [...input].sort((left, right) => {
+    const leftPath = typeof left?.relativePath === "string" ? safeFindingPath(left.relativePath) ?? "\uffff" : "\uffff";
+    const rightPath = typeof right?.relativePath === "string" ? safeFindingPath(right.relativePath) ?? "\uffff" : "\uffff";
+    return leftPath < rightPath ? -1 : leftPath > rightPath ? 1 : 0;
+  });
 }
 
 function parseAddonInfo(content: string): Map<string, string> {

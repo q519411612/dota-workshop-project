@@ -21,6 +21,16 @@ export type DryRunReleaseReportInput = {
   addonName: string;
 };
 
+export type ReleaseReadinessFileSystem = {
+  readFile(path: string): Promise<string>;
+  stat(path: string): Promise<{ size: number }>;
+};
+
+const DEFAULT_RELEASE_READINESS_FILE_SYSTEM: ReleaseReadinessFileSystem = {
+  readFile: (path) => readFile(path, "utf8"),
+  stat
+};
+
 const TOOLCHAIN_MARKERS = [
   "package.json",
   "tsconfig.json",
@@ -73,7 +83,10 @@ export async function inspectWorkshopPreflight(input: InspectWorkshopPreflightIn
   });
 }
 
-export async function dryRunReleaseReport(input: DryRunReleaseReportInput): Promise<ToolResult> {
+export async function dryRunReleaseReport(
+  input: DryRunReleaseReportInput,
+  fileSystem: ReleaseReadinessFileSystem = DEFAULT_RELEASE_READINESS_FILE_SYSTEM
+): Promise<ToolResult> {
   const operation = "dry_run_release_report";
   const nameValidation = validateAddonName(input.addonName);
   if (!nameValidation.ok) {
@@ -102,7 +115,7 @@ export async function dryRunReleaseReport(input: DryRunReleaseReportInput): Prom
   }
 
   const paths = preflightPaths(root, input.addonName);
-  const observations = await collectReleaseReadinessObservations(paths);
+  const observations = await collectReleaseReadinessObservations(paths, fileSystem);
   const findings = evaluateReleaseReadiness(observations);
   const { evidence, blockers, warnings } = renderDryRunReadiness(findings, paths);
 
@@ -234,7 +247,10 @@ function releaseBoundaryWarnings(): string[] {
   ];
 }
 
-async function collectReleaseReadinessObservations(paths: Record<string, string>): Promise<ReleaseReadinessInput> {
+async function collectReleaseReadinessObservations(
+  paths: Record<string, string>,
+  fileSystem: ReleaseReadinessFileSystem
+): Promise<ReleaseReadinessInput> {
   const requiredPaths = [
     ["game addon root", paths.gameAddon],
     ["content addon root", paths.contentAddon],
@@ -253,9 +269,14 @@ async function collectReleaseReadinessObservations(paths: Record<string, string>
     requiredPathObservations.push({ label, present: await pathExists(path) });
   }
 
-  const metadata: ReleaseReadinessInput["metadata"] = (await pathExists(paths.addonInfo))
-    ? { state: "readable", content: await readFile(paths.addonInfo, "utf8") }
-    : { state: "missing" };
+  let metadata: ReleaseReadinessInput["metadata"] = { state: "missing" };
+  if (await pathExists(paths.addonInfo)) {
+    try {
+      metadata = { state: "readable", content: await fileSystem.readFile(paths.addonInfo) };
+    } catch {
+      metadata = { state: "unreadable", path: "addoninfo.txt" };
+    }
+  }
   const requiredTextPaths = new Set([
     paths.addonInfo,
     paths.luaEntry,
@@ -280,12 +301,27 @@ async function collectReleaseReadinessObservations(paths: Record<string, string>
         observations.push({ relativePath, state: "non-text" });
         continue;
       }
-      const info = await stat(file);
+      let info;
+      try {
+        info = await fileSystem.stat(file);
+      } catch {
+        observations.push({ relativePath, state: "unreadable", requiredText: requiredTextPaths.has(file) });
+        continue;
+      }
       if (info.size > MAX_SECRET_SCAN_BYTES) {
         observations.push({ relativePath, state: "oversized", requiredText: requiredTextPaths.has(file) });
         continue;
       }
-      observations.push({ relativePath, state: "text", content: await readFile(file, "utf8"), requiredText: requiredTextPaths.has(file) });
+      try {
+        observations.push({
+          relativePath,
+          state: "text",
+          content: await fileSystem.readFile(file),
+          requiredText: requiredTextPaths.has(file)
+        });
+      } catch {
+        observations.push({ relativePath, state: "unreadable", requiredText: requiredTextPaths.has(file) });
+      }
     }
     scanRoots.push({ root: rootName, files: observations });
   }
@@ -329,11 +365,18 @@ function renderDryRunReadiness(
         warnings.push(`secret scan skipped oversized file: ${finding.path}`);
         break;
       case "TEXT_UNREADABLE":
-      case "REQUIRED_TEXT_UNREADABLE":
         warnings.push(`secret scan skipped unreadable file: ${finding.path}`);
         break;
+      case "REQUIRED_TEXT_UNREADABLE":
+        blockers.push(`required text blocker: ${finding.path} unreadable`);
+        break;
       case "SECRET_SCAN_COMPLETED":
-        evidence.push(`secret scan completed: ${finding.field === "game" ? paths.gameAddon : paths.contentAddon}`);
+        evidence.push(
+          `secret scan completed: ${{ game: paths.gameAddon, content: paths.contentAddon }[finding.field]}`
+        );
+        break;
+      case "POLICY_INPUT_INVALID":
+        blockers.push(`release policy blocker: ${finding.category} invalid`);
         break;
     }
   }

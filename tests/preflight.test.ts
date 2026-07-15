@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
@@ -221,6 +221,54 @@ describe("workshop preflight inspection", () => {
       })
     );
     expect(JSON.stringify(result)).not.toContain(credentialValue);
+  });
+
+  test("classifies unreadable required text without exposing filesystem errors", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+    await writeCompleteAddonInfo(root, "demo_addon", "dota");
+    const localization = join(root, "game/dota_addons/demo_addon/resource/addon_demo_addon_english.txt");
+    await chmod(localization, 0o000);
+
+    const result = await dryRunReleaseReport({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toEqual({
+      code: "RELEASE_PREFLIGHT_BLOCKED",
+      message: "Release dry run found blockers."
+    });
+    expect(result.evidence).toContain("required text blocker: resource/addon_demo_addon_english.txt unreadable");
+    expect(JSON.stringify({ error: result.error, evidence: result.evidence })).not.toContain("EACCES");
+    expect(JSON.stringify({ error: result.error, evidence: result.evidence })).not.toContain("permission denied");
+  });
+
+  test("classifies required-text stat failures through the filesystem adapter", async () => {
+    await createAddon({
+      target: { kind: "fixture", root },
+      addonName: "demo_addon"
+    });
+    await writeCompleteAddonInfo(root, "demo_addon", "dota");
+    const localization = join(root, "game/dota_addons/demo_addon/resource/addon_demo_addon_english.txt");
+
+    const result = await dryRunReleaseReport(
+      { target: { kind: "fixture", root }, addonName: "demo_addon" },
+      {
+        readFile: (path) => readFile(path, "utf8"),
+        stat: async (path) => {
+          if (path === localization) throw new Error(`stat failed at ${root}`);
+          return stat(path);
+        }
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.evidence).toContain("required text blocker: resource/addon_demo_addon_english.txt unreadable");
+    expect(JSON.stringify({ error: result.error, evidence: result.evidence })).not.toContain("stat failed");
   });
 
   test("rejects invalid dry-run input before filesystem inspection", async () => {
