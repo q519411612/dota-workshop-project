@@ -263,6 +263,35 @@ describe("release candidate public detail", () => {
     expectNormalizationFailure(blockedWithoutBlocker);
   });
 
+  test("rejects blocked domain omission and incomplete attempted-cleanup evidence", () => {
+    const omittedBlockedEvidence = validSuccess();
+    const blocker = {
+      code: "REQUIRED_PATH_MISSING",
+      category: "required-structure",
+      disposition: "blocker",
+      field: "addon game mode script"
+    };
+    omittedBlockedEvidence.artifactValidation = {
+      status: "blocked",
+      blockers: [blocker]
+    };
+    delete omittedBlockedEvidence.manifest;
+    omittedBlockedEvidence.blockers = [blocker];
+    expectNormalizationFailure(omittedBlockedEvidence);
+
+    const incompleteCleanup = validSuccess();
+    incompleteCleanup.cleanup = {
+      schemaVersion: "1.0",
+      attempted: true,
+      attempts: 1,
+      status: "failed",
+      verified: false,
+      code: "CANDIDATE_REMOVAL_FAILED"
+    };
+    incompleteCleanup.blockers = [{ code: "CANDIDATE_REMOVAL_FAILED", category: "removal" }];
+    expectNormalizationFailure(incompleteCleanup);
+  });
+
   test("fails closed for getters, proxies, throwing arrays, unknown codes, and thenables", () => {
     const privatePath = ["", "Users", "secret"].join("/");
     const throwingGetter = Object.defineProperty({}, "schemaVersion", {
