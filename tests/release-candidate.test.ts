@@ -3894,6 +3894,78 @@ describe("release candidate input validation", () => {
     }
   });
 
+  test("reconciles final candidate topology after inspection", async () => {
+    for (const scenario of [
+      { name: "missing empty directory", mutation: "remove", callbackThrows: false },
+      { name: "unexpected empty directory", mutation: "add", callbackThrows: false },
+      { name: "mutation before throw", mutation: "remove", callbackThrows: true }
+    ] as const) {
+      const fixture = await createFixture();
+      await populateReadyFixture(fixture);
+      await mkdir(join(fixture.contentAddonRoot, "materials/empty/nested"), { recursive: true });
+      const events: string[] = [];
+      const lifecycle = createFixtureIdentityBoundCandidateLifecycle({
+        createCandidateLease: async (validated) => {
+          const root = await mkdtemp(join(validated.tempParent, "dota-release-candidate-"));
+          return {
+            inspectionRoot: root,
+            identity: {
+              root,
+              beforeReconcile: async () => { events.push("reconcile"); }
+            }
+          };
+        },
+        cleanupCandidateLease: async (identity) => {
+          events.push("cleanup");
+          await rm(identity.root, { recursive: true, force: false });
+          return { ok: true, removed: true, absent: true, identityMatched: true };
+        }
+      });
+
+      const result = await withAssembledReleaseCandidate(
+        { addonName: "fixture_addon", dotaRoot: fixture.dotaRoot, tempParent: fixture.tempParent },
+        async (root) => {
+          events.push("callback");
+          if (scenario.mutation === "remove") {
+            await rm(
+              join(root, "content/dota_addons/fixture_addon/materials/empty/nested"),
+              { recursive: true }
+            );
+          } else {
+            await mkdir(join(root, "content/dota_addons/fixture_addon/unexpected-empty"));
+          }
+          if (scenario.callbackThrows) throw new Error(`private callback failure ${fixture.root}`);
+          return "must not survive";
+        },
+        {
+          repositoryRoot: fixture.repositoryRoot,
+          filesystem: {
+            lstat,
+            realpath,
+            readDirectory: async (path) => await readdir(path),
+            classifySourceEntry: classifyFixtureEntry,
+            createCandidateRoot: vi.fn(async () => { throw new Error("raw creation is forbidden"); }),
+            candidateLifecycle: lifecycle
+          }
+        }
+      );
+
+      expect(result, scenario.name).toEqual({
+        ok: false,
+        blockers: [{
+          code: scenario.mutation === "remove" ? "CANDIDATE_TREE_MISSING" : "CANDIDATE_TREE_UNEXPECTED",
+          category: scenario.mutation === "remove" ? "assembly" : "unexpected-entry",
+          path: scenario.mutation === "remove"
+            ? "content/dota_addons/fixture_addon/materials/empty/nested"
+            : "content/dota_addons/fixture_addon/unexpected-empty"
+        }]
+      });
+      expect(events, scenario.name).toEqual(["reconcile", "callback", "reconcile", "cleanup"]);
+      expect(JSON.stringify(result), scenario.name).not.toContain("manifest");
+      expect(JSON.stringify(result), scenario.name).not.toContain(fixture.root);
+    }
+  });
+
   test("rejects malformed final integrity observations without retry or repair", async () => {
     const malformedCandidateResults: Array<Readonly<{ name: string; result(path: string): unknown }>> = [
       { name: "uppercase digest", result: (path) => ({ ok: true, schemaVersion: "1.0", observations: [{ ...validObservation(path), sha256: "A".repeat(64) }] }) },
