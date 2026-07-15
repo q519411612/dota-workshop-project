@@ -37,7 +37,7 @@ Execution history: `.planning/milestones/v1.13-phases/`
 ### v1.14 Workshop Addon Release Candidate Preflight
 
 - [x] **Phase 3: Safe Candidate Assembly** - Users can assemble an exact, isolated two-root candidate without unsafe entries or source mutation. (completed 2026-07-15)
-- [ ] **Phase 4: Integrity Manifest and Verified Cleanup** - Users receive deterministic byte-integrity evidence and proof that every temporary candidate was removed.
+- [x] **Phase 4: Integrity Manifest and Verified Cleanup** - Users receive deterministic byte-integrity evidence and proof that every temporary candidate was removed. (completed 2026-07-15)
 - [ ] **Phase 5: Unified MCP and Remote Target Parity** - Users can run the preflight through every supported target contract with strict remote evidence and no fallback.
 
 ## Phase Details
@@ -83,12 +83,12 @@ Plans:
 
 Plans:
 
-- [ ] 04-01: Stream identity-bound file observations and require source-before/candidate/source-after equality.
-- [ ] 04-02: Produce the versioned ordinal manifest and host-independent canonical digest.
-- [ ] 04-03: Reconcile exact candidate occurrences before constructing manifest lookups.
-- [ ] 04-04: Report exhaustive text, binary, unreadable, and oversized scan coverage.
-- [ ] 04-05: Guarantee exactly one cleanup attempt after every stateful candidate creation outcome.
-- [ ] 04-06: Preserve artifact-validation truth while enforcing verified-cleanup precedence.
+- [x] 04-01: Stream identity-bound file observations and require source-before/candidate/source-after equality.
+- [x] 04-02: Produce the versioned ordinal manifest and host-independent canonical digest.
+- [x] 04-03: Reconcile exact candidate occurrences before constructing manifest lookups.
+- [x] 04-04: Report exhaustive text, binary, unreadable, and oversized scan coverage.
+- [x] 04-05: Guarantee exactly one cleanup attempt after every stateful candidate creation outcome.
+- [x] 04-06: Preserve artifact-validation truth while enforcing verified-cleanup precedence.
 
 ### Phase 5: Unified MCP and Remote Target Parity
 
@@ -110,5 +110,5 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 3. Safe Candidate Assembly | 6/6 | Complete    | 2026-07-15 |
-| 4. Integrity Manifest and Verified Cleanup | 0/6 | Planned | - |
+| 4. Integrity Manifest and Verified Cleanup | 6/6 | Complete    | 2026-07-15 |
 | 5. Unified MCP and Remote Target Parity | 0/TBD | Not started | - |

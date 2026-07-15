@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.14
 milestone_name: Workshop Addon Release Candidate Preflight
-current_phase: 4
-current_phase_name: Integrity Manifest and Verified Cleanup
+current_phase: 5
+current_phase_name: Unified MCP and Remote Target Parity
 status: planning
-last_updated: "2026-07-15T10:07:16.569Z"
+last_updated: "2026-07-15T17:46:14.499Z"
 last_activity: 2026-07-15
-last_activity_desc: Phase 3 complete, transitioned to Phase 4
+last_activity_desc: Phase 4 complete, transitioned to Phase 5
 progress:
   total_phases: 3
-  completed_phases: 1
-  total_plans: 6
-  completed_plans: 6
-  percent: 33
+  completed_phases: 2
+  total_plans: 12
+  completed_plans: 12
+  percent: 67
 ---
 
 # Project State: Dota Workshop Project
@@ -22,10 +22,10 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md`
+See: `.planning/PROJECT.md` (updated 2026-07-15)
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** Phase 3 planning for safe, isolated two-root addon candidate assembly.
+**Current focus:** Phase 5 unified MCP registration and fixture/local/remote target parity.
 
 ## Archived Roadmap
 
@@ -35,20 +35,20 @@ See: `.planning/PROJECT.md`
 
 ## Current Position
 
-Phase: 4 of 5 (Integrity Manifest and Verified Cleanup)
+Phase: 5 of 5 (Unified MCP and Remote Target Parity)
 Plan: Not started
 Status: Ready for phase planning
-Progress: [----------] 0%
-Last activity: 2026-07-15 — Phase 3 complete, transitioned to Phase 4
+Progress: [████████████████████] 12/12 completed plans
+Last activity: 2026-07-15 — Phase 4 complete, transitioned to Phase 5
 
 ## Performance Metrics
 
 | Metric | Value |
 |---|---|
 | Milestone phases | 3 |
-| Completed phases | 1 |
+| Completed phases | 2 |
 | Requirements mapped | 19/19 |
-| Plans completed | 0 |
+| Plans completed | 12 |
 
 ## Accumulated Context
 
@@ -73,6 +73,9 @@ Last activity: 2026-07-15 — Phase 3 complete, transitioned to Phase 4
 | v1.14 candidates are temporary, target-local, and include both addon roots without heuristic filtering | `.planning/REQUIREMENTS.md` |
 | Cleanup uncertainty forces overall failure while preserving artifact-validation state | `.planning/REQUIREMENTS.md` |
 | macOS fixtures close v1.14; real Windows evidence is optional and must not be claimed by contract tests | `.planning/REQUIREMENTS.md` |
+| Candidate creation registers an opaque cleanup identity synchronously before later adapter behavior can fail | Phase 4 deep-review remediation |
+| Callback results are normalized to inert JSON-like evidence and cannot expose candidate paths or live capabilities | Phase 4 deep-review remediation |
+| Sensitive source identities block before candidate creation or manifest projection | Phase 4 deep-review remediation |
 
 ### Research Inputs
 
@@ -95,11 +98,12 @@ Last activity: 2026-07-15 — Phase 3 complete, transitioned to Phase 4
 - Local graphify freshness files under `.planning/graphs/` remain intentionally uncommitted and outside milestone planning scope.
 - v1.14 must not perform Steam login, Workshop mutation or upload, archive creation, signing, encryption, credential handling, game launch, or runtime validation.
 - Remote failures must remain explicit; local fallback is prohibited.
+- Phase 3 and Phase 4 are verified complete with 13/13 owned requirements, clean independent review, source immutability, and cleanup absence evidence.
 
 ### Todos
 
-- Plan Phase 3 from the safe candidate assembly requirements.
-- Preserve exact one-phase traceability as phases are executed.
+- Discuss and plan Phase 5 from the six remaining MCP and target-parity requirements.
+- Preserve exact one-phase traceability while wiring fixture, local Windows, SSH Windows, and PowerShell Remoting to one result contract.
 
 ### Blockers
 
@@ -107,9 +111,9 @@ Last activity: 2026-07-15 — Phase 3 complete, transitioned to Phase 4
 
 ## Session Continuity
 
-**Last completed action:** Created the v1.14 roadmap and mapped all 19 requirements to Phases 3-5.
-**Next action:** Run `$gsd-plan-phase 3`.
-**Resume context:** Start with Phase 3 safe assembly; integrity/cleanup follows in Phase 4, then MCP/remote parity in Phase 5.
+**Last completed action:** Closed Phase 4 after clean independent review and 5/5 verification.
+**Next action:** Run `$gsd-discuss-phase 5 --auto`.
+**Resume context:** Phase 5 owns the dedicated MCP schema/server route, fixture/local/SSH/PowerShell normalization, strict remote JSON evidence, and no-fallback parity.
 
 ---
-*Last updated: 2026-07-15 after creating the v1.14 roadmap*
+*Last updated: 2026-07-15 after Phase 4 transition*

@@ -1,6 +1,6 @@
 ---
 phase: 04-integrity-manifest-and-verified-cleanup
-verified: 2026-07-15T17:03:35Z
+verified: 2026-07-15T17:44:12Z
 status: passed
 score: 5/5 must-haves verified
 behavior_unverified: 0
@@ -10,9 +10,9 @@ overrides_applied: 0
 # Phase 4: Integrity Manifest and Verified Cleanup Verification Report
 
 **Phase Goal:** Users can trust that the candidate exactly matches stable source bytes and that no temporary candidate is presented as safely removed unless cleanup is verified.
-**Verified:** 2026-07-15T17:03:35Z
+**Verified:** 2026-07-15T17:44:12Z
 **Status:** passed
-**Re-verification:** No — initial independent phase verification
+**Re-verification:** Yes — rerun against `main` HEAD `eba0cd179c4ae96294a9e4f9e51951be0bb5cd6f` after deep-review remediation
 
 ## Goal Achievement
 
@@ -23,8 +23,8 @@ overrides_applied: 0
 | 1 | Every candidate file receives deterministic provenance, normalized path, byte count, lowercase SHA-256, and one host-independent combined digest. | ✓ VERIFIED | Final production code projects the manifest only from accepted inventory identities and the final post-callback candidate observations. It uses explicit ordinal root/path comparison and SHA-256 of the fixed UTF-8 nested-array encoding. The independently transcribed canonical vector, delimiter-collision case, shuffled enumeration, alternate separator/temp-root/metadata, and locale-hostility fixtures pass. |
 | 2 | Any source-before, candidate, or source-after mismatch and every missing, duplicate, unexpected, wrong-root, wrong-kind, or unobserved occurrence blocks manifest success. | ✓ VERIFIED | The lifecycle captures source-before before creation, observes candidate before callback use, then freshly collects candidate and source-after observations after callback settlement. Candidate occurrences remain an ordinal list until exact counts and discrepancy evidence are complete; manifest projection follows only a bijective ledger and final topology reconciliation. Mutation and non-bijective matrices pass. |
 | 3 | Scan coverage distinguishes text, binary, unreadable, and oversized files without removing legitimate binary content or accepting unscannable required text. | ✓ VERIFIED | `release-candidate.ts` calls the shared readiness and coverage policy for every accepted regular file. Text uses bounded bytes and fatal UTF-8 decoding; binary bypasses decoding but remains in integrity, ledger, and manifest domains. Exact four-class coverage, binary inclusion, required unreadable/invalid/oversized blockers, sanitization, and source immutability tests pass. |
-| 4 | Every stateful candidate acquisition outcome produces explicit cleanup evidence, and every valid lease reaches one cleanup attempt. | ✓ VERIFIED | Factory-owned one-shot creation registers opaque identity before returning a token, retains already-started asynchronous creation, rejects reentry/concurrent/late use, and routes valid leases through one `finally` cleanup call. The acquisition and post-create fault matrix verifies attempt counts, callback counts, filesystem absence for cleanup-capable identities, and explicit zero-attempt uncertainty where no usable identity exists. |
-| 5 | Cleanup uncertainty or failure forces overall failure without erasing final artifact-validation truth or exposing a stale value/path. | ✓ VERIFIED | Overall success is the conjunction of completed operation, passed final artifact validation, and verified cleanup. Strict cleanup normalization requires one attempt plus literal identity/removal/absence proof. Cleanup-only failure preserves a passed manifest/ledger/coverage; artifact plus cleanup failure preserves both evidence domains; all failures omit callback value and candidate path. Direct throw, hostile cleanup, callback mutation/throw, and immutable independent blocker tests pass. |
+| 4 | Every stateful candidate acquisition outcome produces explicit cleanup evidence, and every valid lease reaches one cleanup attempt. | ✓ VERIFIED | Factory-owned one-shot creation registers opaque identity before returning a token, retains already-started asynchronous creation even when the provider throws or returns malformed data, rejects reentry/concurrent/late use, and routes valid leases through one cleanup call. The acquisition and post-create fault matrix verifies exact attempt counts, callback counts, cleanup-capable filesystem absence, and explicit zero-attempt uncertainty only when no usable identity exists. |
+| 5 | Cleanup uncertainty or failure forces overall failure without erasing final artifact-validation truth or exposing a stale value/path. | ✓ VERIFIED | Overall success is the conjunction of completed operation, passed final artifact validation, and verified cleanup. Strict cleanup normalization requires one attempt plus literal identity/removal/absence proof. Cleanup-only failure preserves passed artifact evidence; artifact plus cleanup failure preserves both domains; all failures omit callback value and candidate path. Deep-review regressions additionally prove recursive inspection-value normalization, closed type constraints, sensitive source-identity rejection before manifest projection, and aligned operation/blocker failure codes. |
 
 **Score:** 5/5 truths verified (0 present but behavior-unverified)
 
@@ -32,9 +32,9 @@ overrides_applied: 0
 
 | Artifact | Expected | Status | Details |
 |---|---|---|---|
-| `src/release-candidate.ts` | Identity-bound streamed integrity, exact ledger, canonical manifest, final artifact composition, and verified-cleanup precedence | ✓ VERIFIED | 2,730 substantive lines. Exports the lifecycle and streaming observation seams; `withAssembledReleaseCandidate` wires preparation, readiness, source-before capture, acquisition, assembly, pre/post-callback evidence, final manifest projection, one cleanup funnel, and final result precedence. No stub or fallback implementation found. |
+| `src/release-candidate.ts` | Identity-bound streamed integrity, exact ledger, canonical manifest, final artifact composition, and verified-cleanup precedence | ✓ VERIFIED | 2,892 lines at the verified HEAD. Exports the lifecycle, streamed observation seams, closed inspection-evidence types, and failure-code domain; `withAssembledReleaseCandidate` wires preparation, readiness, source-before capture, acquisition, assembly, normalized post-callback evidence, final manifest projection, one cleanup funnel, and final result precedence. No stub or fallback implementation found. |
 | `src/release-readiness.ts` | Shared scan classification, required-text policy, deterministic coverage, and evidence sanitizer | ✓ VERIFIED | 444 substantive lines. Imported and called by the candidate lifecycle. Coverage uses guarded snapshots, exact counts, complete lists, ordinal pre-redaction order, and stable invalid-input blockers. |
-| `tests/release-candidate.test.ts` | Behavioral fixture and hostile-adapter evidence for all five roadmap truths | ✓ VERIFIED | 48 tests, including streamed hashing, final triple ordering, canonical vectors, occurrence-ledger discrepancies, four-class coverage, exactly-once cleanup, result precedence, sanitization, immutability, and source-tree snapshots. |
+| `tests/release-candidate.test.ts` | Behavioral fixture and hostile-adapter evidence for all five roadmap truths | ✓ VERIFIED | 50 tests, including streamed hashing, final triple ordering, canonical vectors, occurrence-ledger discrepancies, four-class coverage, exactly-once cleanup, result precedence, source-tree snapshots, registered cleanup ownership, recursive inspection-value normalization, compile-time evidence constraints, sensitive identity rejection, and aligned failure codes. |
 | `tests/release-readiness.test.ts` | Pure shared-policy coverage and hostile-input evidence | ✓ VERIFIED | 11 tests, including exact coverage aggregation, redaction ordering, getter/proxy normalization, and sanitized exceptional outcomes. |
 
 ### Key Link Verification
@@ -70,12 +70,22 @@ overrides_applied: 0
 | Direct cleanup exception normalization | `npm test -- tests/release-candidate.test.ts -t "normalizes a directly thrown cleanup failure without leaking the exception"` | 1/1 passed | ✓ PASS |
 | Separate artifact and cleanup blockers | `npm test -- tests/release-candidate.test.ts -t "separates blocked artifact evidence from cleanup failure evidence"` | 1/1 passed | ✓ PASS |
 | Deeply frozen independent blocker snapshots | `npm test -- tests/release-candidate.test.ts -t "freezes independent blocker snapshots across every lifecycle domain"` | 1/1 passed | ✓ PASS |
-| Complete repository regression | `npm test` | 20 files, 211/211 tests passed | ✓ PASS |
+| Deep-review cleanup and inspection remediation | focused callback isolation, post-create cleanup, sensitive identity, and safe evidence type matrix | 4/4 passed | ✓ PASS |
+| Phase 4 integrity and cleanup criteria matrix | focused triple integrity, manifest, ledger, coverage, source immutability, and cleanup precedence matrix | 6/6 passed | ✓ PASS |
+| Phase 4 source regression | `npm test -- tests/release-candidate.test.ts tests/release-readiness.test.ts` | 61/61 passed | ✓ PASS |
+| Complete repository regression | `npm test` | 20 files, 213/213 tests passed | ✓ PASS |
 | Static type safety | `npm run typecheck` | Exit 0 | ✓ PASS |
 | Build | `npm run build` | Exit 0; generated untracked candidate build was removed afterward | ✓ PASS |
-| Plugin/source-snapshot/install/handoff gates | `npm run verify:plugin`, `verify:source-snapshot`, `verify:install-simulation`, `verify:handoff` | All returned `ok: true`; source-snapshot records explicit prohibited-operation boundaries and install simulation proves cleanup | ✓ PASS |
-| Existing historical milestone verifier | `npm run verify:milestone` | `ok: true` for its documented v1.2-v1.7 scope; not used as Phase 4 completion evidence | ✓ PASS |
+| Plugin/fixture/source-snapshot/install/RC/handoff gates | `verify:plugin`, `verify:same-machine-smoke`, `verify:source-snapshot`, `verify:install-simulation`, `verify:rc`, `verify:handoff` | All returned `ok: true`; same-machine status is explicitly `harness_ready` with runtime evidence pending, source-snapshot records prohibited-operation boundaries, and install simulation proves temporary cleanup | ✓ PASS |
 | Patch hygiene | `git diff --check` | Exit 0 | ✓ PASS |
+
+## Deep-Review Remediation Re-verification
+
+- Registered creation remains cleanup-owned after malformed, throwing, or asynchronously settling acquisition providers; cleanup executes exactly once and the candidate root is absent afterward.
+- Callback output is recursively normalized into inert readonly evidence. Candidate roots, absolute source paths, functions, live instances, hostile getters, and hostile proxies fail closed without returning a value or leaking private paths.
+- The exported callback/result type contract rejects unsupported `void`, function, instance, bigint, and symbol evidence while accepting nested safe evidence.
+- Credential-shaped source identities block before candidate creation and manifest projection, return only redacted relative evidence, and leave source trees byte-for-byte unchanged.
+- Unsafe inspection values use `CANDIDATE_INSPECTION_VALUE_UNSAFE` consistently in operation and blocker domains; callback exceptions retain `CANDIDATE_INSPECTION_FAILED`.
 
 ### Probe Execution
 
@@ -107,7 +117,8 @@ Each requirement appears in exactly one Phase 4 plan frontmatter and exactly one
 | Source-tree write or automatic compilation/repair | Not found | None | Source trees are observed/read only; snapshot fixtures remain unchanged across success and failure paths. |
 | Phase 5 public integration | Not added or claimed | None | No `preflight_release_candidate` MCP/schema/server/remote route exists yet; target parity remains Phase 5 scope. |
 | Prohibited release mutation | Not found | None | No Steam login, Workshop mutation/upload, persistent archive, signing, encryption, credential handling, game launch, runtime validation, candidate transfer, or retention behavior was introduced. |
-| User-owned graph changes | Preserved and unstaged | None | Only `.planning/graphs/GRAPH_REPORT.md`, `graph.html`, and `graph.json` remain as unrelated modifications. |
+| User-owned graph changes | Preserved and unstaged | None | `.planning/graphs/GRAPH_REPORT.md`, `graph.html`, and `graph.json` were not read for evidence, edited, staged, or committed by this verification. |
+| Review artifacts outside verification ownership | Preserved | None | Existing `04-REVIEW.md` and `04-REVIEW-FIX.md` worktree changes were not edited or staged by this verification. |
 
 ## Disconfirmation Pass
 
@@ -121,9 +132,9 @@ None. Every behavior-dependent integrity, ordering, cleanup, and state-transitio
 
 ## Gaps Summary
 
-No Phase 4 gaps found. All five roadmap success criteria and all seven uniquely owned requirements are supported by substantive, wired implementation and fresh behavioral evidence. The phase goal is achieved within the documented macOS fixture and adapter-contract boundary and is ready for Phase 5 integration.
+No Phase 4 gaps found at HEAD `eba0cd1`. All five roadmap success criteria and all seven uniquely owned requirements are supported by substantive, wired implementation and fresh behavioral evidence. The phase goal is achieved within the documented macOS fixture and adapter-contract boundary and is ready for Phase 5 integration.
 
 ---
 
-_Verified: 2026-07-15T17:03:35Z_
-_Verifier: generic-agent workaround for gsd-verifier_
+_Verified: 2026-07-15T17:44:12Z_
+_Verifier: independent post-remediation verification_

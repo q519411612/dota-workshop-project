@@ -68,11 +68,12 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 - [x] Added an explicit minimal Lua ability proof harness with local generated-file, KV link, inspect evidence, and smoke marker validation tests.
 - [x] Added a local install simulation verifier for temporary-layout plugin consumption, cleanup, path isolation, and sensitive-material blocking.
 - [x] Closed v1.13 with case-insensitive YAML/YML scanning, fail-closed symbolic-link and isolation checks, exact requirement traceability, and a passing milestone audit.
+- [x] Added safe temporary two-root candidate assembly with complete regular-file and empty-directory coverage, explicit unsafe-entry blockers, source-change detection, and source-tree immutability.
+- [x] Added deterministic streamed integrity evidence, exact occurrence reconciliation, versioned manifests, canonical combined digests, exhaustive scan coverage, exactly-once cleanup ownership, and verified-cleanup precedence.
 
 ### Active
 
 - [ ] Assemble and validate a temporary Dota Workshop addon release candidate through a dedicated unified MCP operation.
-- [ ] Produce deterministic manifest, SHA-256, blocker, and cleanup evidence for both addon roots.
 - [ ] Preserve fixture, local Windows, and remote Windows contract parity without requiring real Windows evidence for completion.
 - [ ] Collect real same-machine Windows runtime marker evidence if a Windows machine is available.
 - [ ] Collect real Windows ability proof marker evidence if a Windows runtime is available and the proof unit is spawned.
@@ -102,7 +103,7 @@ Milestones v1.1 and v1.13 are archived under `.planning/milestones/`. Current pl
 - **Shipped version:** v1.13 Local Install Simulation on 2026-07-13.
 - **Verification:** 150/150 tests, clean independent review, 9/9 goal verification, and 6/6 milestone requirements/integration/flows.
 - **Install readiness:** plugin-facing files can be consumed from an isolated temporary layout with explicit cleanup, environment, sensitive-material, and path-safety evidence.
-- **Planning state:** v1.14 Workshop Addon Release Candidate Preflight is defining requirements; v1.13 requirements, audit, roadmap detail, and execution history are archived.
+- **Planning state:** v1.14 safe assembly plus integrity and verified cleanup are complete; unified MCP registration and fixture/local/remote parity remain in Phase 5. v1.13 requirements, audit, roadmap detail, and execution history are archived.
 - **Known follow-ups:** real same-machine Windows runtime evidence and real ability marker evidence remain outside the v1.14 completion gate.
 
 ## Next Milestone Goals
@@ -156,7 +157,10 @@ Milestones v1.1 and v1.13 are archived under `.planning/milestones/`. Current pl
 | Simulate install before global install | A temporary local layout proves plugin consumption readiness without mutating user config or global install state | Implemented |
 | Reject symbolic links in simulated install inputs | Dereferencing links could copy or scan content outside the repository boundary | Implemented |
 | Treat the v1.13 audit as milestone authority | The existing `verify:milestone` command remains intentionally scoped to v1.8 closeout evidence | Implemented |
-| Preflight a temporary addon release candidate before upload automation | An isolated candidate with deterministic manifest, hash, blocker, and cleanup evidence proves artifact boundaries without Steam credentials or Workshop mutation | Pending |
+| Preflight a temporary addon release candidate before upload automation | An isolated candidate with deterministic manifest, hash, blocker, and cleanup evidence proves artifact boundaries without Steam credentials or Workshop mutation | Assembly, integrity, and cleanup implemented; unified target integration pending |
+| Register cleanup identity synchronously at the creation boundary | Post-create exceptions or malformed results must never lose cleanup ownership | Implemented |
+| Return only normalized inert inspection evidence | A deleted candidate path or live capability must not escape successful cleanup | Implemented |
+| Reject sensitive source identities before manifest projection | Caller-visible manifest evidence must never expose credential-shaped filename segments | Implemented |
 
 ## Evolution
 
@@ -176,4 +180,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-15 after starting milestone v1.14*
+*Last updated: 2026-07-15 after Phase 4*

@@ -23,16 +23,16 @@
 
 ### Integrity Manifest and Audit Evidence
 
-- [ ] **RCIN-01**: An AI agent receives a blocker unless each copied file has identical source-before, source-after, and candidate SHA-256 values.
-- [ ] **RCIN-02**: An AI agent receives a schema-versioned manifest entry for every candidate file containing root provenance, normalized candidate-relative path, byte count, and lowercase SHA-256 in deterministic ordinal order.
-- [ ] **RCIN-03**: An AI agent receives a canonical combined digest derived only from fixed manifest fields and unaffected by path separators, enumeration order, absolute paths, temporary directory names, timestamps, permissions, locale, or host identity.
-- [ ] **RCIN-04**: An AI agent receives a blocker unless every accepted source file maps to exactly one candidate manifest entry and no candidate entry is missing, duplicated, or unexpected.
-- [ ] **RCIN-05**: An AI agent receives explicit scan-coverage counts and safe relative-path categories for text, binary, unreadable, and oversized inputs; legitimate binary files remain included and hashed, while required text-like files that cannot be fully scanned block success.
+- [x] **RCIN-01**: An AI agent receives a blocker unless each copied file has identical source-before, source-after, and candidate SHA-256 values.
+- [x] **RCIN-02**: An AI agent receives a schema-versioned manifest entry for every candidate file containing root provenance, normalized candidate-relative path, byte count, and lowercase SHA-256 in deterministic ordinal order.
+- [x] **RCIN-03**: An AI agent receives a canonical combined digest derived only from fixed manifest fields and unaffected by path separators, enumeration order, absolute paths, temporary directory names, timestamps, permissions, locale, or host identity.
+- [x] **RCIN-04**: An AI agent receives a blocker unless every accepted source file maps to exactly one candidate manifest entry and no candidate entry is missing, duplicated, or unexpected.
+- [x] **RCIN-05**: An AI agent receives explicit scan-coverage counts and safe relative-path categories for text, binary, unreadable, and oversized inputs; legitimate binary files remain included and hashed, while required text-like files that cannot be fully scanned block success.
 
 ### Cleanup, Target Parity, and Failure Semantics
 
-- [ ] **RCCL-01**: An AI agent receives cleanup evidence after every outcome following candidate creation, including validation blockers, copy errors, hashing errors, and successful artifact validation.
-- [ ] **RCCL-02**: An AI agent receives `ok: false` whenever candidate removal fails, cleanup is unverified, or post-cleanup absence cannot be proven, while artifact-validation state remains separately observable.
+- [x] **RCCL-01**: An AI agent receives cleanup evidence after every outcome following candidate creation, including validation blockers, copy errors, hashing errors, and successful artifact validation.
+- [x] **RCCL-02**: An AI agent receives `ok: false` whenever candidate removal fails, cleanup is unverified, or post-cleanup absence cannot be proven, while artifact-validation state remains separately observable.
 - [ ] **RCCL-03**: An AI agent can preflight a remote candidate entirely on its Windows target and receives only sanitized structured evidence rather than a downloaded or retained candidate artifact.
 - [ ] **RCCL-04**: An AI agent receives an explicit remote failure for malformed or incomplete versioned JSON, missing required evidence, transport uncertainty, or zero-exit commands that do not satisfy success invariants, with no local fallback.
 - [ ] **RCCL-05**: An AI agent can verify on macOS fixtures that fixture, local Windows, SSH Windows, and PowerShell Remoting contracts normalize to equivalent manifest, blocker, cleanup, and boundary semantics without claiming real Windows runtime proof.
@@ -74,13 +74,13 @@ Traceability is populated during roadmap creation. Each v1.14 requirement must m
 | RCFS-03 | Phase 3 | Complete |
 | RCFS-04 | Phase 3 | Complete |
 | RCFS-05 | Phase 3 | Complete |
-| RCIN-01 | Phase 4 | Pending |
-| RCIN-02 | Phase 4 | Pending |
-| RCIN-03 | Phase 4 | Pending |
-| RCIN-04 | Phase 4 | Pending |
-| RCIN-05 | Phase 4 | Pending |
-| RCCL-01 | Phase 4 | Pending |
-| RCCL-02 | Phase 4 | Pending |
+| RCIN-01 | Phase 4 | Complete |
+| RCIN-02 | Phase 4 | Complete |
+| RCIN-03 | Phase 4 | Complete |
+| RCIN-04 | Phase 4 | Complete |
+| RCIN-05 | Phase 4 | Complete |
+| RCCL-01 | Phase 4 | Complete |
+| RCCL-02 | Phase 4 | Complete |
 | RCCL-03 | Phase 5 | Pending |
 | RCCL-04 | Phase 5 | Pending |
 | RCCL-05 | Phase 5 | Pending |
