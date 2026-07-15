@@ -297,6 +297,51 @@ describe("release candidate public detail", () => {
     for (const candidate of cases) expectNormalizationFailure(candidate);
   });
 
+  test("binds paths, manifest entries, and coverage to one addon identity", () => {
+    const mixedRoots = validSuccess();
+    mixedRoots.paths.contentAddon = "content/dota_addons/other";
+    expectNormalizationFailure(mixedRoots);
+
+    const mixedManifest = validSuccess();
+    mixedManifest.manifest.entries[0].path = "content/dota_addons/other/maps/demo.vmap";
+    mixedManifest.manifest.combinedSha256 = computeReleaseCandidateCombinedDigest(mixedManifest.manifest.entries);
+    mixedManifest.artifactValidation.manifest = mixedManifest.manifest;
+    mixedManifest.scanCoverage.text.paths[0] = mixedManifest.manifest.entries[0].path;
+    mixedManifest.artifactValidation.scanCoverage = mixedManifest.scanCoverage;
+    expectNormalizationFailure(mixedManifest);
+  });
+
+  test("rejects unknown fields in every versioned evidence domain", () => {
+    const candidates = [
+      (() => { const value = validSuccess(); value.private = true; return value; })(),
+      (() => { const value = validSuccess(); value.operation.private = true; return value; })(),
+      (() => { const value = validSuccess(); value.artifactValidation.private = true; return value; })(),
+      (() => { const value = validSuccess(); value.manifest.private = true; return value; })(),
+      (() => { const value = validSuccess(); value.manifest.entries[0].private = true; return value; })(),
+      (() => { const value = validSuccess(); value.inclusionLedger.private = true; return value; })(),
+      (() => { const value = validSuccess(); value.scanCoverage.private = true; return value; })(),
+      (() => { const value = validSuccess(); value.scanCoverage.text.private = true; return value; })(),
+      (() => { const value = validSuccess(); value.cleanup.private = true; return value; })(),
+      (() => { const value = validSuccess(); value.paths.private = true; return value; })(),
+      (() => { const value = validSuccess(); value.execution.private = true; return value; })(),
+      (() => { const value = validSuccess(); value.commands[0].private = true; return value; })(),
+      (() => { const value = validSuccess(); value.logs[0].private = true; return value; })()
+    ];
+    const blocked = validSuccess();
+    const blocker = { code: "REQUIRED_PATH_MISSING", category: "required-structure", disposition: "blocker", private: true };
+    blocked.blockers = [blocker];
+    blocked.artifactValidation = {
+      status: "blocked",
+      blockers: [blocker],
+      inclusionLedger: blocked.inclusionLedger,
+      scanCoverage: blocked.scanCoverage
+    };
+    delete blocked.manifest;
+    candidates.push(blocked);
+
+    for (const candidate of candidates) expectNormalizationFailure(candidate);
+  });
+
   test("rejects incomplete coverage and contradictory state combinations", () => {
     const incomplete = validSuccess();
     incomplete.scanCoverage.text.paths.pop();

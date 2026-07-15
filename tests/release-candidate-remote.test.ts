@@ -193,6 +193,19 @@ describe("remote release-candidate normalization", () => {
     expect(semanticProjection(ssh)).toEqual(semanticProjection(powershell));
   });
 
+  test("rejects evidence for an addon other than the requested identity", async () => {
+    const result = await preflightRemoteReleaseCandidate({
+      target: target("ssh"),
+      addonName: "other",
+      executor: async () => ({ exitCode: 0, stdout: JSON.stringify(successPayload()), stderr: "" })
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "REMOTE_RELEASE_CANDIDATE_SEMANTIC_INVALID" }
+    });
+  });
+
   test("preserves complete blocked artifact and verified cleanup facts", async () => {
     const result = await preflightRemoteReleaseCandidate({
       target: target("ssh"),
@@ -317,9 +330,22 @@ describe("remote release-candidate normalization", () => {
     expect(result).toMatchObject({
       ok: false,
       error: { code },
-      releaseCandidate: { normalization: { status: "failed" } }
+      releaseCandidate: {
+        normalization: { status: "valid" },
+        operation: { status: "not-reached" },
+        artifactValidation: { status: "not-reached" },
+        blockers: [{ code }],
+        cleanup: { status: "not-reached", attempted: false, attempts: 0, verified: false },
+        execution: { kind: "ssh", outcome: "failed" },
+        boundaries: boundaries()
+      }
     });
-    expect(JSON.stringify(result.releaseCandidate)).not.toContain("cleanup");
+    expect(result.releaseCandidate).toMatchObject({
+      paths: {
+        gameAddon: `game/dota_addons/${addonName === "../demo" ? "unverified" : addonName}`,
+        contentAddon: `content/dota_addons/${addonName === "../demo" ? "unverified" : addonName}`
+      }
+    });
     expectNoPrivateEvidence(result);
   });
 });

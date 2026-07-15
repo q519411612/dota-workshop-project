@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { createHash } from "node:crypto";
 import {
   REMOTE_RELEASE_CANDIDATE_POLICY,
   buildRemoteReleaseCandidateScript
@@ -17,14 +18,18 @@ describe("remote release candidate PowerShell lifecycle", () => {
     const second = buildRemoteReleaseCandidateScript(input);
 
     expect(first).toBe(second);
+    const canonicalValue = [
+      "1.0",
+      [["content", "content/dota_addons/demo/maps/demo.vmap", 7, "a".repeat(64)]]
+    ];
     expect(REMOTE_RELEASE_CANDIDATE_POLICY).toEqual({
       schemaVersion: "1.0",
       maxSecretScanBytes: MAX_SECRET_SCAN_BYTES,
       releaseMetadataKeys: RELEASE_METADATA_KEYS,
       boundaries: RELEASE_CANDIDATE_BOUNDARIES,
       canonicalVector: {
-        value: [["1.0", "content", "content/dota_addons/demo/maps/demo.vmap", 7, "a".repeat(64)]],
-        sha256: "5ad3563c7afd90fba5668732db4b4f78a7c5d00593d11510093a08687373d443"
+        value: canonicalValue,
+        sha256: createHash("sha256").update(JSON.stringify(canonicalValue), "utf8").digest("hex")
       }
     });
     expect(first).toContain(`$SchemaVersion = '1.0'`);
@@ -91,6 +96,9 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).toContain("@('game', 'game/dota_addons', 'game/dota_addons/' + $AddonName");
     expect(script).toContain("'content', 'content/dota_addons', 'content/dota_addons/' + $AddonName)");
     expect(script).toContain("ConvertTo-Json -InputObject $rows -Depth 4 -Compress");
+    expect(script).toContain("[object[]]@($SchemaVersion, [object[]]$rows)");
+    expect(script).toContain("@($entry.root, $entry.path, [long]$entry.bytes, $entry.sha256)");
+    expect(script).not.toContain("@($entry.schemaVersion, $entry.root");
     expect(script).toContain("Get-CanonicalManifestDigest $CanonicalVectorEntries");
     expect(script).toContain("ConvertTo-Json -InputObject $expected -Compress");
     expect(script).toContain("ConvertTo-Json -InputObject $observed -Compress");
@@ -103,6 +111,51 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(script).toContain("$result.cleanup.code = 'CANDIDATE_IDENTITY_MISMATCH'");
     expect(script).toContain("function Assert-CandidateRoot");
     expect(script).toContain("Assert-CandidateRoot $candidateRoot $candidateIdentity");
+  });
+
+  test("preserves exact lifecycle blockers instead of collapsing exceptions", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).toContain("function Stop-ReleaseCandidate");
+    for (const code of [
+      "SOURCE_ENTRY_UNSAFE",
+      "SOURCE_ENTRY_OUTSIDE_ROOT",
+      "SOURCE_FILE_IDENTITY_CHANGED",
+      "SOURCE_CHANGED_DURING_ASSEMBLY",
+      "RELEASE_CANDIDATE_INTEGRITY_MISMATCH",
+      "CANDIDATE_LEDGER_MISSING",
+      "CANDIDATE_TREE_UNEXPECTED",
+      "TEMP_PARENT_NOT_ISOLATED",
+      "CANDIDATE_ROOT_NOT_ISOLATED"
+    ]) {
+      expect(script).toContain(`Stop-ReleaseCandidate '${code}'`);
+    }
+    expect(script).toContain("REMOTE_LIFECYCLE_INTERNAL_FAILURE");
+    expect(script).not.toContain("Add-Blocker 'SOURCE_OBSERVATION_FAILED' 'remote-script'");
+  });
+
+  test("binds source reads and cleanup to target-native identities", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).toContain("function Get-WindowsFileIdentity");
+    expect(script).toContain("fsutil.exe file queryFileID");
+    expect(script).toContain("function Assert-SafeSourceAncestors");
+    expect(script).toContain("fileIdentity = Get-WindowsFileIdentity $entry.FullName");
+    expect(script).toContain("Assert-SafeSourceAncestors $File.sourceRoot $File.source");
+    expect(script).toContain("Get-WindowsFileIdentity $File.source");
+    expect(script).toContain("function Assert-OwnedCandidateRoot");
+    expect(script).toContain("Get-WindowsFileIdentity $CandidateRoot");
+    expect(script).not.toContain("Add-Type");
+  });
+
+  test("requires bidirectional temp and source disjointness before materialization", () => {
+    const script = buildRemoteReleaseCandidateScript(input);
+
+    expect(script).toContain("function Test-PathsDisjoint");
+    expect(script).toContain("Test-PathsDisjoint $parent $DotaRoot");
+    expect(script).toContain("Test-PathsDisjoint $path $GameRoot");
+    expect(script).toContain("Test-PathsDisjoint $path $ContentRoot");
+    expect(script).toContain("New-CandidateRoot $dotaRoot $gameAddonRoot $contentAddonRoot");
   });
 
   test("has one compact JSON stdout path and suppresses incidental cmdlet output", () => {
