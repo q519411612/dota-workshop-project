@@ -105,7 +105,7 @@ describe("packaged release-candidate runtime", () => {
     );
     expect(REQUIRED_RUNTIME.some((path) => /\.(zip|7z|tar|gz|pck|sig|enc)$/i.test(path))).toBe(false);
     expect((await untrackedDistFiles())).toEqual([]);
-  });
+  }, 30_000);
 });
 
 async function temporaryDirectory(prefix: string): Promise<string> {

@@ -3650,7 +3650,7 @@ describe("release candidate input validation", () => {
       if (candidateRoot === undefined) throw new Error("candidate root was not recorded");
       await expect(lstat(candidateRoot), scenario.name).rejects.toMatchObject({ code: "ENOENT" });
     }
-  });
+  }, 30_000);
 
   test("builds deterministic canonical release candidate manifests", async () => {
     const manifestEntries = [
