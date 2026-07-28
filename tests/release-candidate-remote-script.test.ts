@@ -49,6 +49,19 @@ describe("remote release candidate PowerShell lifecycle", () => {
     expect(first).toContain(REMOTE_RELEASE_CANDIDATE_POLICY.canonicalVector.sha256);
   });
 
+  test("keeps generated script bytes ASCII-safe for non-ASCII Windows roots", () => {
+    const dotaRoot = "C:/用户/刀塔";
+    const encodedRoot = Buffer.from(dotaRoot, "utf16le").toString("base64");
+    const script = buildRemoteReleaseCandidateScript({ dotaRoot, addonName: "demo_addon" });
+
+    expect(script).not.toContain(dotaRoot);
+    expect(script).toContain(
+      `$DotaRootInput = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encodedRoot}'))`
+    );
+    expect(Buffer.from(script, "utf8").every((byte) => byte <= 0x7f)).toBe(true);
+    expect(script.endsWith("\n\n")).toBe(true);
+  });
+
   test("embeds every categorized shared sensitive-material rule without first-match collapse", () => {
     const script = buildRemoteReleaseCandidateScript(input);
     const start = script.indexOf("function Test-ReleaseReadiness");
@@ -116,8 +129,9 @@ describe("remote release candidate PowerShell lifecycle", () => {
   test("reconciles structural ancestors and preserves canonical single-entry shape", () => {
     const script = buildRemoteReleaseCandidateScript(input);
 
-    expect(script).toContain("@('game', 'game/dota_addons', 'game/dota_addons/' + $AddonName");
-    expect(script).toContain("'content', 'content/dota_addons', 'content/dota_addons/' + $AddonName)");
+    expect(script).toContain("@('game', 'game/dota_addons', ('game/dota_addons/' + $AddonName)");
+    expect(script).toContain("'content', 'content/dota_addons', ('content/dota_addons/' + $AddonName))");
+    expect(script).not.toContain("'game/dota_addons/' + $AddonName, 'content'");
     expect(script).toContain("ConvertTo-Json -InputObject $payload -Depth 4 -Compress");
     expect(script).toContain("$payload = [object[]]::new(2)");
     expect(script).toContain("$payload[0] = $SchemaVersion");

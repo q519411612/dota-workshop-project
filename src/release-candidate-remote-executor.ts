@@ -1,15 +1,13 @@
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { buildRemoteReleaseCandidateScript } from "./release-candidate-remote-script.js";
 import type { RemoteTarget } from "./types.js";
-
-const execFileAsync = promisify(execFile);
 
 export type RemoteReleaseCandidateInvocation = Readonly<{
   transport: "ssh" | "powershell";
   executable: string;
   args: readonly string[];
   script: string;
+  stdin?: string;
 }>;
 
 export type RemoteReleaseCandidateProcessOutput = Readonly<{
@@ -57,7 +55,7 @@ export async function executeRemoteReleaseCandidateScript(
 
   const invocation = buildInvocation(input.target, script);
   try {
-    const output = await (input.executor ?? executeInvocation)(invocation);
+    const output = await (input.executor ?? executeRemoteReleaseCandidateInvocation)(invocation);
     if (output.exitCode !== 0 || output.stderr.trim().length > 0) {
       return { transport, outcome: "failed", exitCode: output.exitCode };
     }
@@ -70,7 +68,6 @@ export async function executeRemoteReleaseCandidateScript(
 }
 
 function buildInvocation(target: RemoteTarget, script: string): RemoteReleaseCandidateInvocation {
-  const encodedScript = Buffer.from(script, "utf16le").toString("base64");
   if (target.transport === "ssh") {
     const destination = target.username ? `${target.username}@${target.host}` : target.host;
     return Object.freeze({
@@ -82,13 +79,15 @@ function buildInvocation(target: RemoteTarget, script: string): RemoteReleaseCan
         "-NoLogo",
         "-NoProfile",
         "-NonInteractive",
-        "-EncodedCommand",
-        encodedScript
+        "-Command",
+        "-"
       ]),
-      script
+      script,
+      stdin: script
     });
   }
 
+  const encodedScript = Buffer.from(script, "utf16le").toString("base64");
   const command = [
     `$encoded = '${encodedScript}'`,
     "$source = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($encoded))",
@@ -102,12 +101,33 @@ function buildInvocation(target: RemoteTarget, script: string): RemoteReleaseCan
   });
 }
 
-async function executeInvocation(invocation: RemoteReleaseCandidateInvocation): Promise<RemoteReleaseCandidateProcessOutput> {
-  const { stdout, stderr } = await execFileAsync(invocation.executable, [...invocation.args], {
-    windowsHide: true,
-    maxBuffer: 32 * 1024 * 1024
+export async function executeRemoteReleaseCandidateInvocation(
+  invocation: RemoteReleaseCandidateInvocation
+): Promise<RemoteReleaseCandidateProcessOutput> {
+  let child!: ReturnType<typeof execFile>;
+  const processCompletion = new Promise<RemoteReleaseCandidateProcessOutput>((resolve, reject) => {
+    child = execFile(invocation.executable, [...invocation.args], {
+      windowsHide: true,
+      maxBuffer: 32 * 1024 * 1024,
+      encoding: "utf8"
+    }, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve({ exitCode: 0, stdout, stderr });
+    });
   });
-  return { exitCode: 0, stdout, stderr };
+  const stdinCompletion = new Promise<void>((resolve, reject) => {
+    if (!child.stdin) {
+      reject(new Error("REMOTE_STDIN_UNAVAILABLE"));
+      return;
+    }
+    child.stdin.once("error", reject);
+    child.stdin.end(invocation.stdin ?? "", "utf8", resolve);
+  });
+  const [output] = await Promise.all([processCompletion, stdinCompletion]);
+  return output;
 }
 
 function isSafeDestinationPart(value: string): boolean {
