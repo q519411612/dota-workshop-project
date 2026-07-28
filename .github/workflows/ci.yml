@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository (v4.4.0)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js (v4.4.0)
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.1
+          cache: npm
+
+      - name: Verify npm version
+        run: test "$(npm --version)" = "10.9.8"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify same-machine contract
+        run: npm run verify:same-machine-smoke
+
+      - name: Verify source snapshot
+        run: npm run verify:source-snapshot
+
+      - name: Verify install simulation
+        run: npm run verify:install-simulation
+
+      - name: Verify milestone gate
+        run: npm run verify:milestone
