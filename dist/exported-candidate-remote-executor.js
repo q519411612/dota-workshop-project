@@ -17,7 +17,9 @@ export async function executeRemoteExport(input) {
 export async function executeRemoteExportCleanup(input) {
     if (input.target.kind !== "remote")
         return { transport: "ssh", outcome: "configuration-failed", code: "REMOTE_TARGET_REQUIRED" };
-    return await executeBuiltScript(input.target, () => buildRemoteCleanupExportedCandidateScript({
+    const target = input.target;
+    return await executeBuiltScript(target, () => buildRemoteCleanupExportedCandidateScript({
+        transport: target.transport,
         exportRoot: input.exportRoot,
         destination: input.destination,
         ownershipId: input.ownershipId,
