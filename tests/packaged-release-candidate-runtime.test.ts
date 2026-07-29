@@ -18,6 +18,7 @@ const REQUIRED_RUNTIME = [
   "dist/release-candidate-remote-executor.js",
   "dist/release-candidate-remote.js",
   "dist/exported-candidate.js",
+  "dist/exported-candidate-native.js",
   "dist/exported-candidate-remote-script.js",
   "dist/exported-candidate-remote-executor.js",
   "dist/exported-candidate-remote.js",

@@ -10,12 +10,17 @@ import {
   realpath,
   rename,
   rm,
-  unlink,
   writeFile
 } from "node:fs/promises";
 import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
-import { preflightNodeReleaseCandidate, type NodeReleaseCandidatePreflightDependencies } from "./release-candidate-node.js";
+import {
+  createNodeReleaseCandidateFilesystem,
+  preflightNodeReleaseCandidate,
+  type NodeReleaseCandidatePreflightDependencies
+} from "./release-candidate-node.js";
+import type { ReleaseCandidateEntryKind } from "./release-candidate.js";
+import { atomicMoveNoReplace } from "./exported-candidate-native.js";
 import { computeReleaseCandidateCombinedDigest } from "./release-candidate-result.js";
 import type {
   ReleaseCandidateManifestDetail,
@@ -85,6 +90,9 @@ export type ExportedCandidateCleanupEvidence = Readonly<{
   manifestState?: "present" | "tombstoned" | "absent" | "unknown";
   stagingRemoved?: boolean;
   stagingAbsent?: boolean;
+  temporaryHandoffRemoved?: boolean;
+  temporaryHandoffAbsent?: boolean;
+  promotionState?: "not-started" | "promoted" | "unknown";
   status: "not-reached" | "verified" | "failed" | "unknown";
   code?: string;
 }>;
@@ -98,10 +106,12 @@ export type ExportedCandidateResultFields = Readonly<{
 type ExportDependencies = NodeReleaseCandidatePreflightDependencies & Readonly<{
   createStaging?: typeof mkdtemp;
   preflight?: typeof preflightNodeReleaseCandidate;
+  atomicMove?: (source: string, destination: string) => Promise<void>;
   rename?: typeof rename;
   remove?: typeof rm;
   write?: typeof writeFile;
-  unlink?: typeof unlink;
+  afterCandidateTombstoneMove?: (path: string) => Promise<void>;
+  afterHandoffAuthorization?: (path: string) => Promise<void>;
 }>;
 
 export const EXPORTED_CANDIDATE_BOUNDARIES: ExportedCandidateBoundaries = Object.freeze({
@@ -126,7 +136,9 @@ export async function exportNodeReleaseCandidate(
     return failure(input.target, operation, "REMOTE_EXPORT_SERVICE_REQUIRED", "Remote export requires target-native execution.");
   }
   const target = publicTarget(input.target);
-  const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd());
+  const classifier = exportClassifier(dependencies);
+  if (!classifier.ok) return failure(target, operation, classifier.code, classifier.message);
+  const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd(), false, classifier.classify);
   if (!paths.ok) return failure(target, operation, paths.code, paths.message, paths.paths);
 
   let staging: string;
@@ -143,9 +155,8 @@ export async function exportNodeReleaseCandidate(
   let promoted = false;
   let failureStage: "assembly" | "promotion" = "assembly";
   const remove = dependencies.remove ?? rm;
-  const renamePath = dependencies.rename ?? rename;
+  const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform));
   const write = dependencies.write ?? writeFile;
-  const removeFile = dependencies.unlink ?? unlink;
 
   try {
     const releaseCandidate = await (dependencies.preflight ?? preflightNodeReleaseCandidate)(
@@ -153,8 +164,8 @@ export async function exportNodeReleaseCandidate(
       {
         ...dependencies,
         inspectCandidate: async (candidateRoot) => {
-          await copyCandidateTree(candidateRoot, staging);
-          stagingSnapshot = await computeCandidateSnapshot(staging);
+          await copyCandidateTree(candidateRoot, staging, classifier.classify);
+          stagingSnapshot = await computeCandidateSnapshot(staging, classifier.classify);
           return Object.freeze({ inspected: true });
         }
       }
@@ -175,19 +186,10 @@ export async function exportNodeReleaseCandidate(
         handoffManifest: paths.handoff
       }, [], cleanup);
     }
-    if (await pathExists(paths.destination) || await pathExists(paths.handoff)) {
-      const cleanup = await cleanupStaging(staging, remove, "DESTINATION_STATE_CHANGED");
-      return failure(target, operation, "DESTINATION_STATE_CHANGED", "Destination state changed before promotion.", {
-        exportRoot: paths.exportRoot,
-        destination: paths.destination,
-        handoffManifest: paths.handoff
-      }, [], cleanup);
-    }
-
     failureStage = "promotion";
-    await renamePath(staging, paths.destination);
+    await moveNoReplace(staging, paths.destination);
     promoted = true;
-    const finalSnapshot = await computeCandidateSnapshot(paths.destination);
+    const finalSnapshot = await computeCandidateSnapshot(paths.destination, classifier.classify);
     if (!snapshotEqual(stagingSnapshot, finalSnapshot)) {
       return failure(target, operation, "PROMOTED_MANIFEST_MISMATCH", "Promoted candidate integrity could not be proven.", {
         exportRoot: paths.exportRoot,
@@ -195,7 +197,7 @@ export async function exportNodeReleaseCandidate(
         handoffManifest: paths.handoff
       }, [], retainedFailureCleanup("PROMOTED_MANIFEST_MISMATCH"));
     }
-    const identity = await captureDirectoryIdentity(paths.destination);
+    const identity = await captureDirectoryIdentity(paths.destination, classifier.classify);
     const ownership: ExportedCandidateOwnership = Object.freeze({
       schemaVersion: EXPORTED_CANDIDATE_SCHEMA_VERSION,
       ownershipId: randomUUID(),
@@ -222,14 +224,15 @@ export async function exportNodeReleaseCandidate(
     const temporaryManifest = await createTemporaryManifestPath(paths.exportRoot);
     try {
       await write(temporaryManifest, `${JSON.stringify(handoff, null, 2)}\n`, { flag: "wx" });
-      await renamePath(temporaryManifest, paths.handoff);
-    } catch {
-      try { await removeFile(temporaryManifest); } catch {}
-      return failure(target, operation, "HANDOFF_MANIFEST_PUBLICATION_FAILED", "The retained candidate exists but its handoff manifest was not published.", {
+      await moveNoReplace(temporaryManifest, paths.handoff);
+    } catch (error) {
+      try { await rm(temporaryManifest, { force: true }); } catch {}
+      const code = stableErrorCode(error, "HANDOFF_MANIFEST_PUBLICATION_FAILED");
+      return failure(target, operation, code, "The retained candidate exists but its handoff manifest was not published.", {
         exportRoot: paths.exportRoot,
         destination: paths.destination,
         handoffManifest: paths.handoff
-      }, [], retainedFailureCleanup("HANDOFF_MANIFEST_PUBLICATION_FAILED"), handoff, ownership);
+      }, [], retainedFailureCleanup(code), handoff, ownership);
     }
 
     const cleanup = verifiedExportCleanup();
@@ -240,26 +243,27 @@ export async function exportNodeReleaseCandidate(
       evidence: [
         "release candidate preflight passed",
         "same-filesystem staging validated",
-        "candidate promoted with one rename operation",
-        "external handoff manifest published"
+        "candidate promoted with atomic no-replace",
+        "external handoff manifest published with atomic no-replace"
       ],
       warnings: ["contract evidence only; real Windows runtime behavior is not proven"],
       paths: { exportRoot: paths.exportRoot, destination: paths.destination, handoffManifest: paths.handoff },
-      commands: [{ command: "rename", cwd: paths.exportRoot, exitCode: 0 }],
+      commands: [{ command: "target-native atomic no-replace", cwd: paths.exportRoot, exitCode: 0 }],
       logs: [{ source: "export_release_candidate", lines: ["candidate retained", "handoff manifest published"] }],
       manifest: handoff,
       ownership,
       cleanup
     };
-  } catch {
+  } catch (error) {
     if (promoted) {
-      return failure(target, operation, "EXPORT_FINALIZATION_FAILED", "The promoted candidate state requires operator inspection.", {
+      const code = stableErrorCode(error, "EXPORT_FINALIZATION_FAILED");
+      return failure(target, operation, code, "The promoted candidate state requires operator inspection.", {
         exportRoot: paths.exportRoot,
         destination: paths.destination,
         handoffManifest: paths.handoff
-      }, [], retainedFailureCleanup("EXPORT_FINALIZATION_FAILED"));
+      }, [], retainedFailureCleanup(code));
     }
-    const code = failureStage === "promotion" ? "EXPORT_PROMOTION_FAILED" : "EXPORT_ASSEMBLY_FAILED";
+    const code = stableErrorCode(error, failureStage === "promotion" ? "EXPORT_PROMOTION_FAILED" : "EXPORT_ASSEMBLY_FAILED");
     const cleanup = await cleanupStaging(staging, remove, code);
     return failure(target, operation, code, failureStage === "promotion" ? "Candidate promotion failed." : "Candidate export failed before promotion.", {
       exportRoot: paths.exportRoot,
@@ -271,16 +275,18 @@ export async function exportNodeReleaseCandidate(
 
 export async function cleanupNodeExportedCandidate(
   input: CleanupExportedCandidateToolInput,
-  dependencies: Pick<ExportDependencies, "repositoryRoot" | "remove" | "rename" | "unlink"> = {}
+  dependencies: ExportDependencies = {}
 ): Promise<ToolResult> {
   const operation = "cleanup_exported_candidate";
   if (input.target.kind === "remote") {
     return failure(input.target, operation, "REMOTE_CLEANUP_SERVICE_REQUIRED", "Remote cleanup requires target-native execution.");
   }
   const target = publicTarget(input.target);
-  const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd(), true);
+  const classifier = exportClassifier(dependencies);
+  if (!classifier.ok) return failure(target, operation, classifier.code, classifier.message);
+  const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd(), true, classifier.classify);
   if (!paths.ok) return failure(target, operation, paths.code, paths.message, paths.paths);
-  const authorization = await authorizeCleanup(input, paths);
+  const authorization = await authorizeCleanup(input, paths, classifier.classify);
   if (!authorization.ok) {
     return failure(target, operation, authorization.code, authorization.message, {
       exportRoot: paths.exportRoot,
@@ -299,98 +305,70 @@ export async function cleanupNodeExportedCandidate(
       candidateAbsent: false,
       manifestRemoved: false,
       manifestAbsent: false,
+      candidateState: "present",
+      manifestState: "present",
       status: "verified"
     });
     return cleanupSuccess(target, input, paths, authorization.manifest, cleanup, "cleanup authorization passed without mutation");
   }
 
-  const remove = dependencies.remove ?? rm;
-  const renamePath = dependencies.rename ?? rename;
-  const removeFile = dependencies.unlink ?? unlink;
-  let candidateRemoved = false;
-  let manifestRemoved = false;
+  const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform));
   const candidateTombstone = join(paths.exportRoot, `.dota-workshop-candidate-delete-${randomUUID()}`);
-  const handoffTombstone = join(paths.exportRoot, `.dota-workshop-handoff-delete-${randomUUID()}.json`);
+  let candidateState: ExportedCandidateCleanupEvidence["candidateState"] = "unknown";
+  let code = "IDENTITY_BOUND_DELETION_UNAVAILABLE";
   try {
-    const mutationAuthorization = await authorizeCleanup(input, paths);
+    await dependencies.afterHandoffAuthorization?.(paths.handoff);
+    const mutationAuthorization = await authorizeCleanup(input, paths, classifier.classify);
     if (!mutationAuthorization.ok || !sameAuthorization(authorization, mutationAuthorization)) {
       if (mutationAuthorization.ok) await mutationAuthorization.handoffHandle.close().catch(() => undefined);
       throw new Error("CLEANUP_MUTATION_AUTHORIZATION_CHANGED");
     }
     await mutationAuthorization.handoffHandle.close().catch(() => undefined);
-    await renamePath(paths.destination, candidateTombstone);
-    const movedIdentity = await captureDirectoryIdentity(candidateTombstone);
+    await moveNoReplace(paths.destination, candidateTombstone);
+    candidateState = "tombstoned";
+    await dependencies.afterCandidateTombstoneMove?.(candidateTombstone);
+    const movedIdentity = await captureDirectoryIdentity(candidateTombstone, classifier.classify);
     if (!sameNodeIdentity(movedIdentity, authorization.candidateIdentity)) throw new Error("CANDIDATE_IDENTITY_MISMATCH");
-    const movedSnapshot = await computeCandidateSnapshot(candidateTombstone);
+    const movedSnapshot = await computeCandidateSnapshot(candidateTombstone, classifier.classify);
     if (!snapshotMatchesHandoff(movedSnapshot, authorization.manifest)) throw new Error("CANDIDATE_DIGEST_MISMATCH");
-    await remove(candidateTombstone, { recursive: true });
-    candidateRemoved = !await pathExists(candidateTombstone) && !await pathExists(paths.destination);
-  } catch {
-    try {
-      if (await pathExists(candidateTombstone) && !await pathExists(paths.destination)) {
-        const tombstoneIdentity = await captureDirectoryIdentity(candidateTombstone);
-        if (sameNodeIdentity(tombstoneIdentity, authorization.candidateIdentity)) await renamePath(candidateTombstone, paths.destination);
-      }
-    } catch {}
-  }
-  const candidateAbsent = candidateRemoved && !await pathExists(paths.destination) && !await pathExists(candidateTombstone);
-  if (candidateAbsent) {
-    try {
-      const handoffStats = await lstat(paths.handoff);
-      if (!sameNodeIdentity(handoffStats, authorization.handoffIdentity) || !handoffStats.isFile() || handoffStats.isSymbolicLink()) {
-        throw new Error("HANDOFF_IDENTITY_MISMATCH");
-      }
-      await renamePath(paths.handoff, handoffTombstone);
-      const movedHandoffStats = await lstat(handoffTombstone);
-      if (!sameNodeIdentity(movedHandoffStats, authorization.handoffIdentity) || !movedHandoffStats.isFile() || movedHandoffStats.isSymbolicLink()) {
-        throw new Error("HANDOFF_IDENTITY_MISMATCH");
-      }
-      await removeFile(handoffTombstone);
-      manifestRemoved = !await pathExists(handoffTombstone) && !await pathExists(paths.handoff);
-    } catch {
-      try {
-        if (await pathExists(handoffTombstone) && !await pathExists(paths.handoff)) {
-          const tombstoneStats = await lstat(handoffTombstone);
-          if (sameNodeIdentity(tombstoneStats, authorization.handoffIdentity) && tombstoneStats.isFile() && !tombstoneStats.isSymbolicLink()) {
-            await renamePath(handoffTombstone, paths.handoff);
-          }
-        }
-      } catch {}
-    }
+  } catch (error) {
+    code = stableErrorCode(error, "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE");
+    candidateState = await observedCandidateState(paths.destination, candidateTombstone, authorization.candidateIdentity, classifier.classify);
   }
   await authorization.handoffHandle.close().catch(() => undefined);
-  const manifestAbsent = manifestRemoved && !await pathExists(paths.handoff) && !await pathExists(handoffTombstone);
-  const verified = candidateRemoved && candidateAbsent && manifestRemoved && manifestAbsent;
+  const candidateTombstonePresent = await pathExists(candidateTombstone);
+  const manifestState = await observedHandoffState(paths.handoff, authorization.handoffIdentity, classifier.classify);
   const cleanup: ExportedCandidateCleanupEvidence = deepFreeze({
     schemaVersion: "1.0",
     mode: "execute",
     authorized: true,
     attempted: true,
-    candidateRemoved,
-    candidateAbsent,
-    manifestRemoved,
-    manifestAbsent,
-    status: verified ? "verified" : "failed",
-    ...(verified ? {} : { code: "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE" })
+    candidateRemoved: false,
+    candidateAbsent: false,
+    manifestRemoved: false,
+    manifestAbsent: false,
+    candidateState,
+    manifestState,
+    status: "failed",
+    code
   });
-  if (!verified) {
-    return failure(target, operation, "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE", "Cleanup did not prove removal of both owned objects.", {
-      exportRoot: paths.exportRoot,
-      destination: paths.destination,
-      handoffManifest: paths.handoff
-    }, [], cleanup, authorization.manifest, authorization.manifest.ownership);
-  }
-  return cleanupSuccess(target, input, paths, authorization.manifest, cleanup, "candidate and handoff manifest removed and proven absent");
+  return failure(target, operation, code, "Cleanup preserved the tombstone because identity-bound deletion is unavailable.", {
+    exportRoot: paths.exportRoot,
+    destination: paths.destination,
+    handoffManifest: paths.handoff,
+    ...(candidateTombstonePresent ? { candidateTombstone } : {})
+  }, ["inspect the preserved object state; do not retry automatically"], cleanup, authorization.manifest, authorization.manifest.ownership);
 }
 
 async function authorizeCleanup(
   input: CleanupExportedCandidateToolInput,
-  paths: ValidPaths
+  paths: ValidPaths,
+  classify: EntryClassifier
 ): Promise<CleanupAuthorization | { ok: false; code: string; message: string }> {
   let handoffHandle: Awaited<ReturnType<typeof open>> | undefined;
   try {
     const handoffStats = await lstat(paths.handoff);
-    if (!handoffStats.isFile() || handoffStats.isSymbolicLink()) {
+    if (await classify(paths.handoff) !== "file" || !handoffStats.isFile() || handoffStats.isSymbolicLink()) {
       return { ok: false, code: "HANDOFF_MANIFEST_INVALID", message: "Handoff manifest must be an owned regular file." };
     }
     if (typeof fsConstants.O_NOFOLLOW !== "number") {
@@ -417,7 +395,7 @@ async function authorizeCleanup(
       await handoffHandle.close();
       return { ok: false, code: "CLEANUP_AUTHORIZATION_MISMATCH", message: "Cleanup assertions do not match the handoff manifest." };
     }
-    const identity = await captureDirectoryIdentity(paths.destination);
+    const identity = await captureDirectoryIdentity(paths.destination, classify);
     if (
       manifest.ownership.candidateIdentity.kind !== "node"
       || identity.device !== manifest.ownership.candidateIdentity.device
@@ -426,7 +404,7 @@ async function authorizeCleanup(
       await handoffHandle.close();
       return { ok: false, code: "CANDIDATE_IDENTITY_MISMATCH", message: "Candidate identity changed after export." };
     }
-    const candidateSnapshot = await computeCandidateSnapshot(paths.destination);
+    const candidateSnapshot = await computeCandidateSnapshot(paths.destination, classify);
     if (!snapshotMatchesHandoff(candidateSnapshot, manifest) || candidateSnapshot.manifest.combinedSha256 !== input.combinedSha256) {
       await handoffHandle.close();
       return { ok: false, code: "CANDIDATE_DIGEST_MISMATCH", message: "Candidate digest no longer matches the handoff evidence." };
@@ -453,11 +431,31 @@ type CleanupAuthorization = Readonly<{
 }>;
 
 type ValidPaths = Readonly<{ exportRoot: string; destination: string; handoff: string }>;
+type EntryClassifier = (path: string) => Promise<ReleaseCandidateEntryKind>;
+
+function exportClassifier(dependencies: ExportDependencies):
+  | Readonly<{ ok: true; classify: EntryClassifier }>
+  | Readonly<{ ok: false; code: string; message: string }> {
+  const platform = dependencies.platform ?? process.platform;
+  const filesystem = dependencies.filesystem ?? createNodeReleaseCandidateFilesystem({
+    platform,
+    windowsClassifierExecutor: dependencies.windowsClassifierExecutor
+  });
+  if (platform === "win32" && filesystem.reparsePointAware !== true) {
+    return {
+      ok: false,
+      code: "WINDOWS_REPARSE_CLASSIFICATION_REQUIRED",
+      message: "Local Windows export requires the reparse-aware classifier."
+    };
+  }
+  return { ok: true, classify: async (path) => await filesystem.classifySourceEntry(path) };
+}
 
 async function validateExportPaths(
   input: Pick<ExportReleaseCandidateToolInput, "target" | "exportRoot" | "destination">,
   repositoryRoot: string,
-  allowExisting = false
+  allowExisting: boolean,
+  classify: EntryClassifier
 ): Promise<{ ok: true } & ValidPaths | { ok: false; code: string; message: string; paths: Record<string, string> }> {
   const rawPaths = { exportRoot: input.exportRoot, destination: input.destination };
   if (!portableAbsolute(input.exportRoot) || !portableAbsolute(input.destination) || containsUnsafePathText(input.exportRoot) || containsUnsafePathText(input.destination)) {
@@ -466,10 +464,10 @@ async function validateExportPaths(
   try {
     const exportStats = await lstat(input.exportRoot);
     const canonicalExportRoot = resolve(await realpath(input.exportRoot));
-    if (!exportStats.isDirectory() || exportStats.isSymbolicLink()) {
+    if (await classify(input.exportRoot) !== "directory" || !exportStats.isDirectory() || exportStats.isSymbolicLink()) {
       return { ok: false, code: "EXPORT_ROOT_UNSAFE", message: "Export root must be a canonical non-link directory.", paths: rawPaths };
     }
-    await assertNoSymbolicLinkAncestry(input.exportRoot);
+    await assertNoSymbolicLinkAncestry(input.exportRoot, classify);
     const rawExportRoot = resolve(input.exportRoot);
     const rawDestination = resolve(input.destination);
     const destinationLeaf = rawDestination.slice(rawDestination.lastIndexOf(sep) + 1);
@@ -499,10 +497,10 @@ async function validateExportPaths(
       return { ok: false, code: "EXPORTED_CANDIDATE_STATE_MISSING", message: "Candidate and handoff manifest must both exist.", paths: { exportRoot: canonicalExportRoot, destination, handoffManifest: handoff } };
     }
     if (allowExisting) {
-      await assertNoSymbolicLinkAncestry(destination);
+      await assertNoSymbolicLinkAncestry(destination, classify);
       const destinationStats = await lstat(destination);
       const handoffStats = await lstat(handoff);
-      if (!destinationStats.isDirectory() || destinationStats.isSymbolicLink() || !handoffStats.isFile() || handoffStats.isSymbolicLink()) {
+      if (await classify(destination) !== "directory" || await classify(handoff) !== "file" || !destinationStats.isDirectory() || destinationStats.isSymbolicLink() || !handoffStats.isFile() || handoffStats.isSymbolicLink()) {
         return { ok: false, code: "EXPORTED_CANDIDATE_STATE_UNSAFE", message: "Candidate and handoff manifest must be non-link owned objects.", paths: { exportRoot: canonicalExportRoot, destination, handoffManifest: handoff } };
       }
     }
@@ -512,7 +510,7 @@ async function validateExportPaths(
   }
 }
 
-async function copyCandidateTree(sourceRoot: string, destinationRoot: string): Promise<void> {
+async function copyCandidateTree(sourceRoot: string, destinationRoot: string, classify: EntryClassifier): Promise<void> {
   const folded = new Set<string>();
   const walk = async (sourceDirectory: string, relativeDirectory: string): Promise<void> => {
     const names = [...await readdir(sourceDirectory)].sort(compareOrdinal);
@@ -525,11 +523,11 @@ async function copyCandidateTree(sourceRoot: string, destinationRoot: string): P
       const source = join(sourceDirectory, name);
       const destination = join(destinationRoot, ...relativePath.split("/"));
       const sourceStats = await lstat(source);
-      if (sourceStats.isSymbolicLink()) throw new Error("symbolic link rejected");
-      if (sourceStats.isDirectory()) {
+      const kind = await classify(source);
+      if (kind === "directory" && sourceStats.isDirectory() && !sourceStats.isSymbolicLink()) {
         await mkdir(destination);
         await walk(source, relativePath);
-      } else if (sourceStats.isFile()) {
+      } else if (kind === "file" && sourceStats.isFile() && !sourceStats.isSymbolicLink()) {
         await copyFile(source, destination, fsConstants.COPYFILE_EXCL);
       } else {
         throw new Error("unknown candidate entry type");
@@ -540,7 +538,8 @@ async function copyCandidateTree(sourceRoot: string, destinationRoot: string): P
 }
 
 export async function computeExportedCandidateManifest(root: string): Promise<ReleaseCandidateManifestDetail> {
-  return (await computeCandidateSnapshot(root)).manifest;
+  const filesystem = createNodeReleaseCandidateFilesystem();
+  return (await computeCandidateSnapshot(root, async (path) => await filesystem.classifySourceEntry(path))).manifest;
 }
 
 type CandidateSnapshot = Readonly<{
@@ -548,7 +547,7 @@ type CandidateSnapshot = Readonly<{
   topology: readonly ExportedCandidateTopologyEntry[];
 }>;
 
-async function computeCandidateSnapshot(root: string): Promise<CandidateSnapshot> {
+async function computeCandidateSnapshot(root: string, classify: EntryClassifier): Promise<CandidateSnapshot> {
   const entries: ReleaseCandidateManifestEntryDetail[] = [];
   const topology: ExportedCandidateTopologyEntry[] = [];
   const folded = new Set<string>();
@@ -557,17 +556,17 @@ async function computeCandidateSnapshot(root: string): Promise<CandidateSnapshot
       if (!safeLeaf(name)) throw new Error("unsafe candidate identity");
       const path = join(directory, name);
       const stats = await lstat(path);
+      const kind = await classify(path);
       const identity = relative(root, path).replaceAll("\\", "/");
       const foldedIdentity = identity.toLocaleLowerCase("en-US");
       if (folded.has(foldedIdentity)) throw new Error("case-fold collision");
       folded.add(foldedIdentity);
-      if (stats.isSymbolicLink()) throw new Error("symbolic link rejected");
-      if (stats.isDirectory()) {
+      if (kind === "directory" && stats.isDirectory() && !stats.isSymbolicLink()) {
         topology.push({ kind: "directory", path: identity });
         await walk(path);
         continue;
       }
-      if (!stats.isFile()) throw new Error("unknown candidate entry type");
+      if (kind !== "file" || !stats.isFile() || stats.isSymbolicLink()) throw new Error("unknown candidate entry type");
       const rootName = identity.split("/", 1)[0];
       if (rootName !== "game" && rootName !== "content") throw new Error("unexpected candidate root");
       const handle = await open(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
@@ -707,10 +706,10 @@ function parseOwnership(value: unknown): ExportedCandidateOwnership | undefined 
   return undefined;
 }
 
-async function captureDirectoryIdentity(path: string): Promise<{ device: number; inode: number }> {
+async function captureDirectoryIdentity(path: string, classify: EntryClassifier): Promise<{ device: number; inode: number }> {
   const stats = await lstat(path);
   const canonical = resolve(await realpath(path));
-  if (!stats.isDirectory() || canonical !== resolve(path)) throw new Error("directory identity invalid");
+  if (await classify(path) !== "directory" || !stats.isDirectory() || stats.isSymbolicLink() || canonical !== resolve(path)) throw new Error("directory identity invalid");
   return { device: stats.dev, inode: stats.ino };
 }
 
@@ -750,6 +749,9 @@ function retainedFailureCleanup(code: string): ExportedCandidateCleanupEvidence 
     candidateAbsent: false,
     manifestRemoved: false,
     manifestAbsent: false,
+    candidateState: "present",
+    manifestState: "absent",
+    promotionState: "promoted",
     status: "failed",
     code
   });
@@ -765,8 +767,13 @@ function verifiedExportCleanup(): ExportedCandidateCleanupEvidence {
     candidateAbsent: false,
     manifestRemoved: false,
     manifestAbsent: false,
+    candidateState: "present",
+    manifestState: "present",
     stagingRemoved: false,
     stagingAbsent: true,
+    temporaryHandoffRemoved: false,
+    temporaryHandoffAbsent: true,
+    promotionState: "promoted",
     status: "verified"
   });
 }
@@ -895,7 +902,7 @@ function compareOrdinal(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-async function assertNoSymbolicLinkAncestry(path: string): Promise<void> {
+async function assertNoSymbolicLinkAncestry(path: string, classify: EntryClassifier): Promise<void> {
   const absolute = resolve(path);
   const root = parse(absolute).root;
   const relativeParts = relative(root, absolute).split(sep).filter(Boolean);
@@ -903,7 +910,8 @@ async function assertNoSymbolicLinkAncestry(path: string): Promise<void> {
   for (const part of relativeParts) {
     current = join(current, part);
     const stats = await lstat(current);
-    if (stats.isSymbolicLink() && !darwinSystemLink(current)) throw new Error("symbolic link ancestry rejected");
+    if (darwinSystemLink(current)) continue;
+    if (await classify(current) !== "directory" || !stats.isDirectory() || stats.isSymbolicLink()) throw new Error("symbolic link ancestry rejected");
   }
 }
 
@@ -958,6 +966,44 @@ function sameAuthorization(left: CleanupAuthorization, right: CleanupAuthorizati
   return JSON.stringify(left.manifest) === JSON.stringify(right.manifest)
     && sameNodeIdentity(left.candidateIdentity, right.candidateIdentity)
     && sameNodeIdentity(left.handoffIdentity, right.handoffIdentity);
+}
+
+async function observedCandidateState(
+  destination: string,
+  tombstone: string,
+  identity: Readonly<{ device: number; inode: number }>,
+  classify: EntryClassifier
+): Promise<ExportedCandidateCleanupEvidence["candidateState"]> {
+  try {
+    if (await pathExists(tombstone)) {
+      const observed = await captureDirectoryIdentity(tombstone, classify);
+      return sameNodeIdentity(observed, identity) ? "tombstoned" : "unknown";
+    }
+    if (await pathExists(destination)) {
+      const observed = await captureDirectoryIdentity(destination, classify);
+      return sameNodeIdentity(observed, identity) ? "present" : "unknown";
+    }
+    return "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+async function observedHandoffState(
+  path: string,
+  identity: Readonly<{ device: number; inode: number }>,
+  classify: EntryClassifier
+): Promise<ExportedCandidateCleanupEvidence["manifestState"]> {
+  try {
+    const stats = await lstat(path);
+    return await classify(path) === "file" && stats.isFile() && !stats.isSymbolicLink() && sameNodeIdentity(stats, identity) ? "present" : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function stableErrorCode(error: unknown, fallback: string): string {
+  return error instanceof Error && /^[A-Z0-9_]+$/u.test(error.message) ? error.message : fallback;
 }
 
 function deepFreeze<T>(value: T): T {

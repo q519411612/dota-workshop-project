@@ -98,6 +98,8 @@ function exportPayload() {
     manifest: manifest.manifest,
     inclusionLedger,
     export: manifest,
+    exportPaths: { exportRoot: manifest.exportRoot, destination: manifest.destination, handoffManifest: `${manifest.destination}.dota-workshop-handoff.v1.json` },
+    exportState: { schemaVersion: "1.0", promotionState: "promoted", candidateState: "present" },
     exportCleanup: {
       schemaVersion: "1.0",
       mode: "export-failure",
@@ -107,8 +109,13 @@ function exportPayload() {
       candidateAbsent: false,
       manifestRemoved: false,
       manifestAbsent: false,
+      candidateState: "present",
+      manifestState: "present",
       stagingRemoved: false,
       stagingAbsent: true,
+      temporaryHandoffRemoved: false,
+      temporaryHandoffAbsent: true,
+      promotionState: "promoted",
       status: "verified"
     }
   });
@@ -126,6 +133,9 @@ describe("remote exported candidate", () => {
     expect(exportScript).toContain("[IO.Directory]::Move($exportStaging, $destination)");
     expect(exportScript).toContain("Assert-NoReparseAncestry $exportRoot");
     expect(exportScript).toContain("$result.export = $handoff");
+    expect(exportScript).toContain("$result.exportState");
+    expect(exportScript).toContain("temporaryHandoffAbsent");
+    expect(exportScript).not.toContain("-ErrorAction SilentlyContinue");
     expect(exportScript).not.toMatch(/Get-Credential|-Credential|scp|Copy-Item.*ComputerName/u);
 
     const cleanupScript = buildRemoteCleanupExportedCandidateScript({
@@ -144,7 +154,10 @@ describe("remote exported candidate", () => {
     expect(cleanupScript).toContain("CreateFileW");
     expect(cleanupScript).toContain("FILE_FLAG_OPEN_REPARSE_POINT");
     expect(cleanupScript).toContain("Invoke-ExportedCandidateCleanup");
-    expect(cleanupScript).toContain("CANDIDATE_RESTORE_UNSAFE");
+    expect(cleanupScript).toContain("IDENTITY_BOUND_DELETION_UNAVAILABLE");
+    expect(cleanupScript).toContain("candidateTombstone");
+    expect(cleanupScript).not.toContain("Remove-Item -LiteralPath $candidateTombstone");
+    expect(cleanupScript).not.toContain("Remove-Item -LiteralPath $handoffTombstone");
     expect(cleanupScript).not.toMatch(/Get-Credential|-Credential|scp/u);
   });
 
@@ -198,6 +211,46 @@ describe("remote exported candidate", () => {
       executor: async () => ({ exitCode: 0, stdout: JSON.stringify(payload), stderr: "" })
     });
     expect(result).toMatchObject({ ok: false, error: { code: "REMOTE_EXPORT_SEMANTIC_INVALID" } });
+  });
+
+  test("preserves strict remote export failure paths, state, cleanup, and ownership", async () => {
+    const payload = JSON.parse(exportPayload());
+    payload.ok = false;
+    payload.blockers = [{ code: "HANDOFF_MANIFEST_PUBLICATION_FAILED", category: "export" }];
+    payload.exportState = { schemaVersion: "1.0", promotionState: "promoted", candidateState: "present" };
+    payload.exportCleanup = {
+      schemaVersion: "1.0",
+      mode: "export-failure",
+      authorized: true,
+      attempted: false,
+      candidateRemoved: false,
+      candidateAbsent: false,
+      manifestRemoved: false,
+      manifestAbsent: true,
+      candidateState: "present",
+      manifestState: "absent",
+      stagingRemoved: false,
+      stagingAbsent: true,
+      temporaryHandoffRemoved: true,
+      temporaryHandoffAbsent: true,
+      promotionState: "promoted",
+      status: "failed",
+      code: "HANDOFF_MANIFEST_PUBLICATION_FAILED"
+    };
+    const result = await exportRemoteReleaseCandidate({
+      target,
+      addonName: "demo",
+      exportRoot: "C:/Exports",
+      destination: "C:/Exports/demo",
+      executor: async () => ({ exitCode: 0, stdout: JSON.stringify(payload), stderr: "" })
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "HANDOFF_MANIFEST_PUBLICATION_FAILED" },
+      paths: payload.exportPaths,
+      manifest: { ownership: { ownershipId: handoff().ownership.ownershipId } },
+      cleanup: { promotionState: "promoted", candidateState: "present", manifestState: "absent", stagingAbsent: true, temporaryHandoffAbsent: true }
+    });
   });
 
   test("rejects hostile framing and transport uncertainty without fallback", async () => {
@@ -269,11 +322,13 @@ describe("remote exported candidate", () => {
     const hostile = [
       { manifest: { ...manifest, destination: "D:\\Other\\unrelated" } },
       { cleanup: { schemaVersion: "1.0", mode: "execute", authorized: false, attempted: false, candidateRemoved: false, candidateAbsent: false, manifestRemoved: false, manifestAbsent: false, status: "verified" } },
+      { paths: { exportRoot: manifest.exportRoot, destination: manifest.destination, handoffManifest: `${manifest.destination}.dota-workshop-handoff.v1.json`, candidateTombstone: "C:\\Exports\\.dota-workshop-candidate-delete-0123456789abcdef0123456789abcdef" } },
       { extra: true }
     ];
     for (const mutation of hostile) {
-      const cleanup = { schemaVersion: "1.0", mode: "execute", authorized: true, attempted: true, candidateRemoved: true, candidateAbsent: true, manifestRemoved: true, manifestAbsent: true, status: "verified" };
-      const payload = { schemaVersion: "1.0", ok: true, operation: "cleanup_exported_candidate", code: null, authorized: true, manifest, cleanup, ...mutation };
+      const cleanup = { schemaVersion: "1.0", mode: "execute", authorized: true, attempted: true, candidateRemoved: true, candidateAbsent: true, manifestRemoved: true, manifestAbsent: true, candidateState: "absent", manifestState: "absent", status: "verified" };
+      const paths = { exportRoot: manifest.exportRoot, destination: manifest.destination, handoffManifest: `${manifest.destination}.dota-workshop-handoff.v1.json` };
+      const payload = { schemaVersion: "1.0", ok: true, operation: "cleanup_exported_candidate", code: null, authorized: true, manifest, paths, cleanup, ...mutation };
       const result = await cleanupRemoteExportedCandidate({
         target,
         exportRoot: "C:/Exports",
@@ -285,6 +340,38 @@ describe("remote exported candidate", () => {
         executor: async () => ({ exitCode: 0, stdout: JSON.stringify(payload), stderr: "" })
       });
       expect(result).toMatchObject({ ok: false });
+    }
+  });
+
+  test("rejects unknown cleanup states with proven removal or absence", async () => {
+    const manifest = handoff();
+    for (const field of ["candidate", "manifest"] as const) {
+      const cleanup = {
+        schemaVersion: "1.0",
+        mode: "execute",
+        authorized: true,
+        attempted: true,
+        candidateRemoved: field === "candidate",
+        candidateAbsent: field === "candidate",
+        manifestRemoved: field === "manifest",
+        manifestAbsent: field === "manifest",
+        candidateState: field === "candidate" ? "unknown" : "present",
+        manifestState: field === "manifest" ? "unknown" : "present",
+        status: "failed",
+        code: "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE"
+      };
+      const paths = { exportRoot: manifest.exportRoot, destination: manifest.destination, handoffManifest: `${manifest.destination}.dota-workshop-handoff.v1.json` };
+      const result = await cleanupRemoteExportedCandidate({
+        target,
+        exportRoot: "C:/Exports",
+        destination: "C:/Exports/demo",
+        ownershipId: manifest.ownership.ownershipId,
+        manifestVersion: "1.0",
+        combinedSha256: manifest.combinedSha256,
+        dryRun: false,
+        executor: async () => ({ exitCode: 0, stdout: JSON.stringify({ schemaVersion: "1.0", ok: false, operation: "cleanup_exported_candidate", code: cleanup.code, authorized: true, manifest, paths, cleanup }), stderr: "" })
+      });
+      expect(result).toMatchObject({ ok: false, manifest: null, ownership: null });
     }
   });
 
@@ -309,7 +396,7 @@ describe("remote exported candidate", () => {
     },
     {
       name: "retained tombstone",
-      code: "CANDIDATE_RESTORE_UNSAFE",
+      code: "IDENTITY_BOUND_DELETION_UNAVAILABLE",
       cleanup: { candidateState: "tombstoned", manifestState: "present", candidateRemoved: false, candidateAbsent: false, manifestRemoved: false, manifestAbsent: false },
       extraPaths: { candidateTombstone: "C:\\Exports\\.dota-workshop-candidate-delete-0123456789abcdef0123456789abcdef" }
     }

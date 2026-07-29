@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -7,6 +7,8 @@ import {
   EXPORTED_CANDIDATE_HANDOFF_SUFFIX,
   exportNodeReleaseCandidate
 } from "../src/exported-candidate.js";
+import { atomicMoveNoReplace } from "../src/exported-candidate-native.js";
+import { createNodeReleaseCandidateFilesystem } from "../src/release-candidate-node.js";
 
 const roots: string[] = [];
 
@@ -105,6 +107,48 @@ describe("exported release candidate lifecycle", () => {
     expect(await readFile(join(destination, "owned.txt"), "utf8")).toBe("keep");
   });
 
+  test("uses atomic no-replace when promotion and handoff targets appear at mutation time", async () => {
+    const promotionFixture = await createFixture("promotion_race");
+    const promotionDestination = join(promotionFixture.exportRoot, "candidate-race");
+    const promotion = await exportNodeReleaseCandidate({
+      target: { kind: "fixture", root: promotionFixture.dotaRoot },
+      addonName: promotionFixture.addonName,
+      exportRoot: promotionFixture.exportRoot,
+      destination: promotionDestination
+    }, {
+      repositoryRoot: promotionFixture.repositoryRoot,
+      tempParent: promotionFixture.tempParent,
+      platform: "darwin",
+      atomicMove: async (source, destination) => {
+        await mkdir(destination);
+        await writeFile(join(destination, "owned.txt"), "keep");
+        await atomicMoveNoReplace(source, destination, "darwin");
+      }
+    });
+    expect(promotion).toMatchObject({ ok: false, error: { code: "ATOMIC_NO_REPLACE_DESTINATION_EXISTS" } });
+    expect(await readFile(join(promotionDestination, "owned.txt"), "utf8")).toBe("keep");
+
+    const handoffFixture = await createFixture("handoff_race");
+    const handoffDestination = join(handoffFixture.exportRoot, "candidate-race");
+    const handoffPath = `${handoffDestination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`;
+    const handoff = await exportNodeReleaseCandidate({
+      target: { kind: "fixture", root: handoffFixture.dotaRoot },
+      addonName: handoffFixture.addonName,
+      exportRoot: handoffFixture.exportRoot,
+      destination: handoffDestination
+    }, {
+      repositoryRoot: handoffFixture.repositoryRoot,
+      tempParent: handoffFixture.tempParent,
+      platform: "darwin",
+      atomicMove: async (source, destination) => {
+        if (destination.endsWith(EXPORTED_CANDIDATE_HANDOFF_SUFFIX)) await writeFile(destination, "owner data", { flag: "wx" });
+        await atomicMoveNoReplace(source, destination, "darwin");
+      }
+    });
+    expect(handoff).toMatchObject({ ok: false, error: { code: "ATOMIC_NO_REPLACE_DESTINATION_EXISTS" }, cleanup: { candidateState: "present" } });
+    expect(await readFile(handoffPath, "utf8")).toBe("owner data");
+  });
+
   test("dry-runs and executes cleanup only with exact ownership and digest evidence", async () => {
     const fixture = await createFixture();
     const destination = join(fixture.exportRoot, "candidate-1");
@@ -133,11 +177,12 @@ describe("exported release candidate lifecycle", () => {
 
     const executed = await cleanupNodeExportedCandidate({ ...base, dryRun: false }, { repositoryRoot: fixture.repositoryRoot });
     expect(executed).toMatchObject({
-      ok: true,
-      cleanup: { mode: "execute", candidateAbsent: true, manifestAbsent: true, status: "verified" }
+      ok: false,
+      error: { code: "IDENTITY_BOUND_DELETION_UNAVAILABLE" },
+      cleanup: { mode: "execute", candidateState: "tombstoned", manifestState: "present", status: "failed" },
+      paths: { candidateTombstone: expect.any(String) }
     });
-    await expect(readdir(destination)).rejects.toThrow();
-    await expect(readFile(`${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`)).rejects.toThrow();
+    expect(await readFile(`${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`, "utf8")).toContain(exported.ownership.ownershipId);
   });
 
   test("rejects protected and symbolic-link export roots", async () => {
@@ -159,6 +204,35 @@ describe("exported release candidate lifecycle", () => {
       destination: join(alias, "candidate")
     }, { repositoryRoot: fixture.repositoryRoot, tempParent: fixture.tempParent, platform: "darwin" });
     expect(linkedResult).toMatchObject({ ok: false, error: { code: "EXPORT_ROOT_UNSAFE" } });
+  });
+
+  test("requires the Windows reparse-aware classifier across export boundaries", async () => {
+    const fixture = await createFixture("windows_reparse");
+    const destination = join(fixture.exportRoot, "candidate");
+    const rootReparse = createNodeReleaseCandidateFilesystem({
+      platform: "win32",
+      windowsClassifySourceEntry: async (path) => path === fixture.exportRoot ? "reparse" : "directory"
+    });
+    const rejectedRoot = await exportNodeReleaseCandidate({
+      target: { kind: "fixture", root: fixture.dotaRoot },
+      addonName: fixture.addonName,
+      exportRoot: fixture.exportRoot,
+      destination
+    }, { repositoryRoot: fixture.repositoryRoot, tempParent: fixture.tempParent, platform: "win32", filesystem: rootReparse });
+    expect(rejectedRoot).toMatchObject({ ok: false, error: { code: "EXPORT_ROOT_UNSAFE" } });
+
+    const entryReparse = createNodeReleaseCandidateFilesystem({
+      platform: "win32",
+      windowsClassifySourceEntry: async (path) => path.endsWith("addoninfo.txt") ? "reparse" : (await lstat(path)).isDirectory() ? "directory" : "file"
+    });
+    const rejectedEntry = await exportNodeReleaseCandidate({
+      target: { kind: "fixture", root: fixture.dotaRoot },
+      addonName: fixture.addonName,
+      exportRoot: fixture.exportRoot,
+      destination
+    }, { repositoryRoot: fixture.repositoryRoot, tempParent: fixture.tempParent, platform: "win32", filesystem: entryReparse });
+    expect(rejectedEntry).toMatchObject({ ok: false, error: { code: "EXPORT_PREFLIGHT_FAILED" } });
+    await expect(readdir(destination)).rejects.toThrow();
   });
 
   test("reports promotion and staging cleanup failures independently", async () => {
@@ -293,10 +367,10 @@ describe("exported release candidate lifecycle", () => {
     });
     expect(result).toMatchObject({
       ok: false,
-      error: { code: "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE" },
-      cleanup: { candidateRemoved: false, candidateAbsent: false, manifestRemoved: false, manifestAbsent: false, status: "failed" }
+      error: { code: "IDENTITY_BOUND_DELETION_UNAVAILABLE" },
+      cleanup: { candidateState: "tombstoned", candidateRemoved: false, candidateAbsent: false, manifestRemoved: false, manifestAbsent: false, status: "failed" },
+      paths: { candidateTombstone: expect.any(String) }
     });
-    expect(await readdir(destination)).toEqual(["content", "game"]);
     expect(JSON.parse(await readFile(`${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`, "utf8"))).toMatchObject({ ownership: { ownershipId: exported.ownership.ownershipId } });
   });
 
@@ -348,5 +422,45 @@ describe("exported release candidate lifecycle", () => {
     expect(result).toMatchObject({ ok: false, cleanup: { candidateRemoved: false, manifestRemoved: false } });
     expect(await readdir(original)).toEqual(["content", "game"]);
     expect(await readFile(`${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`, "utf8")).toContain(exported.ownership.ownershipId);
+  });
+
+  test("preserves substituted candidate tombstones and handoff objects", async () => {
+    const candidateFixture = await createFixture("candidate_substitution");
+    const candidateDestination = join(candidateFixture.exportRoot, "candidate");
+    const candidateExport = await exportNodeReleaseCandidate({ target: { kind: "fixture", root: candidateFixture.dotaRoot }, addonName: candidateFixture.addonName, exportRoot: candidateFixture.exportRoot, destination: candidateDestination }, { repositoryRoot: candidateFixture.repositoryRoot, tempParent: candidateFixture.tempParent, platform: "darwin" });
+    if (!candidateExport.ok || candidateExport.manifest == null || candidateExport.ownership == null) throw new Error("export failed");
+    const preservedCandidate = join(candidateFixture.exportRoot, "preserved-owned-candidate");
+    const candidateResult = await cleanupNodeExportedCandidate({ target: { kind: "fixture", root: candidateFixture.dotaRoot }, exportRoot: candidateFixture.exportRoot, destination: candidateDestination, ownershipId: candidateExport.ownership.ownershipId, manifestVersion: "1.0", combinedSha256: candidateExport.manifest.combinedSha256, dryRun: false }, {
+      repositoryRoot: candidateFixture.repositoryRoot,
+      platform: "darwin",
+      afterCandidateTombstoneMove: async (tombstone) => {
+        await rename(tombstone, preservedCandidate);
+        await mkdir(tombstone);
+        await writeFile(join(tombstone, "substitute.txt"), "must remain");
+      }
+    });
+    expect(candidateResult).toMatchObject({ ok: false, cleanup: { candidateState: "unknown", candidateRemoved: false }, paths: { candidateTombstone: expect.any(String) } });
+    expect(await readdir(preservedCandidate)).toEqual(["content", "game"]);
+    const substitutedTombstone = candidateResult.paths.candidateTombstone;
+    if (typeof substitutedTombstone !== "string") throw new Error("missing tombstone path");
+    expect(await readFile(join(substitutedTombstone, "substitute.txt"), "utf8")).toBe("must remain");
+
+    const handoffFixture = await createFixture("handoff_substitution");
+    const handoffDestination = join(handoffFixture.exportRoot, "candidate");
+    const handoffExport = await exportNodeReleaseCandidate({ target: { kind: "fixture", root: handoffFixture.dotaRoot }, addonName: handoffFixture.addonName, exportRoot: handoffFixture.exportRoot, destination: handoffDestination }, { repositoryRoot: handoffFixture.repositoryRoot, tempParent: handoffFixture.tempParent, platform: "darwin" });
+    if (!handoffExport.ok || handoffExport.manifest == null || handoffExport.ownership == null) throw new Error("export failed");
+    const handoffPath = `${handoffDestination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`;
+    const preservedHandoff = join(handoffFixture.exportRoot, "preserved-handoff.json");
+    const handoffResult = await cleanupNodeExportedCandidate({ target: { kind: "fixture", root: handoffFixture.dotaRoot }, exportRoot: handoffFixture.exportRoot, destination: handoffDestination, ownershipId: handoffExport.ownership.ownershipId, manifestVersion: "1.0", combinedSha256: handoffExport.manifest.combinedSha256, dryRun: false }, {
+      repositoryRoot: handoffFixture.repositoryRoot,
+      platform: "darwin",
+      afterHandoffAuthorization: async () => {
+        await rename(handoffPath, preservedHandoff);
+        await writeFile(handoffPath, "substitute", { flag: "wx" });
+      }
+    });
+    expect(handoffResult).toMatchObject({ ok: false, cleanup: { attempted: true, candidateState: "present", manifestState: "unknown", candidateRemoved: false, manifestRemoved: false } });
+    expect(await readFile(handoffPath, "utf8")).toBe("substitute");
+    expect(await readFile(preservedHandoff, "utf8")).toContain(handoffExport.ownership.ownershipId);
   });
 });
