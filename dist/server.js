@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { PreflightReleaseCandidateInputSchema } from "./schemas.js";
+import { CleanupExportedCandidateInputSchema, ExportReleaseCandidateInputSchema, PreflightReleaseCandidateInputSchema } from "./schemas.js";
 import { asToolContent, handleTool } from "./tools.js";
 const targetInput = {
     target: z.discriminatedUnion("kind", [
@@ -105,6 +105,16 @@ export function createServer() {
         description: "Assemble, validate, report, and remove one temporary evidence-only release candidate without uploading or retaining it.",
         inputSchema: PreflightReleaseCandidateInputSchema
     }, async (input) => asToolContent(await handleTool("preflight_release_candidate", input)));
+    server.registerTool("export_release_candidate", {
+        title: "Export Release Candidate",
+        description: "Validate and retain one target-local release candidate at an explicit isolated destination with handoff and ownership evidence.",
+        inputSchema: ExportReleaseCandidateInputSchema
+    }, async (input) => asToolContent(await handleTool("export_release_candidate", input)));
+    server.registerTool("cleanup_exported_candidate", {
+        title: "Cleanup Exported Candidate",
+        description: "Dry-run or remove one exactly matched exported candidate and handoff manifest after ownership and digest verification.",
+        inputSchema: CleanupExportedCandidateInputSchema
+    }, async (input) => asToolContent(await handleTool("cleanup_exported_candidate", input)));
     server.registerTool("prepare_custom_map", {
         title: "Prepare Custom Map",
         description: "Copy an installed Workshop template map, verify spawn entity markers, and compile it with resourcecompiler.exe.",

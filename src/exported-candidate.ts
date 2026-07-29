@@ -35,7 +35,9 @@ export const EXPORTED_CANDIDATE_HANDOFF_SUFFIX = ".dota-workshop-handoff.v1.json
 export type ExportedCandidateOwnership = Readonly<{
   schemaVersion: "1.0";
   ownershipId: string;
-  candidateIdentity: Readonly<{ device: number; inode: number }>;
+  candidateIdentity:
+    | Readonly<{ kind: "node"; device: number; inode: number }>
+    | Readonly<{ kind: "windows"; volumeIdentity: string; fileIdentity: string }>;
 }>;
 
 export type ExportedCandidateHandoffManifest = Readonly<{
@@ -94,7 +96,7 @@ type ExportDependencies = NodeReleaseCandidatePreflightDependencies & Readonly<{
   unlink?: typeof unlink;
 }>;
 
-const BOUNDARIES: ExportedCandidateBoundaries = Object.freeze({
+export const EXPORTED_CANDIDATE_BOUNDARIES: ExportedCandidateBoundaries = Object.freeze({
   steamLogin: false,
   workshopMutation: false,
   upload: false,
@@ -178,7 +180,7 @@ export async function exportNodeReleaseCandidate(
     const ownership: ExportedCandidateOwnership = Object.freeze({
       schemaVersion: EXPORTED_CANDIDATE_SCHEMA_VERSION,
       ownershipId: randomUUID(),
-      candidateIdentity: Object.freeze({ device: identity.device, inode: identity.inode })
+      candidateIdentity: Object.freeze({ kind: "node" as const, device: identity.device, inode: identity.inode })
     });
     const handoff: ExportedCandidateHandoffManifest = deepFreeze({
       schemaVersion: EXPORTED_CANDIDATE_SCHEMA_VERSION,
@@ -195,7 +197,7 @@ export async function exportNodeReleaseCandidate(
       },
       manifest: finalManifest,
       ownership,
-      boundaries: BOUNDARIES
+      boundaries: EXPORTED_CANDIDATE_BOUNDARIES
     });
     const temporaryManifest = await createTemporaryManifestPath(paths.exportRoot);
     try {
@@ -322,7 +324,7 @@ async function authorizeCleanup(
   paths: ValidPaths
 ): Promise<{ ok: true; manifest: ExportedCandidateHandoffManifest } | { ok: false; code: string; message: string }> {
   try {
-    const manifest = parseHandoffManifest(JSON.parse(await readFile(paths.handoff, "utf8")));
+    const manifest = parseExportedCandidateHandoffManifest(JSON.parse(await readFile(paths.handoff, "utf8")));
     if (manifest === undefined) return { ok: false, code: "HANDOFF_MANIFEST_INVALID", message: "Handoff manifest is invalid." };
     if (
       manifest.exportRoot !== paths.exportRoot
@@ -333,7 +335,8 @@ async function authorizeCleanup(
     ) return { ok: false, code: "CLEANUP_AUTHORIZATION_MISMATCH", message: "Cleanup assertions do not match the handoff manifest." };
     const identity = await captureDirectoryIdentity(paths.destination);
     if (
-      identity.device !== manifest.ownership.candidateIdentity.device
+      manifest.ownership.candidateIdentity.kind !== "node"
+      || identity.device !== manifest.ownership.candidateIdentity.device
       || identity.inode !== manifest.ownership.candidateIdentity.inode
     ) return { ok: false, code: "CANDIDATE_IDENTITY_MISMATCH", message: "Candidate identity changed after export." };
     const candidateManifest = await computeManifest(paths.destination);
@@ -470,7 +473,7 @@ function manifestEqual(left: ReleaseCandidateManifestDetail, right: ReleaseCandi
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function parseHandoffManifest(value: unknown): ExportedCandidateHandoffManifest | undefined {
+export function parseExportedCandidateHandoffManifest(value: unknown): ExportedCandidateHandoffManifest | undefined {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
   const candidate = value as Record<string, unknown>;
   if (candidate.schemaVersion !== "1.0" || candidate.operation !== "export_release_candidate") return undefined;
@@ -478,11 +481,13 @@ function parseHandoffManifest(value: unknown): ExportedCandidateHandoffManifest 
   if (typeof candidate.fileCount !== "number" || typeof candidate.combinedSha256 !== "string" || !/^[0-9a-f]{64}$/.test(candidate.combinedSha256)) return undefined;
   const ownership = candidate.ownership as Record<string, unknown> | undefined;
   const identity = ownership?.candidateIdentity as Record<string, unknown> | undefined;
-  if (ownership?.schemaVersion !== "1.0" || typeof ownership.ownershipId !== "string" || typeof identity?.device !== "number" || typeof identity.inode !== "number") return undefined;
+  const nodeIdentity = identity?.kind === "node" && typeof identity.device === "number" && typeof identity.inode === "number";
+  const windowsIdentity = identity?.kind === "windows" && typeof identity.volumeIdentity === "string" && typeof identity.fileIdentity === "string";
+  if (ownership?.schemaVersion !== "1.0" || typeof ownership.ownershipId !== "string" || (!nodeIdentity && !windowsIdentity)) return undefined;
   const manifest = candidate.manifest as ReleaseCandidateManifestDetail | undefined;
   if (manifest?.schemaVersion !== "1.0" || !Array.isArray(manifest.entries) || manifest.combinedSha256 !== candidate.combinedSha256) return undefined;
   if (computeReleaseCandidateCombinedDigest(manifest.entries) !== manifest.combinedSha256 || manifest.entries.length !== candidate.fileCount) return undefined;
-  if (candidate.boundaries === null || typeof candidate.boundaries !== "object" || JSON.stringify(candidate.boundaries) !== JSON.stringify(BOUNDARIES)) return undefined;
+  if (candidate.boundaries === null || typeof candidate.boundaries !== "object" || JSON.stringify(candidate.boundaries) !== JSON.stringify(EXPORTED_CANDIDATE_BOUNDARIES)) return undefined;
   return deepFreeze(value as ExportedCandidateHandoffManifest);
 }
 

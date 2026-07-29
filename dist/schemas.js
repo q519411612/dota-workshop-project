@@ -78,6 +78,21 @@ export const PreflightReleaseCandidateInputSchema = z.object({
     target: PreflightReleaseCandidateTargetSchema,
     addonName: z.string().min(1)
 }).strict();
+export const ExportReleaseCandidateInputSchema = z.object({
+    target: PreflightReleaseCandidateTargetSchema,
+    addonName: z.string().min(1),
+    exportRoot: z.string().min(1),
+    destination: z.string().min(1)
+}).strict();
+export const CleanupExportedCandidateInputSchema = z.object({
+    target: PreflightReleaseCandidateTargetSchema,
+    exportRoot: z.string().min(1),
+    destination: z.string().min(1),
+    ownershipId: z.string().uuid(),
+    manifestVersion: z.literal("1.0"),
+    combinedSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    dryRun: z.boolean().optional()
+}).strict();
 export const DiscoverEnvironmentInputSchema = z.object({
     target: TargetSchema,
     platform: z.enum(["aix", "android", "darwin", "freebsd", "haiku", "linux", "openbsd", "sunos", "win32", "cygwin", "netbsd"]).optional()

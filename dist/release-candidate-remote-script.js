@@ -125,6 +125,7 @@ export function buildRemoteReleaseCandidateScript(input) {
         "    Assert-CandidateProjectionIdentity $candidateRoot $candidateIdentity $script:allFiles $candidateFileIdentities",
         "    $ledger = [ordered]@{ schemaVersion = $SchemaVersion; expectedFileCount = $script:allFiles.Count; observedFileCount = $finalEntries.Count; matchedFileCount = $finalEntries.Count }",
         "    $result.manifest = $manifest; $result.inclusionLedger = $ledger; $result.artifactValidation = [ordered]@{ status = 'passed'; manifest = $manifest; inclusionLedger = $ledger; scanCoverage = $result.scanCoverage }; $result.operation = [ordered]@{ status = 'completed' }",
+        ...(input.inspectionStatements ?? []),
         "  }",
         "} catch {",
         "  if ($result.blockers.Count -eq 0) { Add-Blocker 'REMOTE_LIFECYCLE_INTERNAL_FAILURE' 'remote-script' }",

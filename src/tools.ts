@@ -9,6 +9,7 @@ import { preflightRemoteReleaseCandidate } from "./release-candidate-remote.js";
 import { createReleaseCandidateToolResult } from "./release-candidate-result.js";
 import { createFailureResult } from "./result.js";
 import { cleanupNodeExportedCandidate, exportNodeReleaseCandidate } from "./exported-candidate.js";
+import { cleanupRemoteExportedCandidate, exportRemoteReleaseCandidate } from "./exported-candidate-remote.js";
 import { runPlayableSmoke } from "./smoke.js";
 import {
   createRemoteAddon,
@@ -83,9 +84,9 @@ const defaultPreflightServices: PreflightServices = Object.freeze({
 const defaultCandidateServices: CandidateServices = Object.freeze({
   ...defaultPreflightServices,
   exportNodeReleaseCandidate: async (input) => await exportNodeReleaseCandidate(input),
-  exportRemoteReleaseCandidate: async (input) => await exportNodeReleaseCandidate(input),
+  exportRemoteReleaseCandidate: async (input) => await exportRemoteReleaseCandidate(input),
   cleanupNodeExportedCandidate: async (input) => await cleanupNodeExportedCandidate(input),
-  cleanupRemoteExportedCandidate: async (input) => await cleanupNodeExportedCandidate(input)
+  cleanupRemoteExportedCandidate: async (input) => await cleanupRemoteExportedCandidate(input)
 });
 
 export const toolNames = [
