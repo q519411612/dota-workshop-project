@@ -11,6 +11,8 @@ export async function exportRemoteReleaseCandidate(input) {
     const parsed = parseFramedObject(outcome.stdout);
     if (parsed === undefined)
         return evidenceFailure(target, "export_release_candidate", "REMOTE_EXPORT_EVIDENCE_INVALID");
+    if (parsed.ok === false)
+        return normalizeRemoteExportFailure(target, outcome.transport, input, parsed);
     const handoff = parseExportedCandidateHandoffManifest(parsed.export);
     const cleanup = parseCleanup(parsed.exportCleanup, "export-failure");
     const releaseCandidate = normalizeReleaseCandidateDetail({
@@ -30,7 +32,7 @@ export async function exportRemoteReleaseCandidate(input) {
         logs: [{ source: "remote-exported-candidate", lines: ["remote evidence normalized"] }],
         boundaries: parsed.boundaries
     }, { expectedAddonName: input.addonName });
-    if (!hasOnlyKeys(parsed, ["schemaVersion", "operation", "artifactValidation", "blockers", "cleanup", "paths", "execution", "warnings", "commands", "logs", "boundaries", "scanCoverage", "manifest", "inclusionLedger", "export", "exportCleanup", "ok"])
+    if (!hasOnlyKeys(parsed, ["schemaVersion", "operation", "artifactValidation", "blockers", "cleanup", "paths", "execution", "warnings", "commands", "logs", "boundaries", "scanCoverage", "manifest", "inclusionLedger", "export", "exportCleanup", "exportPaths", "exportState", "ok"])
         || parsed.schemaVersion !== "1.0"
         || parsed.ok !== true
         || releaseCandidate.normalization.status !== "valid"
@@ -94,7 +96,7 @@ export async function cleanupRemoteExportedCandidate(input) {
     }
     if (parsed.ok === false) {
         const code = typeof parsed.code === "string" ? parsed.code : "REMOTE_CLEANUP_SEMANTIC_INVALID";
-        if (parsed.authorized === true && cleanup.authorized && cleanup.status === "failed" && cleanupFailureStateValid(cleanup, paths)) {
+        if (parsed.authorized === true && cleanup.authorized && cleanup.status === "failed" && cleanupFailureStateValid(cleanup, paths, code)) {
             return partialCleanupFailure(target, outcome.transport, code, handoff, cleanup, paths);
         }
         return evidenceFailure(target, "cleanup_exported_candidate", code, cleanup);
@@ -102,7 +104,7 @@ export async function cleanupRemoteExportedCandidate(input) {
     if (parsed.ok !== true
         || parsed.code !== null
         || parsed.authorized !== true
-        || !cleanupSuccessState(cleanup)) {
+        || !cleanupSuccessState(cleanup, paths)) {
         const code = typeof parsed.code === "string" && /^[A-Z0-9_]+$/u.test(parsed.code) ? parsed.code : "REMOTE_CLEANUP_SEMANTIC_INVALID";
         return evidenceFailure(target, "cleanup_exported_candidate", code, cleanup);
     }
@@ -120,12 +122,74 @@ export async function cleanupRemoteExportedCandidate(input) {
         cleanup
     };
 }
+function normalizeRemoteExportFailure(target, transport, input, parsed) {
+    const allowed = ["schemaVersion", "operation", "artifactValidation", "blockers", "cleanup", "paths", "execution", "warnings", "commands", "logs", "boundaries", "scanCoverage", "manifest", "inclusionLedger", "export", "exportCleanup", "exportPaths", "exportState", "ok"];
+    if (!hasOnlyKeys(parsed, allowed, ["export"]) || parsed.schemaVersion !== "1.0" || parsed.ok !== false) {
+        return evidenceFailure(target, "export_release_candidate", "REMOTE_EXPORT_SEMANTIC_INVALID");
+    }
+    const cleanup = parseCleanup(parsed.exportCleanup, "export-failure");
+    const paths = parseExportPaths(parsed.exportPaths, input.exportRoot, input.destination);
+    const state = parseExportState(parsed.exportState);
+    const handoff = parsed.export === undefined ? undefined : parseExportedCandidateHandoffManifest(parsed.export);
+    const code = cleanup?.code;
+    const stateValid = cleanup !== undefined
+        && paths !== undefined
+        && state !== undefined
+        && typeof code === "string"
+        && cleanup.status === "failed"
+        && cleanup.promotionState === state.promotionState
+        && cleanup.candidateState === state.candidateState
+        && cleanup.stagingAbsent === true
+        && cleanup.temporaryHandoffAbsent === true
+        && !cleanup.candidateRemoved
+        && !cleanup.manifestRemoved
+        && ((state.promotionState === "not-started" && state.candidateState === "absent" && cleanup.candidateAbsent)
+            || (state.promotionState === "promoted" && state.candidateState === "present" && !cleanup.candidateAbsent))
+        && ((cleanup.manifestState === "present" && !cleanup.manifestAbsent) || (cleanup.manifestState === "absent" && cleanup.manifestAbsent))
+        && (handoff === undefined || (handoff.targetKind === transport
+            && handoff.addonName === input.addonName
+            && windowsPathEqual(handoff.exportRoot, input.exportRoot)
+            && windowsPathEqual(handoff.destination, input.destination)));
+    if (!stateValid || cleanup === undefined || paths === undefined || state === undefined || typeof code !== "string") {
+        return evidenceFailure(target, "export_release_candidate", "REMOTE_EXPORT_SEMANTIC_INVALID", cleanup);
+    }
+    return {
+        ok: false,
+        target,
+        operation: "export_release_candidate",
+        error: { code, message: "Remote export stopped with validated target-local state." },
+        evidence: [`promotion state: ${state.promotionState}`, `candidate state: ${state.candidateState}`, `handoff state: ${cleanup.manifestState}`],
+        warnings: ["inspect retained target-local state; do not retry automatically"],
+        paths,
+        commands: [{ command: `${transport} export_release_candidate <redacted-script>`, exitCode: 0 }],
+        logs: [{ source: "remote-exported-candidate", lines: ["validated remote export failure normalized"] }],
+        manifest: handoff ?? null,
+        ownership: handoff?.ownership ?? null,
+        cleanup
+    };
+}
+function parseExportPaths(value, exportRoot, destination) {
+    if (!isRecord(value) || !hasOnlyKeys(value, ["exportRoot", "destination", "handoffManifest"]))
+        return undefined;
+    if (typeof value.exportRoot !== "string" || typeof value.destination !== "string" || typeof value.handoffManifest !== "string")
+        return undefined;
+    if (!windowsPathEqual(value.exportRoot, exportRoot) || !windowsPathEqual(value.destination, destination) || !windowsPathEqual(value.handoffManifest, `${destination}.dota-workshop-handoff.v1.json`))
+        return undefined;
+    return Object.freeze({ exportRoot: value.exportRoot, destination: value.destination, handoffManifest: value.handoffManifest });
+}
+function parseExportState(value) {
+    if (!isRecord(value) || !hasOnlyKeys(value, ["schemaVersion", "promotionState", "candidateState"]) || value.schemaVersion !== "1.0")
+        return undefined;
+    if ((value.promotionState !== "not-started" && value.promotionState !== "promoted") || (value.candidateState !== "absent" && value.candidateState !== "present"))
+        return undefined;
+    return Object.freeze({ promotionState: value.promotionState, candidateState: value.candidateState });
+}
 function parseCleanup(value, mode) {
     const keys = ["schemaVersion", "mode", "authorized", "attempted", "candidateRemoved", "candidateAbsent", "manifestRemoved", "manifestAbsent", "status", "code"];
     keys.push("candidateState", "manifestState");
     if (mode === "export-failure")
-        keys.push("stagingRemoved", "stagingAbsent");
-    if (!isRecord(value) || !hasOnlyKeys(value, keys, ["code", "stagingRemoved", "stagingAbsent", "candidateState", "manifestState"]) || value.schemaVersion !== "1.0" || value.mode !== mode)
+        keys.push("stagingRemoved", "stagingAbsent", "temporaryHandoffRemoved", "temporaryHandoffAbsent", "promotionState");
+    if (!isRecord(value) || !hasOnlyKeys(value, keys, ["code", "stagingRemoved", "stagingAbsent", "temporaryHandoffRemoved", "temporaryHandoffAbsent", "promotionState", "candidateState", "manifestState"]) || value.schemaVersion !== "1.0" || value.mode !== mode)
         return undefined;
     const booleanKeys = ["authorized", "attempted", "candidateRemoved", "candidateAbsent", "manifestRemoved", "manifestAbsent"];
     if (!booleanKeys.every((key) => typeof value[key] === "boolean"))
@@ -138,6 +202,8 @@ function parseCleanup(value, mode) {
         return undefined;
     if (value.manifestState !== undefined && value.manifestState !== "present" && value.manifestState !== "tombstoned" && value.manifestState !== "absent" && value.manifestState !== "unknown")
         return undefined;
+    if (value.promotionState !== undefined && value.promotionState !== "not-started" && value.promotionState !== "promoted" && value.promotionState !== "unknown")
+        return undefined;
     const parsed = Object.freeze({
         schemaVersion: "1.0",
         mode,
@@ -149,6 +215,9 @@ function parseCleanup(value, mode) {
         manifestAbsent: value.manifestAbsent,
         ...(typeof value.stagingRemoved === "boolean" ? { stagingRemoved: value.stagingRemoved } : {}),
         ...(typeof value.stagingAbsent === "boolean" ? { stagingAbsent: value.stagingAbsent } : {}),
+        ...(typeof value.temporaryHandoffRemoved === "boolean" ? { temporaryHandoffRemoved: value.temporaryHandoffRemoved } : {}),
+        ...(typeof value.temporaryHandoffAbsent === "boolean" ? { temporaryHandoffAbsent: value.temporaryHandoffAbsent } : {}),
+        ...(typeof value.promotionState === "string" ? { promotionState: value.promotionState } : {}),
         ...(typeof value.candidateState === "string" ? { candidateState: value.candidateState } : {}),
         ...(typeof value.manifestState === "string" ? { manifestState: value.manifestState } : {}),
         status: value.status,
@@ -183,24 +252,38 @@ function safeTombstonePath(path, exportRoot, kind) {
     const pattern = kind === "candidateTombstone" ? /^\.dota-workshop-candidate-delete-[0-9a-f]{32}$/iu : /^\.dota-workshop-handoff-delete-[0-9a-f]{32}\.json$/iu;
     return windowsPathEqual(parent, exportRoot) && pattern.test(leaf);
 }
-function cleanupFailureStateValid(cleanup, paths) {
-    if (cleanup.status !== "failed")
+function cleanupFailureStateValid(cleanup, paths, envelopeCode) {
+    if (cleanup.status !== "failed" || cleanup.code !== envelopeCode || !cleanup.authorized || cleanup.candidateState === undefined || cleanup.manifestState === undefined)
         return false;
     if (!cleanup.attempted && (cleanup.candidateState !== "present" || cleanup.manifestState !== "present"))
         return false;
-    if (cleanup.candidateState === "present" && (cleanup.candidateRemoved || cleanup.candidateAbsent || paths.candidateTombstone !== undefined))
-        return false;
-    if (cleanup.candidateState === "tombstoned" && (cleanup.candidateRemoved || cleanup.candidateAbsent || paths.candidateTombstone === undefined))
-        return false;
-    if (cleanup.candidateState === "absent" && (!cleanup.candidateRemoved || !cleanup.candidateAbsent || paths.candidateTombstone !== undefined))
-        return false;
-    if (cleanup.manifestState === "present" && (cleanup.manifestRemoved || cleanup.manifestAbsent || paths.handoffTombstone !== undefined))
-        return false;
-    if (cleanup.manifestState === "tombstoned" && (cleanup.manifestRemoved || cleanup.manifestAbsent || paths.handoffTombstone === undefined))
-        return false;
-    if (cleanup.manifestState === "absent" && (!cleanup.manifestRemoved || !cleanup.manifestAbsent || paths.handoffTombstone !== undefined))
-        return false;
-    return cleanup.candidateState !== undefined && cleanup.manifestState !== undefined;
+    return objectStateValid(cleanup.candidateState, cleanup.candidateRemoved, cleanup.candidateAbsent, paths.candidateTombstone !== undefined)
+        && objectStateValid(cleanup.manifestState, cleanup.manifestRemoved, cleanup.manifestAbsent, paths.handoffTombstone !== undefined)
+        && failureTransitionCodeValid(cleanup, envelopeCode);
+}
+function failureTransitionCodeValid(cleanup, code) {
+    if (cleanup.candidateState === "tombstoned") {
+        return code === "IDENTITY_BOUND_DELETION_UNAVAILABLE"
+            || code === "CANDIDATE_IDENTITY_MISMATCH"
+            || code === "CANDIDATE_DIGEST_MISMATCH"
+            || code === "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE";
+    }
+    if (cleanup.candidateState === "absent" && cleanup.manifestState !== "absent") {
+        return code.startsWith("HANDOFF_") || code === "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE";
+    }
+    if (cleanup.candidateState === "unknown" || cleanup.manifestState === "unknown") {
+        return code.endsWith("_UNKNOWN") || code.includes("IDENTITY") || code === "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE";
+    }
+    return cleanup.candidateState === "present" && cleanup.manifestState === "present";
+}
+function objectStateValid(state, removed, absent, tombstonePath) {
+    if (state === "present")
+        return !removed && !absent && !tombstonePath;
+    if (state === "tombstoned")
+        return !removed && !absent && tombstonePath;
+    if (state === "absent")
+        return removed && absent && !tombstonePath;
+    return !removed && !absent;
 }
 function partialCleanupFailure(target, transport, code, manifest, cleanup, paths) {
     const normalizedCleanup = cleanup.code === undefined ? Object.freeze({ ...cleanup, code }) : cleanup;
@@ -219,8 +302,8 @@ function partialCleanupFailure(target, transport, code, manifest, cleanup, paths
         cleanup: normalizedCleanup
     };
 }
-function cleanupSuccessState(cleanup) {
-    if (cleanup.status !== "verified" || !cleanup.authorized)
+function cleanupSuccessState(cleanup, paths) {
+    if (cleanup.status !== "verified" || !cleanup.authorized || cleanup.code !== undefined)
         return false;
     if (cleanup.mode === "dry-run") {
         return !cleanup.attempted
@@ -228,8 +311,10 @@ function cleanupSuccessState(cleanup) {
             && !cleanup.candidateAbsent
             && !cleanup.manifestRemoved
             && !cleanup.manifestAbsent
-            && (cleanup.candidateState === undefined || cleanup.candidateState === "present")
-            && (cleanup.manifestState === undefined || cleanup.manifestState === "present");
+            && cleanup.candidateState === "present"
+            && cleanup.manifestState === "present"
+            && paths?.candidateTombstone === undefined
+            && paths?.handoffTombstone === undefined;
     }
     if (cleanup.mode === "execute") {
         return cleanup.attempted
@@ -237,8 +322,10 @@ function cleanupSuccessState(cleanup) {
             && cleanup.candidateAbsent
             && cleanup.manifestRemoved
             && cleanup.manifestAbsent
-            && (cleanup.candidateState === undefined || cleanup.candidateState === "absent")
-            && (cleanup.manifestState === undefined || cleanup.manifestState === "absent");
+            && cleanup.candidateState === "absent"
+            && cleanup.manifestState === "absent"
+            && paths?.candidateTombstone === undefined
+            && paths?.handoffTombstone === undefined;
     }
     return !cleanup.attempted
         && !cleanup.candidateRemoved
