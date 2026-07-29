@@ -332,8 +332,13 @@ function cleanupSuccessState(cleanup, paths) {
         && !cleanup.candidateAbsent
         && !cleanup.manifestRemoved
         && !cleanup.manifestAbsent
+        && cleanup.candidateState === "present"
+        && cleanup.manifestState === "present"
         && cleanup.stagingRemoved === false
-        && cleanup.stagingAbsent === true;
+        && cleanup.stagingAbsent === true
+        && cleanup.temporaryHandoffRemoved === false
+        && cleanup.temporaryHandoffAbsent === true
+        && cleanup.promotionState === "promoted";
 }
 function parseFramedObject(stdout) {
     if (stdout.length < 2 || stdout[0] !== "{" || stdout.at(-1) !== "}" || /[\r\n]/u.test(stdout))

@@ -349,8 +349,13 @@ function cleanupSuccessState(cleanup: ExportedCandidateCleanupEvidence, paths?: 
     && !cleanup.candidateAbsent
     && !cleanup.manifestRemoved
     && !cleanup.manifestAbsent
+    && cleanup.candidateState === "present"
+    && cleanup.manifestState === "present"
     && cleanup.stagingRemoved === false
-    && cleanup.stagingAbsent === true;
+    && cleanup.stagingAbsent === true
+    && cleanup.temporaryHandoffRemoved === false
+    && cleanup.temporaryHandoffAbsent === true
+    && cleanup.promotionState === "promoted";
 }
 
 function parseFramedObject(stdout: string): Record<string, unknown> | undefined {
