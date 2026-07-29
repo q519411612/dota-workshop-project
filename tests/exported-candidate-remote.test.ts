@@ -339,6 +339,32 @@ describe("remote exported candidate", () => {
     expect(result).toMatchObject({ ok: false, error: { code: "REMOTE_EXPORT_SEMANTIC_INVALID" } });
   });
 
+  test.each([
+    { authorized: true, includeHandoff: false },
+    { authorized: false, includeHandoff: true }
+  ])("rejects remote handoff authorization mismatch %#", async ({ authorized, includeHandoff }) => {
+    const payload = JSON.parse(exportPayload());
+    payload.ok = false;
+    payload.blockers = [{ code: "HANDOFF_MANIFEST_PUBLICATION_FAILED", category: "export" }];
+    if (!includeHandoff) delete payload.export;
+    payload.exportCleanup = {
+      ...payload.exportCleanup,
+      authorized,
+      manifestState: "absent",
+      manifestAbsent: true,
+      status: "failed",
+      code: "HANDOFF_MANIFEST_PUBLICATION_FAILED"
+    };
+    const result = await exportRemoteReleaseCandidate({
+      target,
+      addonName: "demo",
+      exportRoot: "C:/Exports",
+      destination: "C:/Exports/demo",
+      executor: async () => ({ exitCode: 0, stdout: JSON.stringify(payload), stderr: "" })
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "REMOTE_EXPORT_SEMANTIC_INVALID" } });
+  });
+
   test("preserves strict remote export failure paths, state, cleanup, and ownership", async () => {
     const payload = JSON.parse(exportPayload());
     payload.ok = false;

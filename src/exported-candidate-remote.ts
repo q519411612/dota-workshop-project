@@ -169,6 +169,7 @@ function normalizeRemoteExportFailure(
     && cleanup.temporaryHandoffAbsent === true
     && !cleanup.candidateRemoved
     && !cleanup.manifestRemoved
+    && cleanup.authorized === (handoff !== undefined)
     && (state.promotionState !== "not-started" || (!cleanup.authorized && handoff === undefined))
     && ((state.promotionState === "not-started" && state.candidateState === "absent" && cleanup.candidateAbsent)
       || (state.promotionState === "not-started" && state.candidateState === "unknown" && !cleanup.candidateAbsent)
