@@ -93,6 +93,23 @@ export const PreflightReleaseCandidateInputSchema = z.object({
   addonName: z.string().min(1)
 }).strict();
 
+export const ExportReleaseCandidateInputSchema = z.object({
+  target: PreflightReleaseCandidateTargetSchema,
+  addonName: z.string().min(1),
+  exportRoot: z.string().min(1),
+  destination: z.string().min(1)
+}).strict();
+
+export const CleanupExportedCandidateInputSchema = z.object({
+  target: PreflightReleaseCandidateTargetSchema,
+  exportRoot: z.string().min(1),
+  destination: z.string().min(1),
+  ownershipId: z.string().uuid(),
+  manifestVersion: z.literal("1.0"),
+  combinedSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  dryRun: z.boolean().optional()
+}).strict();
+
 export const DiscoverEnvironmentInputSchema = z.object({
   target: TargetSchema,
   platform: z.enum(["aix", "android", "darwin", "freebsd", "haiku", "linux", "openbsd", "sunos", "win32", "cygwin", "netbsd"]).optional()
@@ -169,6 +186,8 @@ export type InspectAddonToolInput = z.infer<typeof InspectAddonInputSchema>;
 export type InspectWorkshopPreflightToolInput = z.infer<typeof InspectWorkshopPreflightInputSchema>;
 export type DryRunReleaseReportToolInput = z.infer<typeof DryRunReleaseReportInputSchema>;
 export type PreflightReleaseCandidateToolInput = z.infer<typeof PreflightReleaseCandidateInputSchema>;
+export type ExportReleaseCandidateToolInput = z.infer<typeof ExportReleaseCandidateInputSchema>;
+export type CleanupExportedCandidateToolInput = z.infer<typeof CleanupExportedCandidateInputSchema>;
 export type DiscoverEnvironmentToolInput = z.infer<typeof DiscoverEnvironmentInputSchema>;
 export type ValidateTargetToolInput = z.infer<typeof ValidateTargetInputSchema>;
 export type RemoteCommandToolInput = z.infer<typeof RemoteCommandInputSchema>;
