@@ -1,6 +1,6 @@
 ---
 phase: 08-release-gates-documentation-and-closure
-reviewed: 2026-07-29T10:18:48Z
+reviewed: 2026-07-29T10:26:52Z
 depth: deep
 files_reviewed: 17
 files_reviewed_list:
@@ -22,46 +22,39 @@ files_reviewed_list:
   - tests/plugin.test.ts
   - dist/exported-candidate-native.js
 findings:
-  critical: 2
+  critical: 1
   warning: 0
   info: 0
-  total: 2
+  total: 1
 status: issues_found
 ---
 
 # Phase 8: Code Review Report
 
-**Reviewed:** 2026-07-29T10:18:48Z
+**Reviewed:** 2026-07-29T10:26:52Z
 **Depth:** deep
 **Files Reviewed:** 17
 **Status:** issues_found
 
 ## Summary
 
-The fixes at `08fd9ed` correctly close the prior remote-success validation defect: success now strictly parses canonical export paths and export state, requires `promoted/present`, and reconciles both values with cleanup evidence. Early failures also compute canonical paths before the ordinary root and destination checks. However, two blocker-class defects remain. The real target script emits a legitimate `unknown` candidate state when a destination already exists, but the host failure parser rejects that state and erases the exact `EXPORT_DESTINATION_EXISTS` result. The documented `CC` compiler selection is also honored only by the prerequisite probe; the actual atomic move still invokes `/usr/bin/cc`, so a probe can pass and export can begin before failing on the compiler path the documentation says is optional.
+The fixes at `ffc994f` correctly preserve the ordinary `EXPORT_DESTINATION_EXISTS` result with canonical paths and an unowned `not-started/unknown` candidate state. Success remains restricted to `promoted/present` with matching cleanup evidence. The exact same resolved compiler is now passed to the prerequisite probe and every POSIX move in export and cleanup, and tests exercise the selected compiler path. One blocker-class hostile-evidence defect remains: the widened unknown-state branch does not require the cleanup evidence to be unauthorized, so it accepts an ownership/authorization combination that the target script cannot produce.
 
-TypeScript typecheck passed. The full suite passed with 377 tests and one Windows-only test skipped. An isolated build matched tracked `dist`, and no `preflight_release_candidate` routing or behavior regression was found. The passing suite does not cover either mismatch below.
+TypeScript typecheck passed. The full suite passed with 379 tests and one Windows-only test skipped. An isolated build matched tracked `dist`, and no `preflight_release_candidate` routing or behavior regression was found. The passing tests cover the legitimate unknown state but not the contradictory authorization case below.
 
 ## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: Ordinary pre-existing-destination failures are still rejected as invalid evidence
+### CR-01: Failure normalization accepts an impossible authorized unknown state
 
 **Classification:** BLOCKER
-**File:** `src/exported-candidate-remote-script.ts:109,122-124`; `src/exported-candidate-remote.ts:156-182,207-210`
-**Issue:** When the remote destination already exists, the target correctly stops with `EXPORT_DESTINATION_EXISTS`. Its finalizer observes that the unowned destination exists and emits `exportState.candidateState: "unknown"`, `exportCleanup.candidateState: "unknown"`, and `candidateAbsent: false`. That is the only safe state claim because the operation did not create or authorize the pre-existing object. The host's `parseExportState` accepts only `absent` or `present`, and the failure state matrix likewise permits only `not-started/absent` or `promoted/present`. A direct reproduction of the target-generated envelope returned `REMOTE_EXPORT_SEMANTIC_INVALID`, empty paths, and discarded the exact `EXPORT_DESTINATION_EXISTS` code even though canonical paths and cleanup evidence were present. The new tests model early failures only with an absent destination, so they miss the real script branch. Protected-root or repository failures with an already-existing destination can lose their exact code for the same reason.
-**Fix:** Extend the failure-only export-state contract to accept `candidateState: "unknown"` when promotion is `not-started`, cleanup reports no removal/absence claims, and no handoff is authorized. Preserve canonical paths and the exact target blocker while warning that the pre-existing candidate path is unowned. Keep success restricted to `promoted/present`. Add a host test for `EXPORT_DESTINATION_EXISTS` with `unknown`, plus a generated-script or real PowerShell test proving the emitted envelope normalizes without contradiction.
-
-### CR-02: The documented `CC` selection is ignored by the actual atomic move
-
-**Classification:** BLOCKER
-**File:** `src/exported-candidate-native.ts:32-55,61-76`; `src/exported-candidate.ts:144-170`
-**Issue:** `verifyAtomicMoveNoReplaceAvailable` compiles the probe with `process.env.CC` (or `/usr/bin/cc`), so a host without `/usr/bin/cc` can pass the pre-staging prerequisite by setting `CC` to another compiler. After staging begins, `atomicMoveNoReplace` compiles the actual helper with hardcoded `/usr/bin/cc`. On precisely the supported configuration documented in README and the runbook—compiler available through `CC`, not at `/usr/bin/cc`—the probe succeeds, candidate assembly proceeds, and promotion later fails with `ATOMIC_NO_REPLACE_UNAVAILABLE`. This contradicts the declared prerequisite behavior and defeats the guarantee that compiler absence is detected before staging. The added test injects a failing probe but never verifies that probe and operation use the same selected compiler.
-**Fix:** Resolve the compiler once and pass the identical executable to both availability probing and every POSIX atomic move, or compile/cache the verified helper during the probe and execute that exact artifact for promotion and handoff publication. Add a test with a valid alternate compiler selected through `CC` and an unavailable `/usr/bin/cc`, asserting both moves use the selected compiler; also prove an unavailable selected compiler returns the stable failure before staging.
+**File:** `src/exported-candidate-remote.ts:156-182`
+**Issue:** The target script can emit `promotionState: "not-started"` and `candidateState: "unknown"` only before it creates or promotes an export. In that state `$result.export` is null, so `exportCleanup.authorized` is necessarily `false` and no parsed handoff ownership can exist. The host's new unknown-state branch checks that candidate removal and absence are both unclaimed, but never checks `cleanup.authorized` or correlates authorization with the optional handoff. A direct hostile reproduction supplied `not-started/unknown`, no removal or absence claims, no handoff, and `authorized: true`; the host returned the exact target code with the contradictory cleanup object treated as validated evidence. This violates the closed remote evidence contract and can falsely tell an operator that an unowned pre-existing path was authorized.
+**Fix:** Model the export failure states exhaustively. Both `not-started/absent` and `not-started/unknown` must require `cleanup.authorized === false` and no parsed export handoff. A promoted/present failure may be unauthorized before the handoff object is constructed or authorized only when a valid handoff is present; validate those alternatives explicitly. Add hostile tests that flip `authorized` and add/remove `export` for each promotion/candidate-state combination.
 
 ---
 
-_Reviewed: 2026-07-29T10:18:48Z_
+_Reviewed: 2026-07-29T10:26:52Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
