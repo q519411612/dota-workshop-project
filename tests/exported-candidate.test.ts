@@ -192,6 +192,27 @@ describe("exported release candidate lifecycle", () => {
     expect(cleanupFailure).toMatchObject({ ok: false, error: { code: "EXPORT_PROMOTION_FAILED" }, cleanup: { status: "failed", stagingAbsent: false } });
   });
 
+  test("normalizes staging creation failure without rejecting the handler", async () => {
+    const fixture = await createFixture();
+    const destination = join(fixture.exportRoot, "candidate-unwritable");
+    await expect(exportNodeReleaseCandidate({
+      target: { kind: "fixture", root: fixture.dotaRoot },
+      addonName: fixture.addonName,
+      exportRoot: fixture.exportRoot,
+      destination
+    }, {
+      repositoryRoot: fixture.repositoryRoot,
+      tempParent: fixture.tempParent,
+      platform: "darwin",
+      createStaging: async () => { throw new Error("EACCES"); }
+    })).resolves.toMatchObject({
+      ok: false,
+      error: { code: "EXPORT_STAGING_CREATION_FAILED" },
+      paths: { destination: expect.any(String) },
+      cleanup: { status: "not-reached", attempted: false }
+    });
+  });
+
   test("fails closed when the promoted candidate changes or handoff publication fails", async () => {
     const fixture = await createFixture();
     const changedDestination = join(fixture.exportRoot, "candidate-changed");

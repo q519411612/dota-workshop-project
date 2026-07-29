@@ -81,8 +81,8 @@ export type ExportedCandidateCleanupEvidence = Readonly<{
   candidateAbsent: boolean;
   manifestRemoved: boolean;
   manifestAbsent: boolean;
-  candidateState?: "unknown";
-  manifestState?: "unknown";
+  candidateState?: "present" | "tombstoned" | "absent" | "unknown";
+  manifestState?: "present" | "tombstoned" | "absent" | "unknown";
   stagingRemoved?: boolean;
   stagingAbsent?: boolean;
   status: "not-reached" | "verified" | "failed" | "unknown";
@@ -96,6 +96,7 @@ export type ExportedCandidateResultFields = Readonly<{
 }>;
 
 type ExportDependencies = NodeReleaseCandidatePreflightDependencies & Readonly<{
+  createStaging?: typeof mkdtemp;
   preflight?: typeof preflightNodeReleaseCandidate;
   rename?: typeof rename;
   remove?: typeof rm;
@@ -128,7 +129,16 @@ export async function exportNodeReleaseCandidate(
   const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd());
   if (!paths.ok) return failure(target, operation, paths.code, paths.message, paths.paths);
 
-  const staging = await mkdtemp(join(paths.exportRoot, ".dota-workshop-export-"));
+  let staging: string;
+  try {
+    staging = await (dependencies.createStaging ?? mkdtemp)(join(paths.exportRoot, ".dota-workshop-export-"));
+  } catch {
+    return failure(target, operation, "EXPORT_STAGING_CREATION_FAILED", "Export staging could not be created.", {
+      exportRoot: paths.exportRoot,
+      destination: paths.destination,
+      handoffManifest: paths.handoff
+    });
+  }
   let stagingSnapshot: CandidateSnapshot | undefined;
   let promoted = false;
   let failureStage: "assembly" | "promotion" = "assembly";
@@ -670,7 +680,17 @@ function parseTopology(value: unknown, manifest: ReleaseCandidateManifestDetail 
   const manifestPaths = manifest.entries.map((entry) => entry.path);
   const topologyFilePaths = topology.filter((entry) => entry.kind === "file").map((entry) => entry.path);
   if (JSON.stringify(manifestPaths) !== JSON.stringify(topologyFilePaths)) return undefined;
-  if (!topology.some((entry) => entry.kind === "directory" && entry.path === "game") || !topology.some((entry) => entry.kind === "directory" && entry.path === "content")) return undefined;
+  const topologyKinds = new Map(topology.map((entry) => [entry.path, entry.kind]));
+  const requiredDirectories = new Set<string>(["game", "content"]);
+  for (const entry of topology) {
+    const segments = entry.path.split("/");
+    for (let index = 1; index < segments.length; index += 1) requiredDirectories.add(segments.slice(0, index).join("/"));
+  }
+  for (const path of manifestPaths) {
+    const segments = path.split("/");
+    for (let index = 1; index < segments.length; index += 1) requiredDirectories.add(segments.slice(0, index).join("/"));
+  }
+  if ([...requiredDirectories].some((path) => topologyKinds.get(path) !== "directory")) return undefined;
   return deepFreeze(topology);
 }
 
