@@ -86,6 +86,8 @@ Expected v1 operations:
 - `inspect_workshop_preflight`
 - `dry_run_release_report`
 - `preflight_release_candidate`
+- `export_release_candidate`
+- `cleanup_exported_candidate`
 - `launch_tools`
 - `launch_custom_game`
 - `run_playable_smoke`
@@ -115,6 +117,12 @@ For v2.7 Workshop preflight, call `inspect_workshop_preflight` when the user ask
 For v1.2 release readiness, call `dry_run_release_report` when the user asks for a pre-upload release/package review. Treat blockers as release-stopping until resolved. The operation checks metadata completeness, package candidate files, and sensitive information markers; it never accepts credentials, logs into Steam, encrypts content, creates upload artifacts, uploads to Workshop, or proves runtime validation.
 
 For v1.14 release-candidate evidence, call `preflight_release_candidate` with only `target` and `addonName`. Fixture/local and SSH/PowerShell targets share the same strict artifact, manifest, blocker, cleanup, safe-path, and boundary semantics. Treat the result as contract evidence: it does not prove real Windows reparse, canonicalization, transport, or cleanup behavior. The manifest plus verified cleanup proof is the deliverable, no candidate remains to upload, and the two-root candidate is not an official Valve upload payload. Never retry or fall back locally after a remote failure. Remote authorization is external runtime configuration; the operation never handles credentials, Steam login, Workshop item mutation, upload, archive, signing, encryption, launch, runtime validation, compilation, source conversion, metadata repair, candidate retention, or file transfer.
+
+For a retained target-local handoff, call `export_release_candidate` with an explicit isolated `exportRoot` and absent direct-child `destination`. This is independent from temporary preflight. Require the external handoff manifest, complete file-and-directory topology, combined digest, ownership evidence, and verified staging cleanup before describing export as successful. Remote exports remain on the target Windows host and never transfer candidate files to the MCP host.
+
+Fixture and local macOS/Linux execution require a working C compiler at `/usr/bin/cc` or selected by `CC` for the audited atomic no-replace helper. The operation checks this before staging and fails explicitly when unavailable. Windows targets use Windows-native move primitives.
+
+Before deletion, call `cleanup_exported_candidate` with `dryRun: true` and the exact path, ownership identifier, manifest version, and combined SHA-256 returned by export. Execute only after dry-run authorization succeeds. Export uses atomic no-replace promotion and publication. Cleanup moves the exact objects to no-replace tombstones, repeats identity and complete-content validation immediately before removal, and proves absence. Its threat boundary matches v1.14: hostile pre-existing state and ordinary races are rejected; active same-account replacement inside the final deletion system-call window is not claimed. Remote execute uncertainty means both states are unknown. Never widen the path, repair a mismatch, or retry into mixed state.
 
 ## Editing Rules
 

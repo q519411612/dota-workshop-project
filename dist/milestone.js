@@ -91,6 +91,126 @@ const VERSION_INVENTORY = [
         documentationStatus: "README and runbook include the handoff gate after `verify:rc`.",
         knownBoundary: "No Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, credential storage, or remote Windows connection.",
         remainingNonBlockingItems: []
+    },
+    {
+        version: "v1.8",
+        title: "Milestone Archive and Release Notes Readiness",
+        commit: "ba816a90a36c1f900b9b7f727754888a63695d35",
+        goal: "Provide a local closeout report for the v1.2-v1.7 delivery sequence.",
+        keyDeliveries: [
+            "Added `npm run verify:milestone`.",
+            "Aggregated version inventory, handoff readiness, documentation coverage, and release boundaries.",
+            "Recorded closeout evidence without performing publishing or release mutation."
+        ],
+        verificationStatus: "Complete: the original v1.2-v1.7 closeout report passed locally.",
+        documentationStatus: "README and operator guidance document the local closeout gate.",
+        knownBoundary: "The report is evidence-only and performs no upload, login, signing, encryption, credential handling, or remote execution.",
+        remainingNonBlockingItems: []
+    },
+    {
+        version: "v1.9",
+        title: "Same-Machine Windows Local Smoke Evidence",
+        commit: "64b15366ed44f00ddfc82b90fd795d0b210db734",
+        goal: "Define a sanitized same-machine Windows smoke evidence contract with explicit runtime status.",
+        keyDeliveries: [
+            "Added `npm run verify:same-machine-smoke`.",
+            "Separated harness readiness from real Windows runtime evidence.",
+            "Added sanitized evidence and release-boundary checks."
+        ],
+        verificationStatus: "Complete: the local harness and sanitizer passed; real same-machine Windows runtime evidence remains pending.",
+        documentationStatus: "The Windows smoke guide records the evidence schema and pending-runtime distinction.",
+        knownBoundary: "Harness checks do not claim a real same-machine Windows execution or perform remote connection, login, or upload.",
+        remainingNonBlockingItems: ["Real same-machine Windows runtime marker evidence remains optional supporting evidence."]
+    },
+    {
+        version: "v1.10",
+        title: "Release Bundle Manifest and Source Snapshot Dry Run",
+        commit: "c4113efa5efae5b9ba7cf0a0ed66fc046b090b0a",
+        goal: "Produce a deterministic source snapshot manifest without creating a release archive.",
+        keyDeliveries: [
+            "Added `npm run verify:source-snapshot`.",
+            "Recorded deterministic repository file coverage, byte counts, and SHA-256 values.",
+            "Preserved explicit no-archive, no-signing, no-encryption, and no-upload boundaries."
+        ],
+        verificationStatus: "Complete: deterministic snapshot generation and cleanup checks passed locally.",
+        documentationStatus: "Release documentation includes the source snapshot dry-run gate.",
+        knownBoundary: "No archive, compression, signing, encryption, package publication, or Workshop upload is performed.",
+        remainingNonBlockingItems: []
+    },
+    {
+        version: "v1.11",
+        title: "Addon Metadata Polish",
+        commit: "08557ba1eb65246680a826e50af7d78210251703",
+        goal: "Improve generated addon metadata and dry-run readiness blockers.",
+        keyDeliveries: [
+            "Added richer title, author, description, version, default-map, and maps-entry metadata.",
+            "Expanded deterministic metadata readiness checks.",
+            "Kept metadata inspection separate from publishing mutation."
+        ],
+        verificationStatus: "Complete: metadata generation and dry-run blocker tests passed locally.",
+        documentationStatus: "Template and release guidance describe the expanded metadata contract.",
+        knownBoundary: "No Workshop project mutation, upload, login, encryption, signing, or heuristic metadata repair is performed.",
+        remainingNonBlockingItems: []
+    },
+    {
+        version: "v1.12",
+        title: "Minimal Runtime Ability Proof",
+        commit: "0b912737819dd848025d5a8c80190c932250b29c",
+        goal: "Add an explicit Lua ability marker proof harness and validation contract.",
+        keyDeliveries: [
+            "Added a minimal ability proof scaffold and marker contract.",
+            "Added local validation for expected ability proof evidence.",
+            "Separated harness readiness from real Windows runtime proof."
+        ],
+        verificationStatus: "Complete: local ability proof harness tests passed; real Windows marker evidence remains pending.",
+        documentationStatus: "Skill and operator guidance record how ability proof evidence is interpreted.",
+        knownBoundary: "Local contract tests do not claim a real Windows ability execution and perform no publishing or credential work.",
+        remainingNonBlockingItems: ["Real Windows ability proof marker evidence remains optional supporting evidence."]
+    },
+    {
+        version: "v1.13",
+        title: "Local Install Simulation",
+        commit: "f809f900c50ac8eac1d3c863b35c3574a3ebd9c1",
+        goal: "Verify install-facing plugin structure in an isolated temporary consumer layout.",
+        keyDeliveries: [
+            "Added `npm run verify:install-simulation`.",
+            "Validated plugin, MCP, package, dist, skill, environment, sensitive-content, and cleanup contracts.",
+            "Closed path-safety and exact requirement-traceability gaps through independent audit."
+        ],
+        verificationStatus: "Complete: 6/6 requirements and milestone integration evidence passed with a clean independent review.",
+        documentationStatus: "The v1.13 roadmap, requirements, audit, and execution history are archived.",
+        knownBoundary: "No global installation, user configuration mutation, credentials, network access, Windows connection, or publishing is performed.",
+        remainingNonBlockingItems: []
+    },
+    {
+        version: "v1.14",
+        title: "Workshop Addon Release Candidate Preflight",
+        commit: "a8f671c594997dc856dafd207ee3a89bde2b95e2",
+        goal: "Create and strictly validate a temporary target-local release candidate with mandatory verified cleanup.",
+        keyDeliveries: [
+            "Added independent `preflight_release_candidate` across fixture, local, SSH, and PowerShell targets.",
+            "Added complete two-root coverage, immutable-source checks, three-way SHA-256 equality, deterministic manifests, and combined digest.",
+            "Added target-native remote lifecycle and verified cleanup without candidate transfer."
+        ],
+        verificationStatus: "Complete: 19/19 requirements, 17/17 integration links, 9/9 flows, and clean independent review passed.",
+        documentationStatus: "The v1.14 roadmap, requirements, audit, and execution history are archived.",
+        knownBoundary: "Candidates remain temporary; real Windows behavior is optional contract support, and no retention, upload, signing, encryption, or credential handling occurs.",
+        remainingNonBlockingItems: ["Real Windows preflight runtime evidence remains optional supporting evidence."]
+    },
+    {
+        version: "v1.15",
+        title: "Verifiable Release Candidate Export and Handoff",
+        commit: "0000000000000000000000000000000000000000",
+        goal: "Retain a strictly validated target-local candidate with auditable handoff, ownership, and exact cleanup evidence.",
+        keyDeliveries: [
+            "Added independent export_release_candidate and cleanup_exported_candidate MCP operations.",
+            "Added same-filesystem staging, atomic no-replace promotion, external handoff ownership, and verified cleanup.",
+            "Added strict fixture, local, SSH, and PowerShell contract normalization with no remote candidate transfer."
+        ],
+        verificationStatus: "Complete: 24/24 requirements, clean independent review, and all local release gates passed.",
+        documentationStatus: "README, operator runbook, skill guidance, examples, phase verification, and milestone audit cover v1.15.",
+        knownBoundary: "Real Windows export, normalization, reparse, promotion, and cleanup runtime evidence remains explicitly unverified.",
+        remainingNonBlockingItems: ["Real Windows exported-candidate runtime evidence remains optional supporting evidence."]
     }
 ];
 const BOUNDARIES = [
@@ -155,6 +275,7 @@ const REQUIRED_RUNBOOK_COVERAGE = [
 const REQUIRED_HANDOFF_DELIVERY_LABELS = ["README", "operator runbook", "workflow examples"];
 const REMAINING_NON_BLOCKING_ITEMS = [
     "same-machine local Windows MCP server smoke remains optional supporting evidence",
+    "real Windows exported-candidate runtime evidence remains explicitly unverified",
     "real Workshop upload remains deferred until a future explicit publishing milestone",
     "package signing, content encryption, and registry publishing remain out of scope"
 ];
@@ -172,10 +293,15 @@ export async function verifyMilestoneCloseout(input = {}) {
         blockers.push(...handoffResult.blockers.map((blocker) => copyHandoffBlocker(blocker, root)));
     }
     warnings.push(...handoffResult.warnings.map((warning) => sanitizeText(warning, root)));
-    const versions = VERSION_INVENTORY.map((entry) => ({ ...entry, keyDeliveries: [...entry.keyDeliveries], remainingNonBlockingItems: [...entry.remainingNonBlockingItems] }));
-    blockers.push(...validateVersionInventory(versions));
+    const versions = VERSION_INVENTORY.map((entry) => ({
+        ...entry,
+        ...(entry.version === "v1.15" ? { commit: handoffResult.commit.sha } : {}),
+        keyDeliveries: [...entry.keyDeliveries],
+        remainingNonBlockingItems: [...entry.remainingNonBlockingItems]
+    }));
+    blockers.push(...validateMilestoneVersionInventory(versions));
     if (!blockers.some((blocker) => blocker.code.startsWith("MILESTONE_VERSION"))) {
-        evidence.push("milestone version inventory complete: v1.2-v1.7");
+        evidence.push("milestone version inventory complete: v1.2-v1.15");
     }
     const documentationItems = await buildDocumentationItems(root, handoffResult, blockers);
     if (documentationItems.every((item) => item.ok)) {
@@ -190,14 +316,14 @@ export async function verifyMilestoneCloseout(input = {}) {
     return {
         ok: blockers.length === 0,
         milestone: {
-            version: "v1.8",
-            title: "Milestone Archive and Release Notes Readiness",
-            purpose: "Summarize v1.2-v1.7 release readiness for operator handoff and future release review."
+            version: "v1.15",
+            title: "Verifiable Release Candidate Export and Handoff",
+            purpose: "Verify retained candidate export, external handoff, exact cleanup, release boundaries, and audit readiness."
         },
         commitRange: {
-            from: VERSION_INVENTORY[0]?.commit ?? "",
-            to: VERSION_INVENTORY[VERSION_INVENTORY.length - 1]?.commit ?? "",
-            label: "v1.2-v1.7"
+            from: versions[0]?.commit ?? "",
+            to: versions[versions.length - 1]?.commit ?? "",
+            label: "v1.2-v1.15"
         },
         handoff: {
             ok: handoffResult.ok,
@@ -228,18 +354,25 @@ export async function verifyMilestoneCloseout(input = {}) {
         }
     };
 }
-function validateVersionInventory(entries) {
+export function validateMilestoneVersionInventory(entries) {
     const blockers = [];
-    const expectedVersions = ["v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7"];
+    const expectedVersions = ["v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7", "v1.8", "v1.9", "v1.10", "v1.11", "v1.12", "v1.13", "v1.14", "v1.15"];
     const actualVersions = entries.map((entry) => entry.version);
-    for (const version of expectedVersions) {
-        if (!actualVersions.includes(version)) {
+    for (let index = 0; index < expectedVersions.length; index += 1) {
+        const version = expectedVersions[index];
+        if (actualVersions[index] !== version) {
             blockers.push({
-                code: "MILESTONE_VERSION_MISSING",
-                message: `Milestone version inventory is missing ${version}.`,
+                code: "MILESTONE_VERSION_SEQUENCE_INVALID",
+                message: `Milestone version inventory must contain ${version} at position ${index + 1}.`,
                 version
             });
         }
+    }
+    if (actualVersions.length !== expectedVersions.length) {
+        blockers.push({
+            code: "MILESTONE_VERSION_COUNT_INVALID",
+            message: `Milestone version inventory must contain exactly ${expectedVersions.length} entries.`
+        });
     }
     for (const entry of entries) {
         if (!entry.commit || !/^[a-f0-9]{40}$/.test(entry.commit)) {

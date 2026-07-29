@@ -98,6 +98,8 @@ describe("plugin readiness verifier", () => {
       readme.indexOf("## Targets")
     );
     expect(readmeToolList.match(/`preflight_release_candidate`/g)).toHaveLength(1);
+    expect(readmeToolList.match(/`export_release_candidate`/g)).toHaveLength(1);
+    expect(readmeToolList.match(/`cleanup_exported_candidate`/g)).toHaveLength(1);
 
     const skill = await readFile("skills/dota2-workshop-tools/SKILL.md", "utf8");
     const skillToolList = skill.slice(
@@ -105,6 +107,8 @@ describe("plugin readiness verifier", () => {
       skill.indexOf("Every result must make failures visible.")
     );
     expect(skillToolList.match(/`preflight_release_candidate`/g)).toHaveLength(1);
+    expect(skillToolList.match(/`export_release_candidate`/g)).toHaveLength(1);
+    expect(skillToolList.match(/`cleanup_exported_candidate`/g)).toHaveLength(1);
   });
 
   test("passes a complete plugin handoff fixture", async () => {

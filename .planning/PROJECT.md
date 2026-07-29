@@ -4,23 +4,33 @@
 
 Dota Workshop Project is a Codex plugin for building Dota 2 custom games with AI assistance. It packages a Dota 2 Workshop Tools skill, an MCP server, scripts, and configuration so an AI agent can create, open, run, inspect, and validate a minimal Dota 2 addon without rediscovering the Workshop Tools workflow every time.
 
-The v1.1 Workshop MVP milestone is complete and archived. The project now has a validated end-to-end plugin slice: agents can generate playable addons, run evidence-driven smoke workflows on Windows targets, inspect custom map/objective/unit scaffold readiness, and report Panorama/toolchain/publishing boundaries without expanding into full UI generation or Workshop upload automation. v1.2 added dry-run release/package readiness before any real Workshop upload automation. v1.3 added sanitized real Windows validation closure through the remote SSH path. v1.4 added local plugin installation and operator handoff readiness verification. v1.5 added checked operator docs and reusable safe workflow examples. v1.6 added a local release-candidate audit gate. v1.7 added a local release handoff readiness report. v1.8 added a local milestone closeout and release notes readiness report for v1.2-v1.7. v1.9 added a same-machine Windows smoke evidence harness and sanitizer while keeping real same-machine runtime evidence pending until actual sanitized Windows marker logs are collected. v1.10 added a deterministic source snapshot manifest dry run with SHA-256 file coverage and release boundaries without archive, signing, encryption, or upload behavior. v1.11 polished generated addon metadata and dry-run metadata blockers for title, author, description, version, default map, and maps entry readiness. v1.12 added an explicit local Lua ability proof harness and marker validation contract while keeping real runtime ability evidence pending until actual Windows marker logs prove it. v1.13 added an isolated local install simulation verifier that checks install-facing plugin structure without global install or environment mutation.
+The v1.1 Workshop MVP milestone is complete and archived. The project now has a validated end-to-end plugin slice: agents can generate playable addons, run evidence-driven smoke workflows on Windows targets, inspect custom map/objective/unit scaffold readiness, and report Panorama/toolchain/publishing boundaries without expanding into full UI generation or Workshop upload automation. v1.2 added dry-run release/package readiness before any real Workshop upload automation. v1.3 added sanitized real Windows validation closure through the remote SSH path. v1.4 added local plugin installation and operator handoff readiness verification. v1.5 added checked operator docs and reusable safe workflow examples. v1.6 added a local release-candidate audit gate. v1.7 added a local release handoff readiness report. v1.8 added a local milestone closeout and release notes readiness report for v1.2-v1.7. v1.9 added a same-machine Windows smoke evidence harness and sanitizer while keeping real same-machine runtime evidence pending until actual sanitized Windows marker logs are collected. v1.10 added a deterministic source snapshot manifest dry run with SHA-256 file coverage and release boundaries without archive, signing, encryption, or upload behavior. v1.11 polished generated addon metadata and dry-run metadata blockers for title, author, description, version, default map, and maps entry readiness. v1.12 added an explicit local Lua ability proof harness and marker validation contract while keeping real runtime ability evidence pending until actual Windows marker logs prove it. v1.13 added an isolated local install simulation verifier. v1.14 added strict temporary candidate preflight with complete integrity and cleanup evidence. v1.15 added retained target-local candidate export, external handoff ownership, and exact dry-run/execute cleanup without changing v1.14 preflight behavior.
 
 ## Core Value
 
 AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
 
-## Latest Shipped Milestone: v1.14 Workshop Addon Release Candidate Preflight
+## Latest Shipped Milestone: v1.15 Verifiable Release Candidate Export and Handoff
 
-**Delivered:** An isolated, temporary, and auditable Dota Workshop addon release-candidate preflight through one unified fixture, local Windows, SSH Windows, and PowerShell Remoting MCP operation without Steam or Workshop mutation.
+**Delivered:** Independent retained candidate export and ownership-bound cleanup operations with target-local handoff evidence, strict path isolation, atomic no-replace promotion, hostile remote normalization, and unchanged temporary preflight semantics.
 
 **Validated features:**
-- Add a dedicated MCP operation for release-candidate preflight across fixture, local Windows, and remote Windows target contracts.
-- Assemble the addon's `game` and `content` trees in an isolated temporary candidate directory.
-- Produce a deterministic file manifest with SHA-256 evidence.
-- Fail explicitly on invalid structure, incomplete addon metadata, sensitive content, symbolic links, or unsafe path isolation.
-- Return candidate, validation, cleanup, path, warning, command, and log evidence without silently falling back.
-- Verify deterministic behavior on macOS fixtures without requiring a real Windows host for milestone completion.
+- Independent retained export and cleanup operations use one contract across fixture, local Windows, SSH Windows, and PowerShell Remoting.
+- The complete v1.14 file, source immutability, sensitive-content, three-way SHA-256, deterministic manifest, and combined digest authority is reused unchanged.
+- Candidate assembly occurs in an owned same-filesystem staging area and promotes only through atomic no-replace behavior after strict validation.
+- A versioned external handoff records candidate identity, topology, ownership, source and target boundaries, file count, and combined digest.
+- Cleanup authorizes exact path, target kind, identity, ownership, version, topology, and digest evidence before dry-run approval or deletion.
+- Remote candidates remain on the target Windows host, while real Windows v1.15 runtime evidence remains explicitly unverified.
+
+## Completed Milestone: v1.15 Verifiable Release Candidate Export and Handoff
+
+**Goal:** Safely retain a strictly validated Dota Workshop addon candidate at an explicitly authorized target-local destination with auditable integrity, ownership, handoff, promotion, and cleanup evidence while preserving the temporary cleanup semantics of `preflight_release_candidate` unchanged.
+
+**Target features:**
+- Add independent `export_release_candidate` and `cleanup_exported_candidate` MCP operations across fixture, local Windows, SSH Windows, and PowerShell Remoting.
+- Require an explicit target-local export root and destination, reject existing or dangerous paths, assemble in an owned same-filesystem staging directory, and promote only after full validation.
+- Emit a versioned handoff manifest outside the candidate directory with deterministic digest, source/target boundaries, ownership evidence, and strict cleanup authorization fields.
+- Preserve v1.14 complete file coverage, source immutability, sensitive-content validation, three-way SHA-256 equality, deterministic manifests, and combined digest semantics.
 
 ## Requirements
 
@@ -74,16 +84,20 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 - [x] Added production local Windows reparse classification and one target-native remote lifecycle with no candidate transfer or local fallback.
 - [x] Proved four-target semantic parity, identity-bound final remote observations, source immutability, exact manifest identity, and verified cleanup through macOS fixture and adapter-contract evidence.
 - [x] Closed v1.14 with 19/19 uniquely owned requirements, 318/318 tests, a clean independent review, and a passing 17/17 integration and 9/9 flow audit.
+- [x] Added independent retained candidate export with protected paths, same-filesystem staging, atomic no-replace promotion, external handoff ownership, and truthful failure cleanup.
+- [x] Added exact dry-run and execute cleanup across fixture, local Windows, SSH Windows, and PowerShell Remoting with no cross-host candidate transfer.
+- [x] Closed v1.15 with 24/24 uniquely owned requirements, 388/388 runnable tests, a clean independent review, and a passing 17/17 integration and 8/8 flow audit.
 
 ### Active
 
 - [ ] Collect real same-machine Windows runtime marker evidence if a Windows machine is available.
 - [ ] Collect real Windows ability proof marker evidence if a Windows runtime is available and the proof unit is spawned.
+- [ ] Collect sanitized real Windows v1.15 export, normalization, reparse, atomic promotion, handoff lease, and cleanup evidence if a credential-free target becomes available.
 
 ### Out of Scope
 
-- Steam login, Workshop item creation or mutation, and real upload - v1.14 validates release-candidate artifacts only.
-- Persistent archives, package signing, or content encryption - keep the release candidate temporary and inspectable.
+- Steam login, Workshop item creation or mutation, and real upload - v1.15 stops at target-local retained candidate handoff.
+- Archive or compression output, package signing, or content encryption - v1.15 retains an inspectable directory only.
 - Codex plugin distribution artifacts - v1.14 targets Dota Workshop addon trees only.
 - Full gameplay generation beyond the minimal playable loop - keep v2 focused on proving the gameplay validation loop.
 - Fragile UI-only automation as the primary path - prefer command, file, and process control before desktop automation.
@@ -98,22 +112,21 @@ The first target environment is Windows with Dota 2 Workshop Tools installed. Re
 
 The skill and MCP server should have separate responsibilities. The skill teaches the agent how to reason about Dota 2 Workshop Tools tasks and when to use references or scripts. The MCP server exposes deterministic operations such as creating an addon, opening tools, running validation commands, reading console output, and inspecting generated files.
 
-Milestones v1.1, v1.13, and v1.14 are archived under `.planning/milestones/`. Current planning should start from a fresh requirement slice rather than editing an archived roadmap directly.
+Milestones v1.1, v1.13, v1.14, and v1.15 are archived under `.planning/milestones/`. Current planning should start from a fresh requirement slice rather than editing an archived roadmap directly.
 
 ## Current State
 
-- **Shipped version:** v1.14 Workshop Addon Release Candidate Preflight on 2026-07-16.
-- **Verification:** 318/318 tests, clean independent review, 19/19 requirements, 17/17 integration links, and 9/9 end-to-end flows.
-- **Release-candidate readiness:** one strict MCP operation assembles, validates, hashes, reconciles, and removes temporary candidates across fixture/local/remote contracts while returning evidence only.
-- **Planning state:** v1.14 requirements, audit, roadmap detail, and execution history are archived; the project is awaiting a fresh next-milestone requirement slice.
-- **Known follow-ups:** real same-machine Windows runtime evidence, real ability marker evidence, and optional real Windows candidate parity evidence remain outside the v1.14 completion gate.
+- **Shipped version:** v1.15 Verifiable Release Candidate Export and Handoff on 2026-07-29.
+- **Verification:** 388/388 runnable tests passed, one Windows-only test skipped, clean independent deep review, and 24/24 requirements verified.
+- **Release-candidate readiness:** temporary preflight remains unchanged; independent export retains a fully validated target-local candidate and strict cleanup proves exact removal.
+- **Planning state:** v1.15 is audited and archived; the project is awaiting a fresh next-milestone requirement slice.
+- **Known follow-ups:** real Windows export, path normalization, general reparse, atomic promotion, and cleanup runtime evidence remain explicitly unverified.
 
 ## Next Milestone Goals
 
-- Define the next focused requirement slice before implementation.
-- Preserve explicit evidence, source immutability, verified cleanup, no credential storage, and no silent fallback.
-- Keep Steam login, Workshop mutation/upload, and retained candidate behavior outside scope until separately approved.
-- Consider optional sanitized real Windows candidate parity evidence without making it a prerequisite for already shipped v1.14 behavior.
+- Define the next focused requirement slice before expanding any publishing, transfer, archive, signing, encryption, or credential boundary.
+- Keep optional real Windows evidence collection separate from feature-completion claims and store only sanitized categories.
+- Continue preserving explicit failures, target-local remote execution, no credential storage, no cross-host candidate transfer, and no silent fallback.
 
 ## Constraints
 
@@ -163,6 +176,9 @@ Milestones v1.1, v1.13, and v1.14 are archived under `.planning/milestones/`. Cu
 | Register cleanup identity synchronously at the creation boundary | Post-create exceptions or malformed results must never lose cleanup ownership | Implemented |
 | Return only normalized inert inspection evidence | A deleted candidate path or live capability must not escape successful cleanup | Implemented |
 | Reject sensitive source identities before manifest projection | Caller-visible manifest evidence must never expose credential-shaped filename segments | Implemented |
+| Keep retained export independent from temporary preflight | The shipped preflight contract guarantees exactly-once cleanup and must not gain a retention mode | Accepted for v1.15 |
+| Require an explicit export root separate from destination | Destination safety must be validated against an auditable caller-declared isolation boundary instead of inferred from arbitrary paths | Accepted for v1.15 |
+| Treat handoff ownership as deletion evidence, not a credential | A versioned ownership identifier prevents accidental or stale cleanup but does not authorize remote access or store private connection material | Accepted for v1.15 |
 
 ## Evolution
 
@@ -182,4 +198,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-16 after v1.14 milestone*
+*Last updated: 2026-07-29 after v1.15 milestone archival*

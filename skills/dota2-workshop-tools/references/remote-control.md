@@ -22,6 +22,8 @@ Remote Windows should use the same MCP operations as local Windows:
 - `inspect_workshop_preflight`
 - `dry_run_release_report`
 - `preflight_release_candidate`
+- `export_release_candidate`
+- `cleanup_exported_candidate`
 - `launch_tools`
 - `launch_custom_game`
 - `run_playable_smoke`
@@ -36,6 +38,8 @@ Remote preflight inspection uses the same `inspect_workshop_preflight` operation
 Remote release readiness uses the same `dry_run_release_report` operation as fixture and local targets. It checks package candidate files, publish-facing addon metadata, and sensitive information markers through remote command evidence. It does not create archives, encrypt content, run toolchains, log into Steam, upload to Workshop, or store credentials.
 
 Remote release-candidate validation uses `preflight_release_candidate`. SSH and PowerShell Remoting execute the same target-native lifecycle once and return one versioned JSON evidence document. Malformed, incomplete, uncertain, or invariant-violating evidence is an explicit failure with no retry, local fallback, or speculative cleanup command. A complete blocker payload may preserve proven artifact and cleanup facts; transport uncertainty keeps cleanup unknown.
+
+Retained export and cleanup use `export_release_candidate` and `cleanup_exported_candidate`. Both run target-native scripts; addon and candidate bytes remain on Windows. Promotion and handoff publication are atomic no-replace operations. The target strictly parses a parent-closed handoff topology, binds handoff bytes to one no-follow handle, and exhaustively reconciles the candidate before mutation. Cleanup uses no-replace tombstones, repeats identity and complete-content validation immediately before removal, and proves absence under the v1.14 practical threat boundary; it does not claim resistance to active same-account replacement inside the final deletion system-call window. The MCP host accepts only closed framed JSON, normalizes export failures without erasing proven paths or ownership, and rejects contradictory tombstone matrices.
 
 The manifest plus verified cleanup proof is the deliverable and no candidate remains to upload. The temporary two-root candidate is not an official Valve upload payload. Mocked transports and fixture/local-adapter tests are contract evidence and do not prove real Windows reparse, canonicalization, transport, or cleanup behavior. Remote authorization is external runtime configuration; this operation never accepts, loads, stores, prompts for, or synthesizes credentials, and it never transfers or retains addon files.
 

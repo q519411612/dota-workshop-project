@@ -7,6 +7,8 @@ import {
   CreateAddonInputSchema,
   DryRunReleaseReportInputSchema,
   InspectWorkshopPreflightInputSchema,
+  CleanupExportedCandidateInputSchema,
+  ExportReleaseCandidateInputSchema,
   PreflightReleaseCandidateInputSchema,
   RunPlayableSmokeInputSchema
 } from "../src/schemas.js";
@@ -17,6 +19,8 @@ const requiredExamples = [
   "fixture-preflight.json",
   "fixture-release-dry-run.json",
   "fixture-release-candidate-preflight.json",
+  "fixture-release-candidate-export.json",
+  "fixture-exported-candidate-cleanup.json",
   "remote-playable-smoke.template.json"
 ];
 
@@ -25,6 +29,8 @@ const schemasByOperation: Record<string, z.ZodTypeAny> = {
   inspect_workshop_preflight: InspectWorkshopPreflightInputSchema,
   dry_run_release_report: DryRunReleaseReportInputSchema,
   preflight_release_candidate: PreflightReleaseCandidateInputSchema,
+  export_release_candidate: ExportReleaseCandidateInputSchema,
+  cleanup_exported_candidate: CleanupExportedCandidateInputSchema,
   run_playable_smoke: RunPlayableSmokeInputSchema
 };
 

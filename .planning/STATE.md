@@ -1,31 +1,31 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.14
-milestone_name: Workshop Addon Release Candidate Preflight
+milestone: v1.15
+milestone_name: Verifiable Release Candidate Export and Handoff
 current_phase: null
 status: Awaiting next milestone
-last_updated: "2026-07-15T22:20:09.318Z"
-last_activity: 2026-07-15
-last_activity_desc: Milestone v1.14 completed and archived
+last_updated: "2026-07-29T11:22:45.864Z"
+last_activity: 2026-07-29
+last_activity_desc: Milestone v1.15 completed and archived
 progress:
   total_phases: 3
   completed_phases: 3
-  total_plans: 19
-  completed_plans: 19
+  total_plans: 6
+  completed_plans: 6
   percent: 100
 current_phase_name: null
 ---
 
 # Project State: Dota Workshop Project
 
-**Updated:** 2026-07-16
+**Updated:** 2026-07-29
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-07-16)
+See: `.planning/PROJECT.md` (updated 2026-07-29)
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** Planning the next milestone from fresh requirements.
+**Current focus:** Planning the next milestone from a fresh requirement slice.
 
 ## Archived Roadmap
 
@@ -33,13 +33,14 @@ See: `.planning/PROJECT.md` (updated 2026-07-16)
 |---|---|---|---|
 | v1.13 Local Install Simulation | 1-2 | Shipped | `.planning/milestones/v1.13-ROADMAP.md` |
 | v1.14 Workshop Addon Release Candidate Preflight | 3-5 | Shipped | `.planning/milestones/v1.14-ROADMAP.md` |
+| v1.15 Verifiable Release Candidate Export and Handoff | 6-8 | Shipped | `.planning/milestones/v1.15-ROADMAP.md` |
 
 ## Current Position
 
-Phase: Milestone v1.14 complete
+Phase: Milestone v1.15 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-07-15 — Milestone v1.14 completed and archived
+Last activity: 2026-07-29 — Milestone v1.15 completed and archived
 
 ## Performance Metrics
 
@@ -47,8 +48,8 @@ Last activity: 2026-07-15 — Milestone v1.14 completed and archived
 |---|---|
 | Milestone phases | 3 |
 | Completed phases | 3 |
-| Requirements mapped | 19/19 |
-| Plans completed | 19/19 |
+| Requirements mapped | 24/24 |
+| Plans completed | 6/6 |
 
 ## Accumulated Context
 
@@ -70,12 +71,15 @@ Last activity: 2026-07-15 — Milestone v1.14 completed and archived
 | v1.8 closeout reporting aggregates v1.2-v1.7 history, verification, boundaries, and remaining items | `.planning/MILESTONES.md` |
 | Simulated install inputs reject symbolic links and unsafe isolation | `.planning/milestones/v1.13-MILESTONE-AUDIT.md` |
 | v1.13 install simulation scans every copied supported text format without leaking matched values | `.planning/milestones/v1.13-MILESTONE-AUDIT.md` |
-| v1.14 candidates are temporary, target-local, and include both addon roots without heuristic filtering | `.planning/REQUIREMENTS.md` |
-| Cleanup uncertainty forces overall failure while preserving artifact-validation state | `.planning/REQUIREMENTS.md` |
-| macOS fixtures close v1.14; real Windows evidence is optional and must not be claimed by contract tests | `.planning/REQUIREMENTS.md` |
+| v1.14 candidates are temporary, target-local, and include both addon roots without heuristic filtering | `.planning/milestones/v1.14-REQUIREMENTS.md` |
+| Cleanup uncertainty forces overall failure while preserving artifact-validation state | `.planning/milestones/v1.14-REQUIREMENTS.md` |
+| macOS fixtures close v1.14; real Windows evidence is optional and must not be claimed by contract tests | `.planning/milestones/v1.14-REQUIREMENTS.md` |
 | Candidate creation registers an opaque cleanup identity synchronously before later adapter behavior can fail | Phase 4 deep-review remediation |
 | Callback results are normalized to inert JSON-like evidence and cannot expose candidate paths or live capabilities | Phase 4 deep-review remediation |
 | Sensitive source identities block before candidate creation or manifest projection | Phase 4 deep-review remediation |
+| Retained export is an independent operation and never changes temporary preflight cleanup semantics | `.planning/milestones/v1.15-REQUIREMENTS.md` |
+| Export root and destination are both explicit target-local inputs | `.planning/milestones/v1.15-REQUIREMENTS.md` |
+| Cleanup requires exact path, target kind, identity, topology, ownership, manifest version, and combined digest agreement | `.planning/milestones/v1.15-REQUIREMENTS.md` |
 
 ### Research Inputs
 
@@ -86,6 +90,7 @@ Last activity: 2026-07-15 — Milestone v1.14 completed and archived
 - `.planning/research/SUMMARY.md`
 - `.planning/research/DOTA2_WORKSHOP_API_V2.md`
 - `.planning/research/GAMEPLAY_LOOP_API_NOTES.md`
+- `.planning/research/v1.15-RELEASE-CANDIDATE-EXPORT.md`
 
 ### Verification Notes
 
@@ -100,10 +105,14 @@ Last activity: 2026-07-15 — Milestone v1.14 completed and archived
 - Remote failures must remain explicit; local fallback is prohibited.
 - Phase 3 and Phase 4 are verified complete with 13/13 owned requirements, clean independent review, source immutability, and cleanup absence evidence.
 - Phase 5 is verified complete with 6/6 owned requirements, four-target contract parity, tracked runtime closure, and a clean independent review.
+- v1.15 shipped with 24/24 requirements, 388/388 runnable tests, 17/17 integration links, 8/8 flows, and a clean independent deep review.
+- Real Windows v1.15 export, normalization, reparse, atomic promotion, handoff lease, and cleanup evidence remains explicitly unverified and non-blocking.
 
 ### Todos
 
-- Define the next milestone with fresh requirements when ready.
+- Start the next milestone with fresh requirements.
+- Preserve user-owned `.planning/graphs/` changes outside milestone commits.
+- Collect sanitized real Windows v1.15 runtime evidence only if an approved credential-free target becomes available.
 
 ### Blockers
 
@@ -111,12 +120,12 @@ Last activity: 2026-07-15 — Milestone v1.14 completed and archived
 
 ## Session Continuity
 
-**Last completed action:** Audited and archived v1.14 with 19/19 requirements, 17/17 integration links, 9/9 end-to-end flows, and verified cleanup evidence.
-**Next action:** Start a fresh milestone only when a new requirement slice is approved.
-**Resume context:** v1.14 is shipped and archived; use `$gsd-new-milestone` for future planning.
+**Last completed action:** Audited and archived v1.15 with a clean independent review and passing integration audit.
+**Next action:** Start a fresh milestone with `$gsd-new-milestone`.
+**Resume context:** v1.14 and v1.15 archives are immutable; user-owned graph changes remain outside milestone commits.
 
 ---
-*Last updated: 2026-07-16 after v1.14 milestone completion*
+*Last updated: 2026-07-29 after v1.15 milestone archival*
 
 ## Operator Next Steps
 

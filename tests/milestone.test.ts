@@ -96,8 +96,8 @@ describe("milestone closeout readiness", () => {
     expect(packageJson.scripts?.["verify:milestone"]).toBe("node ./dist/verify-milestone.js");
   });
 
-  test("aggregates handoff preflight, v1.2-v1.7 inventory, docs, and boundaries", async () => {
-    const { verifyMilestoneCloseout } = await import("../src/milestone.js");
+  test("aggregates handoff preflight, current inventory, docs, and boundaries", async () => {
+    const { validateMilestoneVersionInventory, verifyMilestoneCloseout } = await import("../src/milestone.js");
     const root = await createMilestoneFixture();
     try {
       const result = await verifyMilestoneCloseout({
@@ -106,22 +106,45 @@ describe("milestone closeout readiness", () => {
       });
 
       expect(result.ok).toBe(true);
-      expect(result.milestone.version).toBe("v1.8");
+      expect(result.milestone.version).toBe("v1.15");
       expect(result.handoff.ok).toBe(true);
       expect(result.commitRange).toEqual({
         from: "ba6856fa170d97dea677a42293fc3d2c12eda012",
         to: "7c0d3bfd7224a6ed82a97eaf7b6f6f038590cb1d",
-        label: "v1.2-v1.7"
+        label: "v1.2-v1.15"
       });
-      expect(result.versions.map((entry) => entry.version)).toEqual(["v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7"]);
+      expect(result.versions.map((entry) => entry.version)).toEqual([
+        "v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7", "v1.8",
+        "v1.9", "v1.10", "v1.11", "v1.12", "v1.13", "v1.14", "v1.15"
+      ]);
       expect(result.versions.map((entry) => entry.commit)).toEqual([
         "ba6856fa170d97dea677a42293fc3d2c12eda012",
         "c2ae5b36b82e3e826025d5ecf01d2d95fafbca1b",
         "37d436f56c21daa9a7277622db5239fceda4e4b0",
         "62c08d143d7b2fb70d1c6c9293cadafd5acf32d0",
         "1f5b722e7e413b3e19388ba37c2a052d818704c0",
+        "7c0d3bfd7224a6ed82a97eaf7b6f6f038590cb1d",
+        "ba816a90a36c1f900b9b7f727754888a63695d35",
+        "64b15366ed44f00ddfc82b90fd795d0b210db734",
+        "c4113efa5efae5b9ba7cf0a0ed66fc046b090b0a",
+        "08557ba1eb65246680a826e50af7d78210251703",
+        "0b912737819dd848025d5a8c80190c932250b29c",
+        "f809f900c50ac8eac1d3c863b35c3574a3ebd9c1",
+        "a8f671c594997dc856dafd207ee3a89bde2b95e2",
         "7c0d3bfd7224a6ed82a97eaf7b6f6f038590cb1d"
       ]);
+      expect(validateMilestoneVersionInventory(result.versions)).toEqual([]);
+      expect(validateMilestoneVersionInventory(result.versions.filter((entry) => entry.version !== "v1.10"))).toEqual(
+        expect.arrayContaining([expect.objectContaining({ code: "MILESTONE_VERSION_SEQUENCE_INVALID", version: "v1.10" })])
+      );
+      expect(validateMilestoneVersionInventory([...result.versions, result.versions[0]])).toEqual(
+        expect.arrayContaining([expect.objectContaining({ code: "MILESTONE_VERSION_COUNT_INVALID" })])
+      );
+      const outOfOrder = [...result.versions];
+      [outOfOrder[7], outOfOrder[8]] = [outOfOrder[8], outOfOrder[7]];
+      expect(validateMilestoneVersionInventory(outOfOrder)).toEqual(
+        expect.arrayContaining([expect.objectContaining({ code: "MILESTONE_VERSION_SEQUENCE_INVALID", version: "v1.9" })])
+      );
       expect(result.documentation.items.map((item) => item.label)).toEqual(["README", "operator runbook", "handoff report"]);
       expect(result.boundaries.items.map((item) => item.label)).toEqual([
         "no real Workshop upload",

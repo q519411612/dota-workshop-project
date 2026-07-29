@@ -8,6 +8,8 @@ import { preflightNodeReleaseCandidate } from "./release-candidate-node.js";
 import { preflightRemoteReleaseCandidate } from "./release-candidate-remote.js";
 import { createReleaseCandidateToolResult } from "./release-candidate-result.js";
 import { createFailureResult } from "./result.js";
+import { cleanupNodeExportedCandidate, exportNodeReleaseCandidate } from "./exported-candidate.js";
+import { cleanupRemoteExportedCandidate, exportRemoteReleaseCandidate } from "./exported-candidate-remote.js";
 import { runPlayableSmoke } from "./smoke.js";
 import {
   createRemoteAddon,
@@ -35,15 +37,28 @@ import {
   RemoteCommandInputSchema,
   RunPlayableSmokeInputSchema,
   CleanupPlayableSmokeInputSchema,
+  CleanupExportedCandidateInputSchema,
+  ExportReleaseCandidateInputSchema,
   ValidateAddonInputSchema,
   ValidateTargetInputSchema
 } from "./schemas.js";
 import type { ToolResult } from "./types.js";
-import type { PreflightReleaseCandidateToolInput } from "./schemas.js";
+import type {
+  CleanupExportedCandidateToolInput,
+  ExportReleaseCandidateToolInput,
+  PreflightReleaseCandidateToolInput
+} from "./schemas.js";
 
 type PreflightServices = Readonly<{
   preflightNodeReleaseCandidate(input: PreflightReleaseCandidateToolInput): Promise<ToolResult>;
   preflightRemoteReleaseCandidate(input: PreflightReleaseCandidateToolInput): Promise<ToolResult>;
+}>;
+
+type CandidateServices = PreflightServices & Readonly<{
+  exportNodeReleaseCandidate(input: ExportReleaseCandidateToolInput): Promise<ToolResult>;
+  exportRemoteReleaseCandidate(input: ExportReleaseCandidateToolInput): Promise<ToolResult>;
+  cleanupNodeExportedCandidate(input: CleanupExportedCandidateToolInput): Promise<ToolResult>;
+  cleanupRemoteExportedCandidate(input: CleanupExportedCandidateToolInput): Promise<ToolResult>;
 }>;
 
 const defaultPreflightServices: PreflightServices = Object.freeze({
@@ -66,6 +81,14 @@ const defaultPreflightServices: PreflightServices = Object.freeze({
   }
 });
 
+const defaultCandidateServices: CandidateServices = Object.freeze({
+  ...defaultPreflightServices,
+  exportNodeReleaseCandidate: async (input) => await exportNodeReleaseCandidate(input),
+  exportRemoteReleaseCandidate: async (input) => await exportRemoteReleaseCandidate(input),
+  cleanupNodeExportedCandidate: async (input) => await cleanupNodeExportedCandidate(input),
+  cleanupRemoteExportedCandidate: async (input) => await cleanupRemoteExportedCandidate(input)
+});
+
 export const toolNames = [
   "discover_environment",
   "validate_target",
@@ -75,6 +98,8 @@ export const toolNames = [
   "inspect_workshop_preflight",
   "dry_run_release_report",
   "preflight_release_candidate",
+  "export_release_candidate",
+  "cleanup_exported_candidate",
   "launch_tools",
   "launch_custom_game",
   "run_playable_smoke",
@@ -87,7 +112,7 @@ export const toolNames = [
 export async function handleTool(
   name: string,
   input: unknown,
-  preflightServices: PreflightServices = defaultPreflightServices
+  candidateServices: CandidateServices = defaultCandidateServices
 ): Promise<ToolResult> {
   switch (name) {
     case "discover_environment": {
@@ -162,9 +187,23 @@ export async function handleTool(
     case "preflight_release_candidate": {
       const parsed = PreflightReleaseCandidateInputSchema.parse(input);
       if (parsed.target.kind === "remote") {
-        return preflightServices.preflightRemoteReleaseCandidate(parsed);
+        return candidateServices.preflightRemoteReleaseCandidate(parsed);
       }
-      return preflightServices.preflightNodeReleaseCandidate(parsed);
+      return candidateServices.preflightNodeReleaseCandidate(parsed);
+    }
+    case "export_release_candidate": {
+      const parsed = ExportReleaseCandidateInputSchema.parse(input);
+      if (parsed.target.kind === "remote") {
+        return candidateServices.exportRemoteReleaseCandidate(parsed);
+      }
+      return candidateServices.exportNodeReleaseCandidate(parsed);
+    }
+    case "cleanup_exported_candidate": {
+      const parsed = CleanupExportedCandidateInputSchema.parse(input);
+      if (parsed.target.kind === "remote") {
+        return candidateServices.cleanupRemoteExportedCandidate(parsed);
+      }
+      return candidateServices.cleanupNodeExportedCandidate(parsed);
     }
     case "launch_tools": {
       const parsed = LaunchToolsInputSchema.parse(input);

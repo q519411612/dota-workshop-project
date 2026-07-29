@@ -1,6 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { PreflightReleaseCandidateInputSchema } from "./schemas.js";
+import {
+  CleanupExportedCandidateInputSchema,
+  ExportReleaseCandidateInputSchema,
+  PreflightReleaseCandidateInputSchema
+} from "./schemas.js";
 import { asToolContent, handleTool } from "./tools.js";
 
 const targetInput = {
@@ -144,6 +148,26 @@ export function createServer(): McpServer {
       inputSchema: PreflightReleaseCandidateInputSchema
     },
     async (input) => asToolContent(await handleTool("preflight_release_candidate", input))
+  );
+
+  server.registerTool(
+    "export_release_candidate",
+    {
+      title: "Export Release Candidate",
+      description: "Validate and retain one target-local release candidate at an explicit isolated destination with handoff and ownership evidence.",
+      inputSchema: ExportReleaseCandidateInputSchema
+    },
+    async (input) => asToolContent(await handleTool("export_release_candidate", input))
+  );
+
+  server.registerTool(
+    "cleanup_exported_candidate",
+    {
+      title: "Cleanup Exported Candidate",
+      description: "Dry-run or remove one exactly matched exported candidate and handoff manifest after ownership and digest verification.",
+      inputSchema: CleanupExportedCandidateInputSchema
+    },
+    async (input) => asToolContent(await handleTool("cleanup_exported_candidate", input))
   );
 
   server.registerTool(

@@ -17,6 +17,11 @@ const REQUIRED_RUNTIME = [
   "dist/release-candidate-remote-script.js",
   "dist/release-candidate-remote-executor.js",
   "dist/release-candidate-remote.js",
+  "dist/exported-candidate.js",
+  "dist/exported-candidate-native.js",
+  "dist/exported-candidate-remote-script.js",
+  "dist/exported-candidate-remote-executor.js",
+  "dist/exported-candidate-remote.js",
   "dist/result.js",
   "dist/schemas.js",
   "dist/tools.js",
@@ -64,7 +69,7 @@ describe("packaged release-candidate runtime", () => {
     `;
     const child = await execFileAsync(process.execPath, ["--input-type=module", "--eval", childScript], { cwd: exportRoot });
     expect(JSON.parse(child.stdout)).toMatchObject({
-      registered: expect.arrayContaining(["preflight_release_candidate"]),
+      registered: expect.arrayContaining(["preflight_release_candidate", "export_release_candidate", "cleanup_exported_candidate"]),
       nodeCalls: 1,
       remoteCalls: 0
     });
@@ -73,6 +78,8 @@ describe("packaged release-candidate runtime", () => {
     const server = serverModule.createServer();
     const registered = server._registeredTools ?? server.registeredTools;
     expect(Object.keys(registered)).toContain("preflight_release_candidate");
+    expect(Object.keys(registered)).toContain("export_release_candidate");
+    expect(Object.keys(registered)).toContain("cleanup_exported_candidate");
 
     let nodeCalls = 0;
     let remoteCalls = 0;
@@ -102,6 +109,9 @@ describe("packaged release-candidate runtime", () => {
       .trim().split("\n").filter(Boolean);
     expect(indexedRuntime.filter((path) => path.includes("release-candidate"))).toEqual(
       REQUIRED_RUNTIME.filter((path) => path.includes("release-candidate")).sort()
+    );
+    expect(indexedRuntime.filter((path) => path.includes("exported-candidate"))).toEqual(
+      REQUIRED_RUNTIME.filter((path) => path.includes("exported-candidate")).sort()
     );
     expect(REQUIRED_RUNTIME.some((path) => /\.(zip|7z|tar|gz|pck|sig|enc)$/i.test(path))).toBe(false);
     expect((await untrackedDistFiles())).toEqual([]);

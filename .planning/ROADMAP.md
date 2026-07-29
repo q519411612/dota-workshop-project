@@ -1,7 +1,7 @@
 # Roadmap: Dota Workshop Project
 
 **Created:** 2026-07-03
-**Updated:** 2026-07-16
+**Updated:** 2026-07-29
 **Mode:** Vertical MVP
 **Core Value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
 
@@ -20,9 +20,21 @@
 - [x] **v1.11 Addon Metadata Polish** — richer metadata and dry-run blockers.
 - [x] **v1.12 Minimal Runtime Ability Proof** — explicit Lua ability marker proof harness.
 - [x] **v1.13 Local Install Simulation** — isolated install consumption and audit closure. [Archive](milestones/v1.13-ROADMAP.md)
-- [x] **v1.14 Workshop Addon Release Candidate Preflight** — Phases 3-5 shipped on 2026-07-16 with 19/19 requirements, 17/17 integration links, 9/9 flows, and verified cleanup. [Archive](milestones/v1.14-ROADMAP.md)
+- [x] **v1.14 Workshop Addon Release Candidate Preflight** — temporary strict candidate validation with verified cleanup. [Archive](milestones/v1.14-ROADMAP.md)
+- [x] **v1.15 Verifiable Release Candidate Export and Handoff** — retained target-local candidate export and exact cleanup, shipped 2026-07-29. [Archive](milestones/v1.15-ROADMAP.md)
 
 ## Completed Phase History
+
+<details>
+<summary>✅ v1.15 Verifiable Release Candidate Export and Handoff (Phases 6-8) — SHIPPED 2026-07-29</summary>
+
+- [x] Phase 6: Safe Retained Candidate Export (2/2 plans) — completed 2026-07-29
+- [x] Phase 7: Unified Export Cleanup and Remote Parity (2/2 plans) — completed 2026-07-29
+- [x] Phase 8: Release Gates, Documentation, and Milestone Closure (2/2 plans) — completed 2026-07-29
+
+Execution history: `.planning/milestones/v1.15-phases/`
+
+</details>
 
 <details>
 <summary>✅ v1.14 Workshop Addon Release Candidate Preflight (Phases 3-5) — SHIPPED 2026-07-16</summary>
@@ -45,6 +57,6 @@ Execution history: `.planning/milestones/v1.13-phases/`
 
 </details>
 
-## Next Milestone
+## Next Action
 
-Not defined. Start from fresh requirements with `$gsd-new-milestone`.
+Start the next milestone with `$gsd-new-milestone` to define a fresh requirement slice and continue phase numbering from 9.

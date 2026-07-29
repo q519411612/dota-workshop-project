@@ -37,6 +37,7 @@ export const REMOTE_RELEASE_CANDIDATE_POLICY = Object.freeze({
 export type RemoteReleaseCandidateScriptInput = Readonly<{
   dotaRoot: string;
   addonName: string;
+  inspectionStatements?: readonly string[];
 }>;
 
 export function buildRemoteReleaseCandidateScript(input: RemoteReleaseCandidateScriptInput): string {
@@ -141,6 +142,7 @@ export function buildRemoteReleaseCandidateScript(input: RemoteReleaseCandidateS
     "    Assert-CandidateProjectionIdentity $candidateRoot $candidateIdentity $script:allFiles $candidateFileIdentities",
     "    $ledger = [ordered]@{ schemaVersion = $SchemaVersion; expectedFileCount = $script:allFiles.Count; observedFileCount = $finalEntries.Count; matchedFileCount = $finalEntries.Count }",
     "    $result.manifest = $manifest; $result.inclusionLedger = $ledger; $result.artifactValidation = [ordered]@{ status = 'passed'; manifest = $manifest; inclusionLedger = $ledger; scanCoverage = $result.scanCoverage }; $result.operation = [ordered]@{ status = 'completed' }",
+    ...(input.inspectionStatements ?? []),
     "  }",
     "} catch {",
     "  if ($result.blockers.Count -eq 0) { Add-Blocker 'REMOTE_LIFECYCLE_INTERNAL_FAILURE' 'remote-script' }",

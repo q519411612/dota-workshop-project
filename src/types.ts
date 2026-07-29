@@ -48,5 +48,8 @@ export type ToolResult = {
   logs: LogEvidence[];
   error?: ToolError;
   releaseCandidate?: ReleaseCandidateDetail;
+  manifest?: import("./exported-candidate.js").ExportedCandidateHandoffManifest | null;
+  ownership?: import("./exported-candidate.js").ExportedCandidateOwnership | null;
+  cleanup?: import("./exported-candidate.js").ExportedCandidateCleanupEvidence;
 };
 import type { ReleaseCandidateDetail } from "./release-candidate-result.js";

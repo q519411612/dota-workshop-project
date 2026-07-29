@@ -1,5 +1,15 @@
 # Project Research Summary
 
+## v1.15 Addendum: Verifiable Release Candidate Export and Handoff
+
+The v1.15 design should extend the proven v1.14 integrity pipeline without adding a retention mode to `preflight_release_candidate`. A separate export lifecycle can reuse complete inventory, source immutability, sensitive scanning, three-way SHA-256 equality, deterministic manifests, and canonical combined digests, then add an explicitly authorized export root, same-filesystem staging, atomic promotion, an external handoff manifest, and ownership-bound cleanup.
+
+No new runtime dependency is required. Node rename semantics and target-native .NET directory moves fail across filesystems or volumes, so staging as a sibling under the validated export root provides the required fail-closed promotion boundary. Windows reparse ancestry and file identity must continue to be checked through target-native probes.
+
+The strict cleanup design requires canonical path, candidate identity, handoff manifest identity, ownership identifier, manifest version, and recomputed combined digest to match before deletion. Dry-run and execute share the same authorization checks, while remote operations remain entirely target-local and return normalized evidence only.
+
+Detailed research: `.planning/research/v1.15-RELEASE-CANDIDATE-EXPORT.md`.
+
 **Project:** Dota Workshop Project
 **Domain:** Temporary Dota Workshop addon release-candidate assembly and preflight
 **Researched:** 2026-07-15
