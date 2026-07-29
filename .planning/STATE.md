@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.15
 milestone_name: Verifiable Release Candidate Export and Handoff
-status: verifying
-current_phase: 8
-current_phase_name: Release Gates, Documentation, and Milestone Closure
-last_updated: "2026-07-29T10:45:00.000Z"
+current_phase: null
+status: Awaiting next milestone
+last_updated: "2026-07-29T11:22:45.864Z"
 last_activity: 2026-07-29
-last_activity_desc: v1.15 requirements and roadmap defined
+last_activity_desc: Milestone v1.15 completed and archived
 progress:
   total_phases: 3
   completed_phases: 3
   total_plans: 6
   completed_plans: 6
   percent: 100
+current_phase_name: null
 ---
 
 # Project State: Dota Workshop Project
@@ -25,7 +25,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-07-29)
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** Auditing and archiving the completed v1.15 retained export and handoff milestone.
+**Current focus:** Planning the next milestone from a fresh requirement slice.
 
 ## Archived Roadmap
 
@@ -33,13 +33,14 @@ See: `.planning/PROJECT.md` (updated 2026-07-29)
 |---|---|---|---|
 | v1.13 Local Install Simulation | 1-2 | Shipped | `.planning/milestones/v1.13-ROADMAP.md` |
 | v1.14 Workshop Addon Release Candidate Preflight | 3-5 | Shipped | `.planning/milestones/v1.14-ROADMAP.md` |
+| v1.15 Verifiable Release Candidate Export and Handoff | 6-8 | Shipped | `.planning/milestones/v1.15-ROADMAP.md` |
 
 ## Current Position
 
-Phase: 8 of 8 (Release Gates, Documentation, and Milestone Closure)
-Plan: 2 of 2
-Status: Implementation, verification, and independent review complete; milestone audit pending
-Last activity: 2026-07-29 — v1.15 independent deep review passed clean
+Phase: Milestone v1.15 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-29 — Milestone v1.15 completed and archived
 
 ## Performance Metrics
 
@@ -76,9 +77,9 @@ Last activity: 2026-07-29 — v1.15 independent deep review passed clean
 | Candidate creation registers an opaque cleanup identity synchronously before later adapter behavior can fail | Phase 4 deep-review remediation |
 | Callback results are normalized to inert JSON-like evidence and cannot expose candidate paths or live capabilities | Phase 4 deep-review remediation |
 | Sensitive source identities block before candidate creation or manifest projection | Phase 4 deep-review remediation |
-| Retained export is an independent operation and never changes temporary preflight cleanup semantics | `.planning/REQUIREMENTS.md` |
-| Export root and destination are both explicit target-local inputs | `.planning/REQUIREMENTS.md` |
-| Cleanup requires exact path, ownership, manifest version, and combined digest agreement | `.planning/REQUIREMENTS.md` |
+| Retained export is an independent operation and never changes temporary preflight cleanup semantics | `.planning/milestones/v1.15-REQUIREMENTS.md` |
+| Export root and destination are both explicit target-local inputs | `.planning/milestones/v1.15-REQUIREMENTS.md` |
+| Cleanup requires exact path, target kind, identity, topology, ownership, manifest version, and combined digest agreement | `.planning/milestones/v1.15-REQUIREMENTS.md` |
 
 ### Research Inputs
 
@@ -104,11 +105,14 @@ Last activity: 2026-07-29 — v1.15 independent deep review passed clean
 - Remote failures must remain explicit; local fallback is prohibited.
 - Phase 3 and Phase 4 are verified complete with 13/13 owned requirements, clean independent review, source immutability, and cleanup absence evidence.
 - Phase 5 is verified complete with 6/6 owned requirements, four-target contract parity, tracked runtime closure, and a clean independent review.
+- v1.15 shipped with 24/24 requirements, 388/388 runnable tests, 17/17 integration links, 8/8 flows, and a clean independent deep review.
+- Real Windows v1.15 export, normalization, reparse, atomic promotion, handoff lease, and cleanup evidence remains explicitly unverified and non-blocking.
 
 ### Todos
 
-- Complete and archive the v1.15 milestone audit.
+- Start the next milestone with fresh requirements.
 - Preserve user-owned `.planning/graphs/` changes outside milestone commits.
+- Collect sanitized real Windows v1.15 runtime evidence only if an approved credential-free target becomes available.
 
 ### Blockers
 
@@ -116,13 +120,13 @@ Last activity: 2026-07-29 — v1.15 independent deep review passed clean
 
 ## Session Continuity
 
-**Last completed action:** Verified all v1.15 phases and completed a clean independent deep review.
-**Next action:** Audit all 24 requirements and archive v1.15.
-**Resume context:** v1.14 remains archived and unchanged; v1.15 implementation and validation are complete.
+**Last completed action:** Audited and archived v1.15 with a clean independent review and passing integration audit.
+**Next action:** Start a fresh milestone with `$gsd-new-milestone`.
+**Resume context:** v1.14 and v1.15 archives are immutable; user-owned graph changes remain outside milestone commits.
 
 ---
-*Last updated: 2026-07-29 after v1.15 verification and clean review*
+*Last updated: 2026-07-29 after v1.15 milestone archival*
 
 ## Operator Next Steps
 
-- Run the v1.15 milestone audit and archive after it passes.
+- Start the next milestone with /gsd-new-milestone

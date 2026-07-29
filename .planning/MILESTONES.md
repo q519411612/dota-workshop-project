@@ -1,5 +1,44 @@
 # Milestones: Dota Workshop Project
 
+## v1.15 Verifiable Release Candidate Export and Handoff (Shipped: 2026-07-29)
+
+**Delivered:** Independent target-local release-candidate export and exact ownership-bound cleanup with same-filesystem staging, atomic no-replace promotion, external handoff evidence, strict remote normalization, and unchanged temporary preflight behavior.
+
+**Phases completed:** 3 phases, 6 plans, 18 tasks
+
+**Key accomplishments:**
+
+- Added independent `export_release_candidate` and `cleanup_exported_candidate` MCP operations across fixture, local Windows, SSH Windows, and PowerShell Remoting.
+- Reused the complete v1.14 file-coverage, source-immutability, sensitive-content, three-way SHA-256, deterministic-manifest, and combined-digest authority.
+- Added protected-path and reparse-aware isolation, operation-owned same-filesystem staging, atomic no-replace promotion, final identity/digest verification, and truthful failure cleanup.
+- Added a versioned external handoff manifest with candidate identity, ownership, topology, source/target boundaries, file count, and combined digest.
+- Added strict dry-run and execute cleanup authorization with tombstone revalidation, separate candidate/handoff absence proof, and hostile remote result rejection.
+- Closed independent deep review and milestone audit at 388/388 runnable tests, 24/24 requirements, 17/17 integration links, and 8/8 end-to-end flows.
+
+**Stats:**
+
+- 67 files changed across the milestone commit range.
+- 7,060 lines added and 90 lines removed.
+- 31,119 TypeScript lines in `src/` and `tests/` at ship time.
+- 3 phases, 6 plans, 18 tasks completed on 2026-07-29.
+
+**Git range:** `b7eba27` → `19184f8`
+
+**Archives:**
+
+- Roadmap: `.planning/milestones/v1.15-ROADMAP.md`
+- Requirements: `.planning/milestones/v1.15-REQUIREMENTS.md`
+- Audit: `.planning/milestones/v1.15-MILESTONE-AUDIT.md`
+- Execution history: `.planning/milestones/v1.15-phases/`
+
+**Verification:** 388/388 runnable tests, one Windows-only skip, 24/24 requirements, 17/17 integration links, 8/8 end-to-end flows, and a clean independent final review.
+
+**Known evidence limitation:** Real Windows export, path normalization, general reparse behavior, atomic promotion, handoff leasing, and cleanup remain explicitly unverified and are not inferred from fixture or mock evidence.
+
+**What's next:** Define the next focused milestone with fresh requirements through `$gsd-new-milestone`.
+
+---
+
 ## v1.14 Workshop Addon Release Candidate Preflight (Shipped: 2026-07-15)
 
 **Delivered:** One strict evidence-only release-candidate preflight across fixture, local Windows, SSH Windows, and PowerShell Remoting with deterministic manifests, source immutability, explicit failures, and verified cleanup.

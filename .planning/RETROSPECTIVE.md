@@ -133,6 +133,55 @@
 
 ---
 
+## Milestone: v1.15 — Verifiable Release Candidate Export and Handoff
+
+**Shipped:** 2026-07-29
+**Phases:** 3 | **Plans:** 6 | **Tasks:** 18
+
+### What Was Built
+
+- Independent `export_release_candidate` and `cleanup_exported_candidate` MCP operations across fixture, local Windows, SSH Windows, and PowerShell Remoting.
+- Strict protected-path validation, same-filesystem owned staging, atomic no-replace promotion, and final identity, topology, and digest verification.
+- A versioned external handoff with candidate identity, ownership, source and target boundaries, topology, file count, and combined SHA-256.
+- Exact dry-run and execute cleanup with target-kind binding, handoff lease validation, tombstone revalidation, and separate absence proof.
+- Hostile remote normalization, tracked runtime closure, a continuous v1.2-v1.15 closeout inventory, and complete milestone audit evidence.
+
+### What Worked
+
+- Reusing the v1.14 preflight implementation preserved complete file and integrity semantics without weakening its mandatory temporary cleanup contract.
+- Modeling export, handoff publication, cleanup authorization, and partial cleanup as separate strict state machines made failures auditable.
+- Multiple independent review passes exposed contradictions that ordinary green tests missed, especially around remote evidence, path identity, and publication failure state.
+- Explicit graph-hash guards preserved unrelated user-owned planning output throughout the milestone.
+
+### What Was Inefficient
+
+- Review-driven hardening required several iterations because the initial design did not fully enumerate hostile result matrices and filesystem race outcomes.
+- The milestone gate was initially updated to v1.15 without including the continuous v1.8-v1.14 history, producing a false completeness claim.
+- Generic roadmap analysis counted `PLAN-CHECK.md` files as execution plans, so closeout readiness required authoritative summary and verification cross-checks.
+
+### Patterns Established
+
+- Persistent candidate export must remain independent from temporary preflight semantics.
+- Final external handoff state and operation-owned temporary handoff cleanup are separate evidence domains.
+- Local discovery must complete before protected-path validation whenever the Dota root is implicit.
+- Milestone inventories that claim a continuous version range must validate exact order, count, duplicates, and gaps.
+- Packaged runtime parity depends on staged Git-index bytes and must be checked after every tracked dist change.
+
+### Key Lessons
+
+- A no-replace filesystem operation is only one part of safety; identity, topology, digest, ownership, and truthful partial-state reporting remain necessary after mutation.
+- Stable errors should preserve meaningful target diagnostics without exposing arbitrary dependency text or collapsing unrelated failures.
+- Contract tests can close the milestone on macOS, but real Windows runtime evidence must remain explicitly unverified until actually collected.
+- Independent review and integration audit should remain separate gates because they detect different classes of omissions.
+
+### Cost Observations
+
+- Model mix: not recorded.
+- Sessions: one autonomous goal run with independent review, fix, re-review, and integration-audit loops.
+- Notable: substantial adversarial rework closed every confirmed blocker before archival and raised the suite to 388 runnable tests.
+
+---
+
 ## Cross-Milestone Trends
 
 | Trend | Observation |
@@ -143,3 +192,4 @@
 | Audit | Exact traceability plus adversarial integration checks catch gaps that green standard suites can miss. |
 | Identity | Filesystem safety increasingly depends on canonical, target-native identity rather than lexical path checks. |
 | Packaging | Executable runtime closure is strongest when verified from staged index bytes. |
+| State models | Export, publication, authorization, deletion, and absence need separate closed evidence matrices. |
