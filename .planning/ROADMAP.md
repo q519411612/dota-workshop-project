@@ -21,11 +21,11 @@
 - [x] **v1.12 Minimal Runtime Ability Proof** — explicit Lua ability marker proof harness.
 - [x] **v1.13 Local Install Simulation** — isolated install consumption and audit closure. [Archive](milestones/v1.13-ROADMAP.md)
 - [x] **v1.14 Workshop Addon Release Candidate Preflight** — Phases 3-5 shipped on 2026-07-16 with 19/19 requirements, 17/17 integration links, 9/9 flows, and verified cleanup. [Archive](milestones/v1.14-ROADMAP.md)
-- [ ] **v1.15 Verifiable Release Candidate Export and Handoff** — Phases 6-8 retain validated target-local candidates with strict handoff and cleanup evidence.
+- [x] **v1.15 Verifiable Release Candidate Export and Handoff** — Phases 6-8 completed on 2026-07-29 with 24/24 requirements, clean independent review, and explicit real-Windows limitations.
 
 ## Active Milestone: v1.15 Verifiable Release Candidate Export and Handoff
 
-### Phase 6: Safe Retained Candidate Export
+### Phase 6: Safe Retained Candidate Export — Complete
 
 **Goal:** Produce a strictly validated target-local candidate through an isolated same-filesystem staging lifecycle and atomic promotion without changing temporary preflight behavior.
 
@@ -37,7 +37,7 @@
 3. Source mutation, candidate mutation, digest mismatch, or promotion failure produces explicit evidence and cleans only current-operation staging state.
 4. The shipped `preflight_release_candidate` schema, temporary lifecycle, verified cleanup semantics, and public result remain unchanged.
 
-### Phase 7: Unified Export Cleanup and Remote Parity
+### Phase 7: Unified Export Cleanup and Remote Parity — Complete
 
 **Goal:** Expose normalized export and cleanup operations across fixture, local Windows, SSH, and PowerShell Remoting with exact ownership-bound deletion authorization.
 
@@ -49,7 +49,7 @@
 3. Malformed, hostile, stale, replaced, or mismatched remote evidence is rejected by shared normalization and never triggers local fallback.
 4. SSH and PowerShell retain and remove candidates only on the target Windows host with no candidate transfer to the MCP host.
 
-### Phase 8: Release Gates, Documentation, and Milestone Closure
+### Phase 8: Release Gates, Documentation, and Milestone Closure — Complete
 
 **Goal:** Prove adversarial behavior, existing-tool regression safety, packaging readiness, explicit real-Windows evidence status, and release boundary compliance.
 
@@ -86,4 +86,4 @@ Execution history: `.planning/milestones/v1.13-phases/`
 
 ## Next Action
 
-Specify and plan Phase 6 before implementation.
+Run the v1.15 milestone audit, then archive the completed milestone.

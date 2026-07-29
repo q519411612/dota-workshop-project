@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.15
 milestone_name: Verifiable Release Candidate Export and Handoff
-status: planning
-current_phase: 6
-current_phase_name: Safe Retained Candidate Export
-last_updated: "2026-07-29T04:05:00.000Z"
+status: verifying
+current_phase: 8
+current_phase_name: Release Gates, Documentation, and Milestone Closure
+last_updated: "2026-07-29T10:45:00.000Z"
 last_activity: 2026-07-29
 last_activity_desc: v1.15 requirements and roadmap defined
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 0
-  percent: 0
+  completed_plans: 6
+  percent: 100
 ---
 
 # Project State: Dota Workshop Project
@@ -25,7 +25,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-07-29)
 
 **Core value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
-**Current focus:** Specifying and planning safe retained candidate export before implementation.
+**Current focus:** Auditing and archiving the completed v1.15 retained export and handoff milestone.
 
 ## Archived Roadmap
 
@@ -36,19 +36,19 @@ See: `.planning/PROJECT.md` (updated 2026-07-29)
 
 ## Current Position
 
-Phase: 6 of 8 (Safe Retained Candidate Export)
-Plan: —
-Status: Specifications, research, and plans complete; implementation ready
-Last activity: 2026-07-29 — v1.15 plans passed validation
+Phase: 8 of 8 (Release Gates, Documentation, and Milestone Closure)
+Plan: 2 of 2
+Status: Implementation, verification, and independent review complete; milestone audit pending
+Last activity: 2026-07-29 — v1.15 independent deep review passed clean
 
 ## Performance Metrics
 
 | Metric | Value |
 |---|---|
 | Milestone phases | 3 |
-| Completed phases | 0 |
+| Completed phases | 3 |
 | Requirements mapped | 24/24 |
-| Plans completed | 0/6 |
+| Plans completed | 6/6 |
 
 ## Accumulated Context
 
@@ -107,7 +107,7 @@ Last activity: 2026-07-29 — v1.15 plans passed validation
 
 ### Todos
 
-- Execute Phase 6 plans, then continue through Phases 7 and 8.
+- Complete and archive the v1.15 milestone audit.
 - Preserve user-owned `.planning/graphs/` changes outside milestone commits.
 
 ### Blockers
@@ -116,13 +116,13 @@ Last activity: 2026-07-29 — v1.15 plans passed validation
 
 ## Session Continuity
 
-**Last completed action:** Defined and validated six executable plans for all v1.15 phases.
-**Next action:** Execute Phase 6 safe retained candidate export.
-**Resume context:** v1.14 remains archived; v1.15 adds independent retained export and strict cleanup operations.
+**Last completed action:** Verified all v1.15 phases and completed a clean independent deep review.
+**Next action:** Audit all 24 requirements and archive v1.15.
+**Resume context:** v1.14 remains archived and unchanged; v1.15 implementation and validation are complete.
 
 ---
-*Last updated: 2026-07-29 after v1.15 roadmap definition*
+*Last updated: 2026-07-29 after v1.15 verification and clean review*
 
 ## Operator Next Steps
 
-- Specify and plan Phase 6 before implementation.
+- Run the v1.15 milestone audit and archive after it passes.

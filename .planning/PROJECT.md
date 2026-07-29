@@ -10,9 +10,9 @@ The v1.1 Workshop MVP milestone is complete and archived. The project now has a 
 
 AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
 
-## Latest Shipped Milestone: v1.14 Workshop Addon Release Candidate Preflight
+## Latest Shipped Milestone: v1.15 Verifiable Release Candidate Export and Handoff
 
-**Delivered:** An isolated, temporary, and auditable Dota Workshop addon release-candidate preflight through one unified fixture, local Windows, SSH Windows, and PowerShell Remoting MCP operation without Steam or Workshop mutation.
+**Delivered:** Independent retained candidate export and ownership-bound cleanup operations with target-local handoff evidence, strict path isolation, atomic no-replace promotion, hostile remote normalization, and unchanged temporary preflight semantics.
 
 **Validated features:**
 - Add a dedicated MCP operation for release-candidate preflight across fixture, local Windows, and remote Windows target contracts.
@@ -22,7 +22,7 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 - Return candidate, validation, cleanup, path, warning, command, and log evidence without silently falling back.
 - Verify deterministic behavior on macOS fixtures without requiring a real Windows host for milestone completion.
 
-## Current Milestone: v1.15 Verifiable Release Candidate Export and Handoff
+## Completed Milestone: v1.15 Verifiable Release Candidate Export and Handoff
 
 **Goal:** Safely retain a strictly validated Dota Workshop addon candidate at an explicitly authorized target-local destination with auditable integrity, ownership, handoff, promotion, and cleanup evidence while preserving the temporary cleanup semantics of `preflight_release_candidate` unchanged.
 
@@ -87,9 +87,9 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 
 ### Active
 
-- [ ] Export a strictly validated release candidate to an explicitly authorized target-local destination without changing `preflight_release_candidate`.
-- [ ] Produce versioned external handoff and ownership evidence for the retained candidate.
-- [ ] Delete an exported candidate only after exact path, ownership, manifest-version, and combined-digest revalidation, with distinct dry-run and execute evidence.
+- [x] Export a strictly validated release candidate to an explicitly authorized target-local destination without changing `preflight_release_candidate`.
+- [x] Produce versioned external handoff and ownership evidence for the retained candidate.
+- [x] Delete an exported candidate only after exact path, ownership, manifest-version, and combined-digest revalidation, with distinct dry-run and execute evidence.
 - [ ] Collect real same-machine Windows runtime marker evidence if a Windows machine is available.
 - [ ] Collect real Windows ability proof marker evidence if a Windows runtime is available and the proof unit is spawned.
 
@@ -115,11 +115,11 @@ Milestones v1.1, v1.13, and v1.14 are archived under `.planning/milestones/`. Cu
 
 ## Current State
 
-- **Shipped version:** v1.14 Workshop Addon Release Candidate Preflight on 2026-07-16.
-- **Verification:** 318/318 tests, clean independent review, 19/19 requirements, 17/17 integration links, and 9/9 end-to-end flows.
-- **Release-candidate readiness:** one strict MCP operation assembles, validates, hashes, reconciles, and removes temporary candidates across fixture/local/remote contracts while returning evidence only.
-- **Planning state:** v1.15 is active with a fresh requirement slice; v1.14 requirements, audit, roadmap detail, and execution history remain archived and immutable.
-- **Known follow-ups:** real same-machine Windows runtime evidence, real ability marker evidence, and optional real Windows candidate parity evidence remain outside the v1.14 completion gate.
+- **Shipped version:** v1.15 Verifiable Release Candidate Export and Handoff on 2026-07-29.
+- **Verification:** 385/385 runnable tests passed, one Windows-only test skipped, clean independent deep review, and 24/24 requirements verified.
+- **Release-candidate readiness:** temporary preflight remains unchanged; independent export retains a fully validated target-local candidate and strict cleanup proves exact removal.
+- **Planning state:** v1.15 is ready for audit and archive; v1.14 archives remain immutable.
+- **Known follow-ups:** real Windows export, path normalization, general reparse, atomic promotion, and cleanup runtime evidence remain explicitly unverified.
 
 ## Next Milestone Goals
 
@@ -198,4 +198,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-29 after v1.15 milestone initialization*
+*Last updated: 2026-07-29 after v1.15 verification and clean independent review*

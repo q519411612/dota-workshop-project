@@ -1,67 +1,40 @@
 ---
 phase: 08-release-gates-documentation-and-closure
-fixed_at: 2026-07-29T05:11:14Z
+fixed_at: 2026-07-29T10:40:00Z
 review_path: .planning/phases/08-release-gates-documentation-and-closure/08-REVIEW.md
-iteration: 2
-findings_in_scope: 5
-fixed: 5
+findings_confirmed: 13
+fixed: 13
 skipped: 0
 status: all_fixed
 ---
 
-# Phase 8: Code Review Fix Report
+# Code Review Fix Report
 
-**Fixed at:** 2026-07-29T05:11:14Z
-**Source review:** `.planning/phases/08-release-gates-documentation-and-closure/08-REVIEW.md`
-**Iteration:** 2
+All confirmed findings from the independent deep-review chain were reproduced or traced through the hostile-input and filesystem state machines, fixed, rebuilt into tracked runtime output, and independently re-reviewed to clean status.
 
-**Summary:**
+## Remediation Areas
 
-- Findings in scope: 5
-- Fixed: 5
-- Skipped: 0
-- Verification: embedded C# compilation, TypeScript typecheck, 26 focused tests, packaged runtime parity, 363 full-suite tests, and tracked runtime rebuild all passed.
-- Windows limitation: the target-native handle replacement regression is skipped on macOS; no real Windows runtime proof is claimed.
-- Scope review: archived v1.14 files and the `preflight_release_candidate` implementation were unchanged.
+- Atomic no-replace promotion and handoff publication now reject mutation-time owner state.
+- Windows export and cleanup consistently require reparse-aware classification and handle-bound handoff bytes.
+- Cleanup uses exact no-replace tombstones, immediate identity/topology/content revalidation, safe restoration, partial-state evidence, and final absence proof under the approved practical threat boundary.
+- Remote export failures preserve canonical paths, original stable codes, staging and temporary-handoff cleanup, retained handoff, ownership, and promotion state.
+- Remote success and failure normalization enforce closed exact-key, path, state, authorization, handoff-presence, cleanup, and tombstone matrices.
+- Malformed present handoffs, impossible authorization, contradictory state, and hostile optional-field encodings fail closed.
+- POSIX atomic no-replace compiler capability is documented, selected once, probed before staging, and reused for actual export and cleanup moves.
+- Unwritable and unsafe roots return structured ToolResult failures instead of escaping exceptions.
+- Complete parent-closed topology and packaged source/dist runtime closure are verified.
 
-## Fixed Issues
+## Verification
 
-### CR-01: Remote export success is trusted without recomputing preflight invariants
+- Independent deep re-review: clean.
+- Typecheck: passed.
+- Full test suite: 385 passed, 1 Windows-only skipped.
+- Build and tracked packaged runtime parity: passed.
+- Plugin, source snapshot, install simulation, RC, handoff, and milestone gates: passed.
+- Preflight source and behavior regression checks: passed.
+- Archived v1.14 planning: unchanged.
+- User-owned graph files: unchanged from recorded baseline and unstaged.
 
-**Files modified:** `src/exported-candidate-remote.ts`, `tests/exported-candidate-remote.test.ts`, tracked runtime
-**Commit:** b3ab834, ab080c4
-**Applied fix:** Remote export now passes the complete base payload through the strict release-candidate normalizer, requires a valid successful preflight envelope, and requires exact equality between the validated base manifest and the exported handoff manifest. Contradictory blockers, boundaries, ledgers, coverage, validation state, or manifests are rejected.
-**Status:** fixed: requires human verification
+## Runtime Limitation
 
-### CR-02: The strict handoff parser accepts an impossible incomplete topology
-
-**Files modified:** `src/exported-candidate.ts`, `src/exported-candidate-remote-script.ts`, `tests/exported-candidate-remote.test.ts`, tracked runtime
-**Commit:** b3ab834, ab080c4
-**Applied fix:** Handoff parsing now derives every parent directory required by topology and manifest paths and requires each one to exist as a unique directory entry. Remote target authorization applies the same parent-closed topology rule, and fixtures now contain the complete directory ledger.
-**Status:** fixed: requires human verification
-
-### CR-03: Windows cleanup reads handoff content from an identity-unbound reopened path
-
-**Files modified:** `src/exported-candidate-remote-script.ts`, `tests/exported-candidate-remote.test.ts`, documentation, tracked runtime
-**Commit:** b3ab834, ab080c4
-**Applied fix:** Windows cleanup opens the handoff once with `CreateFileW` and `FILE_FLAG_OPEN_REPARSE_POINT`, rejects directory and reparse handles, captures identity with `GetFileInformationByHandle`, reads UTF-8 bytes through the same handle, and holds the lease through candidate authorization and mutation. The embedded C# compiled with zero warnings and errors.
-**Status:** fixed: requires human verification
-
-### CR-04: Export-root write failures escape the MCP result contract
-
-**Files modified:** `src/exported-candidate.ts`, `tests/exported-candidate.test.ts`, tracked runtime
-**Commit:** b3ab834, ab080c4
-**Applied fix:** Staging creation is now injectable and guarded. Creation failure returns `EXPORT_STAGING_CREATION_FAILED` with validated paths and `cleanup.status = "not-reached"` instead of rejecting the handler promise.
-
-### CR-05: Partial remote cleanup relocates the candidate and then discards its proven handoff evidence
-
-**Files modified:** `src/exported-candidate-remote-script.ts`, `src/exported-candidate-remote.ts`, `tests/exported-candidate-remote.test.ts`, documentation, tracked runtime
-**Commit:** b3ab834, ab080c4
-**Applied fix:** Target cleanup restores intact identity-matched tombstones when possible and otherwise reports explicit `present`, `tombstoned`, `absent`, or `unknown` states with validated tombstone paths. Host normalization strictly validates state/path consistency and preserves the manifest, ownership, canonical paths, authorization, and partial cleanup evidence for request-bound failures.
-**Status:** fixed: requires human verification
-
----
-
-_Fixed: 2026-07-29T05:11:14Z_
-_Fixer: the agent (gsd-code-fixer)_
-_Iteration: 2_
+No credential-free real Windows target was available. Real Windows export, path normalization, general reparse behavior, atomic promotion, and cleanup remain explicitly unverified; mocks and contract tests are not presented as runtime proof.
