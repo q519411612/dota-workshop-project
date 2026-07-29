@@ -313,6 +313,32 @@ describe("remote exported candidate", () => {
     });
   });
 
+  test("rejects impossible authorization for a not-started remote export", async () => {
+    const payload = JSON.parse(exportPayload());
+    payload.ok = false;
+    payload.blockers = [{ code: "EXPORT_DESTINATION_EXISTS", category: "export-state" }];
+    payload.exportState = { schemaVersion: "1.0", promotionState: "not-started", candidateState: "unknown" };
+    payload.exportCleanup = {
+      ...payload.exportCleanup,
+      authorized: true,
+      candidateState: "unknown",
+      candidateAbsent: false,
+      manifestState: "present",
+      manifestAbsent: false,
+      promotionState: "not-started",
+      status: "failed",
+      code: "EXPORT_DESTINATION_EXISTS"
+    };
+    const result = await exportRemoteReleaseCandidate({
+      target,
+      addonName: "demo",
+      exportRoot: "C:/Exports",
+      destination: "C:/Exports/demo",
+      executor: async () => ({ exitCode: 0, stdout: JSON.stringify(payload), stderr: "" })
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "REMOTE_EXPORT_SEMANTIC_INVALID" } });
+  });
+
   test("preserves strict remote export failure paths, state, cleanup, and ownership", async () => {
     const payload = JSON.parse(exportPayload());
     payload.ok = false;
