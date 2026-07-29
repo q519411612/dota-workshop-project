@@ -156,11 +156,13 @@ function normalizeRemoteExportFailure(
   const cleanup = parseCleanup(parsed.exportCleanup, "export-failure");
   const paths = parseExportPaths(parsed.exportPaths, input.exportRoot, input.destination);
   const state = parseExportState(parsed.exportState);
-  const handoff = parsed.export === undefined ? undefined : parseExportedCandidateHandoffManifest(parsed.export);
+  const exportProvided = Object.prototype.hasOwnProperty.call(parsed, "export");
+  const handoff = exportProvided ? parseExportedCandidateHandoffManifest(parsed.export) : undefined;
   const code = cleanup?.code;
   const stateValid = cleanup !== undefined
     && paths !== undefined
     && state !== undefined
+    && (!exportProvided || handoff !== undefined)
     && typeof code === "string"
     && cleanup.status === "failed"
     && cleanup.promotionState === state.promotionState

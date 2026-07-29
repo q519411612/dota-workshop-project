@@ -233,6 +233,33 @@ describe("remote exported candidate", () => {
     expect(result).toMatchObject({ ok: false, error: { code: "REMOTE_EXPORT_SEMANTIC_INVALID" } });
   });
 
+  test.each([null, {}, "invalid"])("rejects malformed present remote handoff %#", async (exportValue) => {
+    const payload = JSON.parse(exportPayload());
+    payload.ok = false;
+    payload.blockers = [{ code: "EXPORT_ROOT_MISSING", category: "export-isolation" }];
+    payload.export = exportValue;
+    payload.exportState = { schemaVersion: "1.0", promotionState: "not-started", candidateState: "absent" };
+    payload.exportCleanup = {
+      ...payload.exportCleanup,
+      authorized: false,
+      candidateState: "absent",
+      candidateAbsent: true,
+      manifestState: "absent",
+      manifestAbsent: true,
+      promotionState: "not-started",
+      status: "failed",
+      code: "EXPORT_ROOT_MISSING"
+    };
+    const result = await exportRemoteReleaseCandidate({
+      target,
+      addonName: "demo",
+      exportRoot: "C:/Exports",
+      destination: "C:/Exports/demo",
+      executor: async () => ({ exitCode: 0, stdout: JSON.stringify(payload), stderr: "" })
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "REMOTE_EXPORT_SEMANTIC_INVALID" } });
+  });
+
   test.each(["EXPORT_ROOT_MISSING", "EXPORT_ROOT_PROTECTED", "DESTINATION_OUTSIDE_EXPORT_ROOT"])("preserves early remote export failure %s", async (code) => {
     const payload = JSON.parse(exportPayload());
     payload.ok = false;
