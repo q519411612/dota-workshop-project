@@ -214,6 +214,28 @@ describe("exported release candidate lifecycle", () => {
     expect(linkedResult).toMatchObject({ ok: false, error: { code: "EXPORT_ROOT_UNSAFE" } });
   });
 
+  test("fails before staging when the declared POSIX atomic primitive prerequisite is unavailable", async () => {
+    const fixture = await createFixture("atomic_prerequisite");
+    const destination = join(fixture.exportRoot, "candidate");
+    let stagingAttempted = false;
+    const result = await exportNodeReleaseCandidate({
+      target: { kind: "fixture", root: fixture.dotaRoot },
+      addonName: fixture.addonName,
+      exportRoot: fixture.exportRoot,
+      destination
+    }, {
+      repositoryRoot: fixture.repositoryRoot,
+      platform: "darwin",
+      verifyAtomicMove: async () => { throw new Error("compiler unavailable"); },
+      createStaging: async () => {
+        stagingAttempted = true;
+        throw new Error("staging must not start");
+      }
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "ATOMIC_NO_REPLACE_UNAVAILABLE" } });
+    expect(stagingAttempted).toBe(false);
+  });
+
   test("requires the Windows reparse-aware classifier across export boundaries", async () => {
     const fixture = await createFixture("windows_reparse");
     const destination = join(fixture.exportRoot, "candidate");

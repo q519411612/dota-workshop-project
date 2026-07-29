@@ -15,6 +15,8 @@ export async function exportRemoteReleaseCandidate(input) {
         return normalizeRemoteExportFailure(target, outcome.transport, input, parsed);
     const handoff = parseExportedCandidateHandoffManifest(parsed.export);
     const cleanup = parseCleanup(parsed.exportCleanup, "export-failure");
+    const exportPaths = parseExportPaths(parsed.exportPaths, input.exportRoot, input.destination);
+    const exportState = parseExportState(parsed.exportState);
     const releaseCandidate = normalizeReleaseCandidateDetail({
         schemaVersion: parsed.schemaVersion,
         ok: parsed.ok,
@@ -39,7 +41,13 @@ export async function exportRemoteReleaseCandidate(input) {
         || !releaseCandidate.ok
         || handoff === undefined
         || cleanup === undefined
+        || exportPaths === undefined
+        || exportState === undefined
         || !cleanupSuccessState(cleanup)
+        || exportState.promotionState !== "promoted"
+        || exportState.candidateState !== "present"
+        || cleanup.promotionState !== exportState.promotionState
+        || cleanup.candidateState !== exportState.candidateState
         || handoff.targetKind !== outcome.transport
         || handoff.addonName !== input.addonName
         || !windowsPathEqual(handoff.exportRoot, input.exportRoot)
@@ -53,7 +61,7 @@ export async function exportRemoteReleaseCandidate(input) {
         operation: "export_release_candidate",
         evidence: ["remote target-local candidate export evidence normalized"],
         warnings: ["contract evidence only; real Windows runtime behavior is not proven"],
-        paths: { exportRoot: handoff.exportRoot, destination: handoff.destination, handoffManifest: `${handoff.destination}.dota-workshop-handoff.v1.json` },
+        paths: exportPaths,
         commands: [{ command: `${outcome.transport} export_release_candidate <redacted-script>`, exitCode: 0 }],
         logs: [{ source: "remote-exported-candidate", lines: ["remote evidence normalized"] }],
         manifest: handoff,

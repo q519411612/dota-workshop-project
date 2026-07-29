@@ -58,6 +58,24 @@ export async function atomicMoveNoReplace(
   }
 }
 
+export async function verifyAtomicMoveNoReplaceAvailable(
+  platform: NodeJS.Platform = process.platform,
+  compiler: string = process.env.CC?.trim() || "/usr/bin/cc"
+): Promise<void> {
+  if (platform === "win32") return;
+  if (platform !== "darwin" && platform !== "linux") throw new Error("ATOMIC_NO_REPLACE_UNAVAILABLE");
+  const root = await mkdtemp(join(tmpdir(), "dota-atomic-probe-"));
+  const sourcePath = join(root, "move.c");
+  const executable = join(root, "move");
+  try {
+    await writeFile(sourcePath, POSIX_NO_REPLACE_SOURCE, { encoding: "utf8", flag: "wx" });
+    const compilation = await execute(compiler, [sourcePath, "-o", executable]);
+    if (compilation.exitCode !== 0 || compilation.stderr.length !== 0) throw new Error("ATOMIC_NO_REPLACE_UNAVAILABLE");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
 async function executeWindowsNoReplace(source: string, destination: string): Promise<void> {
   const script = [
     "$ErrorActionPreference = 'Stop'",

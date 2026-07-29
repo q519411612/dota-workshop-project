@@ -120,6 +120,8 @@ For v1.14 release-candidate evidence, call `preflight_release_candidate` with on
 
 For a retained target-local handoff, call `export_release_candidate` with an explicit isolated `exportRoot` and absent direct-child `destination`. This is independent from temporary preflight. Require the external handoff manifest, complete file-and-directory topology, combined digest, ownership evidence, and verified staging cleanup before describing export as successful. Remote exports remain on the target Windows host and never transfer candidate files to the MCP host.
 
+Fixture and local macOS/Linux execution require a working C compiler at `/usr/bin/cc` or selected by `CC` for the audited atomic no-replace helper. The operation checks this before staging and fails explicitly when unavailable. Windows targets use Windows-native move primitives.
+
 Before deletion, call `cleanup_exported_candidate` with `dryRun: true` and the exact path, ownership identifier, manifest version, and combined SHA-256 returned by export. Execute only after dry-run authorization succeeds. Export uses atomic no-replace promotion and publication. Cleanup moves the exact objects to no-replace tombstones, repeats identity and complete-content validation immediately before removal, and proves absence. Its threat boundary matches v1.14: hostile pre-existing state and ordinary races are rejected; active same-account replacement inside the final deletion system-call window is not claimed. Remote execute uncertainty means both states are unknown. Never widen the path, repair a mismatch, or retry into mixed state.
 
 ## Editing Rules

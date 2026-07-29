@@ -20,7 +20,7 @@ import {
   type NodeReleaseCandidatePreflightDependencies
 } from "./release-candidate-node.js";
 import type { ReleaseCandidateEntryKind } from "./release-candidate.js";
-import { atomicMoveNoReplace } from "./exported-candidate-native.js";
+import { atomicMoveNoReplace, verifyAtomicMoveNoReplaceAvailable } from "./exported-candidate-native.js";
 import { computeReleaseCandidateCombinedDigest } from "./release-candidate-result.js";
 import type {
   ReleaseCandidateManifestDetail,
@@ -107,6 +107,7 @@ type ExportDependencies = NodeReleaseCandidatePreflightDependencies & Readonly<{
   createStaging?: typeof mkdtemp;
   preflight?: typeof preflightNodeReleaseCandidate;
   atomicMove?: (source: string, destination: string) => Promise<void>;
+  verifyAtomicMove?: (platform: NodeJS.Platform) => Promise<void>;
   rename?: typeof rename;
   remove?: typeof rm;
   write?: typeof writeFile;
@@ -140,6 +141,17 @@ export async function exportNodeReleaseCandidate(
   if (!classifier.ok) return failure(target, operation, classifier.code, classifier.message);
   const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd(), false, classifier.classify);
   if (!paths.ok) return failure(target, operation, paths.code, paths.message, paths.paths);
+  if (dependencies.atomicMove === undefined && dependencies.rename === undefined) {
+    try {
+      await (dependencies.verifyAtomicMove ?? verifyAtomicMoveNoReplaceAvailable)(dependencies.platform ?? process.platform);
+    } catch {
+      return failure(target, operation, "ATOMIC_NO_REPLACE_UNAVAILABLE", "Target-native atomic no-replace is unavailable on this host.", {
+        exportRoot: paths.exportRoot,
+        destination: paths.destination,
+        handoffManifest: paths.handoff
+      });
+    }
+  }
 
   let staging: string;
   try {
@@ -310,6 +322,19 @@ export async function cleanupNodeExportedCandidate(
       status: "verified"
     });
     return cleanupSuccess(target, input, paths, authorization.manifest, cleanup, "cleanup authorization passed without mutation");
+  }
+
+  if (dependencies.atomicMove === undefined && dependencies.rename === undefined) {
+    try {
+      await (dependencies.verifyAtomicMove ?? verifyAtomicMoveNoReplaceAvailable)(dependencies.platform ?? process.platform);
+    } catch {
+      await authorization.handoffHandle.close().catch(() => undefined);
+      return failure(target, operation, "ATOMIC_NO_REPLACE_UNAVAILABLE", "Target-native atomic no-replace is unavailable on this host.", {
+        exportRoot: paths.exportRoot,
+        destination: paths.destination,
+        handoffManifest: paths.handoff
+      }, [], cleanupAuthorizationFailure(false, "ATOMIC_NO_REPLACE_UNAVAILABLE"), authorization.manifest, authorization.manifest.ownership);
+    }
   }
 
   const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform));

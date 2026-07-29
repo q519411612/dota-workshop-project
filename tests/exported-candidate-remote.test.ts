@@ -214,6 +214,65 @@ describe("remote exported candidate", () => {
     expect(result).toMatchObject({ ok: false, error: { code: "REMOTE_EXPORT_SEMANTIC_INVALID" } });
   });
 
+  test.each([
+    { exportPaths: null },
+    { exportPaths: { exportRoot: "C:\\Other", destination: "C:\\Other\\demo", handoffManifest: "C:\\Other\\demo.dota-workshop-handoff.v1.json" } },
+    { exportState: { schemaVersion: "1.0", promotionState: "not-started", candidateState: "absent" } },
+    { exportCleanup: { promotionState: "not-started" } }
+  ])("rejects contradictory remote export state envelope %#", async (mutation) => {
+    const payload = JSON.parse(exportPayload());
+    if (mutation.exportCleanup !== undefined) payload.exportCleanup = { ...payload.exportCleanup, ...mutation.exportCleanup };
+    else Object.assign(payload, mutation);
+    const result = await exportRemoteReleaseCandidate({
+      target,
+      addonName: "demo",
+      exportRoot: "C:/Exports",
+      destination: "C:/Exports/demo",
+      executor: async () => ({ exitCode: 0, stdout: JSON.stringify(payload), stderr: "" })
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "REMOTE_EXPORT_SEMANTIC_INVALID" } });
+  });
+
+  test.each(["EXPORT_ROOT_MISSING", "EXPORT_ROOT_PROTECTED", "DESTINATION_OUTSIDE_EXPORT_ROOT"])("preserves early remote export failure %s", async (code) => {
+    const payload = JSON.parse(exportPayload());
+    payload.ok = false;
+    payload.blockers = [{ code, category: "export-isolation" }];
+    delete payload.export;
+    payload.exportState = { schemaVersion: "1.0", promotionState: "not-started", candidateState: "absent" };
+    payload.exportCleanup = {
+      schemaVersion: "1.0",
+      mode: "export-failure",
+      authorized: false,
+      attempted: false,
+      candidateRemoved: false,
+      candidateAbsent: true,
+      manifestRemoved: false,
+      manifestAbsent: true,
+      candidateState: "absent",
+      manifestState: "absent",
+      stagingRemoved: false,
+      stagingAbsent: true,
+      temporaryHandoffRemoved: false,
+      temporaryHandoffAbsent: true,
+      promotionState: "not-started",
+      status: "failed",
+      code
+    };
+    const result = await exportRemoteReleaseCandidate({
+      target,
+      addonName: "demo",
+      exportRoot: "C:/Exports",
+      destination: "C:/Exports/demo",
+      executor: async () => ({ exitCode: 0, stdout: JSON.stringify(payload), stderr: "" })
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code },
+      paths: payload.exportPaths,
+      cleanup: { promotionState: "not-started", candidateState: "absent", manifestState: "absent" }
+    });
+  });
+
   test("preserves strict remote export failure paths, state, cleanup, and ownership", async () => {
     const payload = JSON.parse(exportPayload());
     payload.ok = false;
