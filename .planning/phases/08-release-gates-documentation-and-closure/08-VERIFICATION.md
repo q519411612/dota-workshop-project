@@ -3,7 +3,7 @@ phase: 08-release-gates-documentation-and-closure
 verified: 2026-07-29
 status: passed
 requirements: 5/5
-review: pending
+review: clean
 ---
 
 # Phase 8 Verification
@@ -20,6 +20,6 @@ Passed with one explicit non-blocking evidence limitation: real Windows export/n
 | VERI-04 | passed | Real Windows items are explicitly marked unverified; the Windows-only lease test is skipped on macOS. |
 | BNDR-01 | passed | Source, docs, examples, and release gates retain all excluded publishing, credential, transfer, and packaging boundaries. |
 
-Independent review: latest findings are fixed and a fresh deep re-review is pending.
+Independent review: `.planning/phases/08-release-gates-documentation-and-closure/08-REVIEW.md` has `status: clean` at deep depth with 0 findings.
 
 Repository checks: preflight implementation diff is empty; archived v1.14 files are unchanged; user graph hashes match `/tmp/dota-workshop-v115-graphs.sha256` and remain unstaged.
