@@ -107,7 +107,8 @@ type ExportDependencies = NodeReleaseCandidatePreflightDependencies & Readonly<{
   createStaging?: typeof mkdtemp;
   preflight?: typeof preflightNodeReleaseCandidate;
   atomicMove?: (source: string, destination: string) => Promise<void>;
-  verifyAtomicMove?: (platform: NodeJS.Platform) => Promise<void>;
+  atomicCompiler?: string;
+  verifyAtomicMove?: (platform: NodeJS.Platform, compiler: string) => Promise<void>;
   rename?: typeof rename;
   remove?: typeof rm;
   write?: typeof writeFile;
@@ -141,9 +142,10 @@ export async function exportNodeReleaseCandidate(
   if (!classifier.ok) return failure(target, operation, classifier.code, classifier.message);
   const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd(), false, classifier.classify);
   if (!paths.ok) return failure(target, operation, paths.code, paths.message, paths.paths);
+  const atomicCompiler = dependencies.atomicCompiler ?? (process.env.CC?.trim() || "/usr/bin/cc");
   if (dependencies.atomicMove === undefined && dependencies.rename === undefined) {
     try {
-      await (dependencies.verifyAtomicMove ?? verifyAtomicMoveNoReplaceAvailable)(dependencies.platform ?? process.platform);
+      await (dependencies.verifyAtomicMove ?? verifyAtomicMoveNoReplaceAvailable)(dependencies.platform ?? process.platform, atomicCompiler);
     } catch {
       return failure(target, operation, "ATOMIC_NO_REPLACE_UNAVAILABLE", "Target-native atomic no-replace is unavailable on this host.", {
         exportRoot: paths.exportRoot,
@@ -167,7 +169,7 @@ export async function exportNodeReleaseCandidate(
   let promoted = false;
   let failureStage: "assembly" | "promotion" = "assembly";
   const remove = dependencies.remove ?? rm;
-  const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform));
+  const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform, atomicCompiler));
   const write = dependencies.write ?? writeFile;
 
   try {
@@ -298,6 +300,7 @@ export async function cleanupNodeExportedCandidate(
   if (!classifier.ok) return failure(target, operation, classifier.code, classifier.message);
   const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd(), true, classifier.classify);
   if (!paths.ok) return failure(target, operation, paths.code, paths.message, paths.paths);
+  const atomicCompiler = dependencies.atomicCompiler ?? (process.env.CC?.trim() || "/usr/bin/cc");
   const authorization = await authorizeCleanup(input, paths, classifier.classify);
   if (!authorization.ok) {
     return failure(target, operation, authorization.code, authorization.message, {
@@ -326,7 +329,7 @@ export async function cleanupNodeExportedCandidate(
 
   if (dependencies.atomicMove === undefined && dependencies.rename === undefined) {
     try {
-      await (dependencies.verifyAtomicMove ?? verifyAtomicMoveNoReplaceAvailable)(dependencies.platform ?? process.platform);
+      await (dependencies.verifyAtomicMove ?? verifyAtomicMoveNoReplaceAvailable)(dependencies.platform ?? process.platform, atomicCompiler);
     } catch {
       await authorization.handoffHandle.close().catch(() => undefined);
       return failure(target, operation, "ATOMIC_NO_REPLACE_UNAVAILABLE", "Target-native atomic no-replace is unavailable on this host.", {
@@ -337,7 +340,7 @@ export async function cleanupNodeExportedCandidate(
     }
   }
 
-  const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform));
+  const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform, atomicCompiler));
   const removePath = dependencies.remove ?? rm;
   const candidateTombstone = join(paths.exportRoot, `.dota-workshop-candidate-delete-${randomUUID()}`);
   const handoffTombstone = join(paths.exportRoot, `.dota-workshop-handoff-delete-${randomUUID()}.json`);

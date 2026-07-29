@@ -273,6 +273,46 @@ describe("remote exported candidate", () => {
     });
   });
 
+  test("preserves an unowned pre-existing remote destination as unknown", async () => {
+    const payload = JSON.parse(exportPayload());
+    payload.ok = false;
+    payload.blockers = [{ code: "EXPORT_DESTINATION_EXISTS", category: "export-state" }];
+    delete payload.export;
+    payload.exportState = { schemaVersion: "1.0", promotionState: "not-started", candidateState: "unknown" };
+    payload.exportCleanup = {
+      schemaVersion: "1.0",
+      mode: "export-failure",
+      authorized: false,
+      attempted: false,
+      candidateRemoved: false,
+      candidateAbsent: false,
+      manifestRemoved: false,
+      manifestAbsent: true,
+      candidateState: "unknown",
+      manifestState: "absent",
+      stagingRemoved: false,
+      stagingAbsent: true,
+      temporaryHandoffRemoved: false,
+      temporaryHandoffAbsent: true,
+      promotionState: "not-started",
+      status: "failed",
+      code: "EXPORT_DESTINATION_EXISTS"
+    };
+    const result = await exportRemoteReleaseCandidate({
+      target,
+      addonName: "demo",
+      exportRoot: "C:/Exports",
+      destination: "C:/Exports/demo",
+      executor: async () => ({ exitCode: 0, stdout: JSON.stringify(payload), stderr: "" })
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "EXPORT_DESTINATION_EXISTS" },
+      paths: payload.exportPaths,
+      cleanup: { candidateState: "unknown", candidateAbsent: false, promotionState: "not-started" }
+    });
+  });
+
   test("preserves strict remote export failure paths, state, cleanup, and ownership", async () => {
     const payload = JSON.parse(exportPayload());
     payload.ok = false;

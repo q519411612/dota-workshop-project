@@ -32,9 +32,10 @@ export async function exportNodeReleaseCandidate(input, dependencies = {}) {
     const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd(), false, classifier.classify);
     if (!paths.ok)
         return failure(target, operation, paths.code, paths.message, paths.paths);
+    const atomicCompiler = dependencies.atomicCompiler ?? (process.env.CC?.trim() || "/usr/bin/cc");
     if (dependencies.atomicMove === undefined && dependencies.rename === undefined) {
         try {
-            await (dependencies.verifyAtomicMove ?? verifyAtomicMoveNoReplaceAvailable)(dependencies.platform ?? process.platform);
+            await (dependencies.verifyAtomicMove ?? verifyAtomicMoveNoReplaceAvailable)(dependencies.platform ?? process.platform, atomicCompiler);
         }
         catch {
             return failure(target, operation, "ATOMIC_NO_REPLACE_UNAVAILABLE", "Target-native atomic no-replace is unavailable on this host.", {
@@ -59,7 +60,7 @@ export async function exportNodeReleaseCandidate(input, dependencies = {}) {
     let promoted = false;
     let failureStage = "assembly";
     const remove = dependencies.remove ?? rm;
-    const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform));
+    const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform, atomicCompiler));
     const write = dependencies.write ?? writeFile;
     try {
         const releaseCandidate = await (dependencies.preflight ?? preflightNodeReleaseCandidate)({ target: input.target, addonName: input.addonName }, {
@@ -188,6 +189,7 @@ export async function cleanupNodeExportedCandidate(input, dependencies = {}) {
     const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd(), true, classifier.classify);
     if (!paths.ok)
         return failure(target, operation, paths.code, paths.message, paths.paths);
+    const atomicCompiler = dependencies.atomicCompiler ?? (process.env.CC?.trim() || "/usr/bin/cc");
     const authorization = await authorizeCleanup(input, paths, classifier.classify);
     if (!authorization.ok) {
         return failure(target, operation, authorization.code, authorization.message, {
@@ -215,7 +217,7 @@ export async function cleanupNodeExportedCandidate(input, dependencies = {}) {
     }
     if (dependencies.atomicMove === undefined && dependencies.rename === undefined) {
         try {
-            await (dependencies.verifyAtomicMove ?? verifyAtomicMoveNoReplaceAvailable)(dependencies.platform ?? process.platform);
+            await (dependencies.verifyAtomicMove ?? verifyAtomicMoveNoReplaceAvailable)(dependencies.platform ?? process.platform, atomicCompiler);
         }
         catch {
             await authorization.handoffHandle.close().catch(() => undefined);
@@ -226,7 +228,7 @@ export async function cleanupNodeExportedCandidate(input, dependencies = {}) {
             }, [], cleanupAuthorizationFailure(false, "ATOMIC_NO_REPLACE_UNAVAILABLE"), authorization.manifest, authorization.manifest.ownership);
         }
     }
-    const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform));
+    const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform, atomicCompiler));
     const removePath = dependencies.remove ?? rm;
     const candidateTombstone = join(paths.exportRoot, `.dota-workshop-candidate-delete-${randomUUID()}`);
     const handoffTombstone = join(paths.exportRoot, `.dota-workshop-handoff-delete-${randomUUID()}.json`);

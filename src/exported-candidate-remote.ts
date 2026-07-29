@@ -170,6 +170,7 @@ function normalizeRemoteExportFailure(
     && !cleanup.candidateRemoved
     && !cleanup.manifestRemoved
     && ((state.promotionState === "not-started" && state.candidateState === "absent" && cleanup.candidateAbsent)
+      || (state.promotionState === "not-started" && state.candidateState === "unknown" && !cleanup.candidateAbsent)
       || (state.promotionState === "promoted" && state.candidateState === "present" && !cleanup.candidateAbsent))
     && ((cleanup.manifestState === "present" && !cleanup.manifestAbsent) || (cleanup.manifestState === "absent" && cleanup.manifestAbsent))
     && (handoff === undefined || (
@@ -204,9 +205,9 @@ function parseExportPaths(value: unknown, exportRoot: string, destination: strin
   return Object.freeze({ exportRoot: value.exportRoot, destination: value.destination, handoffManifest: value.handoffManifest });
 }
 
-function parseExportState(value: unknown): Readonly<{ promotionState: "not-started" | "promoted"; candidateState: "absent" | "present" }> | undefined {
+function parseExportState(value: unknown): Readonly<{ promotionState: "not-started" | "promoted"; candidateState: "absent" | "present" | "unknown" }> | undefined {
   if (!isRecord(value) || !hasOnlyKeys(value, ["schemaVersion", "promotionState", "candidateState"]) || value.schemaVersion !== "1.0") return undefined;
-  if ((value.promotionState !== "not-started" && value.promotionState !== "promoted") || (value.candidateState !== "absent" && value.candidateState !== "present")) return undefined;
+  if ((value.promotionState !== "not-started" && value.promotionState !== "promoted") || (value.candidateState !== "absent" && value.candidateState !== "present" && value.candidateState !== "unknown")) return undefined;
   return Object.freeze({ promotionState: value.promotionState, candidateState: value.candidateState });
 }
 

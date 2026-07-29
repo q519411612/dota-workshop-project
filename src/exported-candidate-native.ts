@@ -32,7 +32,8 @@ int main(int argc, char **argv) {
 export async function atomicMoveNoReplace(
   source: string,
   destination: string,
-  platform: NodeJS.Platform = process.platform
+  platform: NodeJS.Platform = process.platform,
+  compiler: string = process.env.CC?.trim() || "/usr/bin/cc"
 ): Promise<void> {
   if (platform === "win32") {
     await executeWindowsNoReplace(source, destination);
@@ -46,7 +47,7 @@ export async function atomicMoveNoReplace(
   const executable = join(root, "move");
   try {
     await writeFile(sourcePath, POSIX_NO_REPLACE_SOURCE, { encoding: "utf8", flag: "wx" });
-    const compilation = await execute("/usr/bin/cc", [sourcePath, "-o", executable]);
+    const compilation = await execute(compiler, [sourcePath, "-o", executable]);
     if (compilation.exitCode !== 0 || compilation.stderr.length !== 0) {
       throw new Error("ATOMIC_NO_REPLACE_UNAVAILABLE");
     }

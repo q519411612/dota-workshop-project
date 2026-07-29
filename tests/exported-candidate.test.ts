@@ -1,4 +1,4 @@
-import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -147,6 +147,19 @@ describe("exported release candidate lifecycle", () => {
     });
     expect(handoff).toMatchObject({ ok: false, error: { code: "ATOMIC_NO_REPLACE_DESTINATION_EXISTS" }, cleanup: { candidateState: "present" } });
     expect(await readFile(handoffPath, "utf8")).toBe("owner data");
+  });
+
+  test.runIf(process.platform === "darwin" || process.platform === "linux")("uses the selected compiler for the actual POSIX atomic move", async () => {
+    const root = await mkdtemp(join(tmpdir(), "atomic-compiler-selection-"));
+    roots.push(root);
+    const compiler = join(root, "selected-cc");
+    const source = join(root, "source");
+    const destination = join(root, "destination");
+    await writeFile(compiler, "#!/bin/sh\nexec /usr/bin/cc \"$@\"\n", "utf8");
+    await chmod(compiler, 0o700);
+    await mkdir(source);
+    await atomicMoveNoReplace(source, destination, process.platform, compiler);
+    expect((await lstat(destination)).isDirectory()).toBe(true);
   });
 
   test("dry-runs and executes cleanup only with exact ownership and digest evidence", async () => {
