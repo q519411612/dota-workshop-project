@@ -1,6 +1,6 @@
 ---
 phase: 08-release-gates-documentation-and-closure
-reviewed: 2026-07-29T04:54:10Z
+reviewed: 2026-07-29T05:24:22Z
 depth: deep
 files_reviewed: 29
 files_reviewed_list:
@@ -43,63 +43,58 @@ status: issues_found
 
 # Phase 8: Code Review Report
 
-**Reviewed:** 2026-07-29T04:54:10Z
+**Reviewed:** 2026-07-29T05:24:22Z
 **Depth:** deep
 **Files Reviewed:** 29
 **Status:** issues_found
 
 ## Summary
 
-The v1.15 release candidate is not safe to ship. A fresh deep review found five blocker-class correctness and safety defects after the previous fixes. Direct runtime reproductions proved that the host accepts contradictory remote export evidence as success, the handoff parser accepts a topology missing required parent directories, an unwritable export root rejects the MCP handler promise instead of returning a result, and partial remote cleanup discards the validated handoff and path evidence. Static target-script tracing also found that Windows cleanup reads the handoff through a path reopened after identity capture, allowing an identity-swap race to authorize deletion from unbound content.
+The v1.15 release candidate is not safe to ship. Five blocker-class correctness and filesystem-safety defects remain. Direct hostile reproductions proved that Node export can overwrite a destination or handoff created during the operation, Node cleanup can delete a substituted object and report success while the owned candidate survives elsewhere, and the remote host can accept contradictory tombstone evidence as successful cleanup. Static cross-module tracing also found that local Windows export does not reuse the mandatory reparse-aware classifier and that remote export failures silently discard staging cleanup and retained-state evidence.
 
-The full suite passes (357 tests), TypeScript typecheck passes, and all eight reviewed `dist` files exactly match a fresh build. The reviewed routing keeps `preflight_release_candidate` on its existing schema and service path; no separate preflight regression was found. Protected-root checks, transport-uncertainty classification, Node handoff no-follow handling, and Node mutation-boundary identity checks were re-examined without an additional actionable defect beyond the findings below.
+TypeScript typecheck passed. The full suite passed with 363 tests and one Windows-only test skipped. The packaged runtime test compiled to an isolated directory and confirmed byte parity for the tracked `dist` closure. `preflight_release_candidate` remains routed through its existing schema and services; the only source change in its target script is the optional inspection hook used by export, and no preflight behavior regression was found.
 
 ## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: Remote export success is trusted without recomputing preflight invariants
+### CR-01: Node export promotion and handoff publication are overwrite-capable
 
 **Classification:** BLOCKER
-**File:** `src/exported-candidate-remote.ts:21-40`
-**Issue:** The host checks only the top-level key names, `ok`, operation status, temporary cleanup status, and the exported handoff. It does not validate `artifactValidation`, require an empty `blockers` array, reconcile the base manifest with the handoff manifest, verify the inclusion ledger or scan coverage, or validate the release-candidate boundaries. A direct hostile payload with `artifactValidation.status = "blocked"`, a `SOURCE_ENTRY_UNSAFE` blocker, an unrelated empty base manifest, an impossible inclusion ledger, and `boundaries.upload = true` was normalized as `ok: true`. This violates the locked requirement that remote JSON is hostile input and host success must be recomputed.
+**File:** `src/exported-candidate.ts:178-188,222-225`
+**Issue:** The operation checks that `destination` and the handoff path are absent, then later calls ordinary Node `rename`. On POSIX, `rename` replaces an existing empty destination directory and replaces an existing file. The absence check and rename are not one no-replace operation. A direct reproduction created the destination inside the injected promotion rename; export still returned `ok: true`. A second reproduction created owner data at the handoff path immediately before publication; export returned `ok: true` after overwriting that file. This violates the explicit no-overwrite contract and can destroy state owned by another process.
+**Fix:** Implement target-native no-replace promotion/publication. On Linux use a proven `renameat2(..., RENAME_NOREPLACE)` binding; on other Node platforms use an equivalent target-native primitive or fail closed if atomic no-replace cannot be proven. Do not emulate it with `exists` followed by `rename`. Apply the same guarantee to both candidate promotion and handoff publication, and add race tests that create each target immediately before mutation.
 
-**Fix:** Parse the entire remote release-candidate envelope with the same strict invariant checks used by `preflightRemoteReleaseCandidate`, then require passed artifact validation, zero blockers, verified temporary cleanup, exact manifest/ledger/coverage consistency, exact boundaries, and equality between the validated base manifest and exported handoff manifest before returning export success.
-
-### CR-02: The strict handoff parser accepts an impossible incomplete topology
-
-**Classification:** BLOCKER
-**File:** `src/exported-candidate.ts:659-674`
-**Issue:** `parseTopology` requires only the `game` and `content` root directory entries and exact equality between manifest file paths and topology file paths. It never requires every parent directory of each file to appear. The current test fixture itself is accepted with `game/dota_addons/demo/addoninfo.txt` while omitting `game/dota_addons` and `game/dota_addons/demo`. A direct call confirmed that this incomplete topology parses successfully. Consequently a hostile remote result can claim complete topology while omitting directories, defeating the external handoff's audit contract.
-
-**Fix:** Derive every required parent directory from every topology entry and manifest file path, require each parent exactly once with `kind: "directory"`, reject files whose path is also a directory, and update remote fixtures to contain the actual complete directory ledger.
-
-### CR-03: Windows cleanup reads handoff content from an identity-unbound reopened path
+### CR-02: Cleanup validates a tombstone and then deletes whatever later occupies its pathname
 
 **Classification:** BLOCKER
-**File:** `src/exported-candidate-remote-script.ts:99-103`
-**Issue:** The target script obtains `$handoffIdentity` from the handoff path and then calls `[IO.File]::ReadAllText($handoffPath)`, which opens the pathname again. There is no held no-follow handle and no identity comparison binding the bytes read to `$handoffIdentity`. A concurrent replacement between identity capture and `ReadAllText` can supply a forged but request-matching handoff that names the replacement candidate identity. Candidate deletion can then proceed using content that never belonged to the originally identified handoff; the later identity check only protects handoff removal, after candidate mutation has already occurred.
+**File:** `src/exported-candidate.ts:321-327,339-349`; `src/exported-candidate-remote-script.ts:166`
+**Issue:** Node and Windows cleanup both validate the moved candidate or handoff tombstone, release all identity binding for that object, and then remove it by pathname. An attacker with write access to the export root can rename the validated tombstone away and put a different object at the same name between validation and removal. A direct Node reproduction moved the owned candidate to another path, substituted an unrelated directory at the tombstone name, and let `rm` delete the substitute. Cleanup returned `ok: true`, removed the handoff manifest, and reported both owned objects absent even though the real candidate still existed at the attacker-selected path. The PowerShell lifecycle has the same gap between `Test-CandidateSnapshot` and `Remove-Item`, and between `GetIdentity` and final handoff removal.
+**Fix:** Bind mutation to the validated object, not its pathname. Hold an identity-bearing, reparse-rejecting handle/lease for the candidate and handoff through the exact deletion primitive, or use a target-native deletion API that operates on the held handle. If the platform cannot delete the held identity safely, stop with an explicit tombstone state and preserve its path; never infer removal from pathname absence alone. Add substitution races for candidate and handoff tombstones on Node and real Windows.
 
-**Fix:** Open the handoff once using a handle that rejects reparse traversal, capture identity from that handle, read all bytes through the same handle, and keep the handle/lease bound through authorization. If PowerShell cannot provide the required no-follow identity binding, fail closed before candidate mutation. Add a target-native identity-swap test rather than checking only generated script substrings.
-
-### CR-04: Export-root write failures escape the MCP result contract
-
-**Classification:** BLOCKER
-**File:** `src/exported-candidate.ts:128-132`
-**Issue:** `mkdtemp` creates staging before entering the function's `try` block. An existing canonical export root can pass path validation but still be unwritable. A direct reproduction with a mode-0555 export root rejected the promise with `EACCES` instead of returning a complete `ToolResult` containing target, operation, failure code, evidence, paths, commands, logs, and cleanup state. Through `handleTool`, this becomes an MCP handler exception rather than the explicit fail-closed result required by project policy.
-
-**Fix:** Move staging creation inside the guarded lifecycle, initialize staging as optional, and normalize creation failures to a stable result such as `EXPORT_STAGING_CREATION_FAILED` with the validated paths and `cleanup.status = "not-reached"`. Add a regression using an unwritable export root or an injectable staging creator.
-
-### CR-05: Partial remote cleanup relocates the candidate and then discards its proven handoff evidence
+### CR-03: Local Windows export does not reject all reparse points
 
 **Classification:** BLOCKER
-**File:** `src/exported-candidate-remote-script.ts:103` and `src/exported-candidate-remote.ts:84-86,181-211`
-**Issue:** After moving the candidate to a random tombstone, the PowerShell script swallows any identity, digest, or removal failure and does not restore an intact identity-matched tombstone to the requested destination or report the tombstone path. The host then routes every non-success payload through `evidenceFailure`, which forces `manifest` and `ownership` to `null` and `paths` to `{}` even when target evidence says authorization succeeded and includes the validated handoff. A direct partial-failure payload returned `cleanup.authorized = true` but erased the handoff, ownership, and all known paths. Operators can therefore receive an absent destination, an undisclosed retained tombstone, and no returned ownership artifact after a destructive attempt.
+**File:** `src/exported-candidate.ts:467-472,501-506,527-535,559-570`
+**Issue:** The v1.14 Node preflight correctly requires a target-native Windows reparse classifier, but the new export and cleanup boundary uses only `lstat().isSymbolicLink()` plus `realpath`. That detects ordinary symlinks and junctions but does not classify every Windows entry carrying `FILE_ATTRIBUTE_REPARSE_POINT`. Export-root ancestry, retained candidate paths, copied entries, and cleanup snapshots can therefore accept unsupported reparse tags that the locked requirements require to reject. The code already receives the preflight dependency surface needed for Windows classification but never applies it to these new paths.
+**Fix:** Reuse the production Windows classifier for every existing export-root ancestor, destination/handoff object, staging entry, promoted entry, and cleanup entry. Require `reparsePointAware: true` on local Windows and fail with an explicit result before creation or mutation when classification is unavailable, malformed, unknown, or reports any reparse point. Add tests for non-symlink file and directory reparse tags across export and cleanup.
 
-**Fix:** On target, restore the tombstone to the original destination when its identity and complete snapshot remain intact; otherwise report explicit tombstone and object states without guessing. On the host, strictly parse failure envelopes and preserve validated manifest, ownership, export root, destination, handoff path, authorization facts, and partial cleanup evidence. Add tests for pre-removal failure, partial removal, identity mismatch after move, and host normalization of each failure state.
+### CR-04: Remote export failures silently lose cleanup and retained-state evidence
+
+**Classification:** BLOCKER
+**File:** `src/exported-candidate-remote-script.ts:101-122`; `src/exported-candidate-remote.ts:22-58`
+**Issue:** The target script assigns `result.export` and `result.exportCleanup` only on success. On staging, promotion, post-promotion, or handoff publication failure, its `finally` blocks use `Remove-Item -ErrorAction SilentlyContinue` without checking removal or absence and emit no export cleanup object. The host requires both success-only keys, so every legitimate remote export failure is collapsed to generic rejected evidence with empty paths and null manifest/ownership. This hides the original blocker, cannot prove whether operation-owned staging or temporary handoff state remains, and cannot distinguish pre-promotion cleanup from a retained promoted candidate after finalization failure.
+**Fix:** Define and strictly normalize closed success and failure envelopes. The target must always emit canonical export paths, the original stable failure code, promotion state, staging/temporary-handoff removal and absence facts, and any validated retained handoff/ownership facts. Verify cleanup rather than suppressing errors. The host must parse failure envelopes independently, preserve proven state, and reject contradictions without erasing valid evidence.
+
+### CR-05: Host normalization accepts contradictory cleanup states, including success with a tombstone path
+
+**Classification:** BLOCKER
+**File:** `src/exported-candidate-remote.ts:137-165,190-199,227-253`
+**Issue:** `cleanupSuccessState` validates cleanup booleans but never checks the parsed path set. A hostile execute payload can claim `candidateState: "absent"`, all removal booleans true, and still include a valid-looking `candidateTombstone`; the host returns `ok: true` and exposes that tombstone path. A direct reproduction confirmed this accepted success. Failure validation is also open for `unknown`: it accepts `candidateState: "unknown"` together with `candidateRemoved: true` and `candidateAbsent: true`, then describes the result as a "validated partial state." Remote JSON is explicitly hostile input, so these contradictions cannot be preserved as trusted evidence.
+**Fix:** Validate cleanup as an exhaustive state machine over mode, authorization, attempt, removal/absence booleans, object states, error code, and optional tombstone paths. Verified success must forbid every tombstone path and require exact present/absent states for the selected mode. `unknown` must forbid claims of proven removal or absence unless the state is `absent`, and failure codes must be compatible with the reported transition. Add hostile success and partial-failure matrices for both candidate and handoff.
 
 ---
 
-_Reviewed: 2026-07-29T04:54:10Z_
+_Reviewed: 2026-07-29T05:24:22Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
