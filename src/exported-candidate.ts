@@ -6,17 +6,15 @@ import {
   mkdir,
   mkdtemp,
   open,
-  readFile,
   readdir,
   realpath,
   rename,
   rm,
-  stat,
   unlink,
   writeFile
 } from "node:fs/promises";
 import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { preflightNodeReleaseCandidate, type NodeReleaseCandidatePreflightDependencies } from "./release-candidate-node.js";
 import { computeReleaseCandidateCombinedDigest } from "./release-candidate-result.js";
 import type {
@@ -51,8 +49,14 @@ export type ExportedCandidateHandoffManifest = Readonly<{
   combinedSha256: string;
   source: Readonly<{ gameAddon: string; contentAddon: string }>;
   manifest: ReleaseCandidateManifestDetail;
+  topology: readonly ExportedCandidateTopologyEntry[];
   ownership: ExportedCandidateOwnership;
   boundaries: ExportedCandidateBoundaries;
+}>;
+
+export type ExportedCandidateTopologyEntry = Readonly<{
+  kind: "directory" | "file";
+  path: string;
 }>;
 
 export type ExportedCandidateBoundaries = Readonly<{
@@ -77,9 +81,11 @@ export type ExportedCandidateCleanupEvidence = Readonly<{
   candidateAbsent: boolean;
   manifestRemoved: boolean;
   manifestAbsent: boolean;
+  candidateState?: "unknown";
+  manifestState?: "unknown";
   stagingRemoved?: boolean;
   stagingAbsent?: boolean;
-  status: "not-reached" | "verified" | "failed";
+  status: "not-reached" | "verified" | "failed" | "unknown";
   code?: string;
 }>;
 
@@ -123,7 +129,7 @@ export async function exportNodeReleaseCandidate(
   if (!paths.ok) return failure(target, operation, paths.code, paths.message, paths.paths);
 
   const staging = await mkdtemp(join(paths.exportRoot, ".dota-workshop-export-"));
-  let stagingManifest: ReleaseCandidateManifestDetail | undefined;
+  let stagingSnapshot: CandidateSnapshot | undefined;
   let promoted = false;
   let failureStage: "assembly" | "promotion" = "assembly";
   const remove = dependencies.remove ?? rm;
@@ -138,7 +144,7 @@ export async function exportNodeReleaseCandidate(
         ...dependencies,
         inspectCandidate: async (candidateRoot) => {
           await copyCandidateTree(candidateRoot, staging);
-          stagingManifest = await computeManifest(staging);
+          stagingSnapshot = await computeCandidateSnapshot(staging);
           return Object.freeze({ inspected: true });
         }
       }
@@ -151,7 +157,7 @@ export async function exportNodeReleaseCandidate(
         handoffManifest: paths.handoff
       }, "warnings" in releaseCandidate ? [...releaseCandidate.warnings] : [], cleanup);
     }
-    if (stagingManifest === undefined || !manifestEqual(releaseCandidate.manifest, stagingManifest)) {
+    if (stagingSnapshot === undefined || !manifestEqual(releaseCandidate.manifest, stagingSnapshot.manifest)) {
       const cleanup = await cleanupStaging(staging, remove, "STAGING_MANIFEST_MISMATCH");
       return failure(target, operation, "STAGING_MANIFEST_MISMATCH", "Staging integrity did not match the validated candidate.", {
         exportRoot: paths.exportRoot,
@@ -171,8 +177,8 @@ export async function exportNodeReleaseCandidate(
     failureStage = "promotion";
     await renamePath(staging, paths.destination);
     promoted = true;
-    const finalManifest = await computeManifest(paths.destination);
-    if (!manifestEqual(stagingManifest, finalManifest)) {
+    const finalSnapshot = await computeCandidateSnapshot(paths.destination);
+    if (!snapshotEqual(stagingSnapshot, finalSnapshot)) {
       return failure(target, operation, "PROMOTED_MANIFEST_MISMATCH", "Promoted candidate integrity could not be proven.", {
         exportRoot: paths.exportRoot,
         destination: paths.destination,
@@ -192,13 +198,14 @@ export async function exportNodeReleaseCandidate(
       exportRoot: paths.exportRoot,
       destination: paths.destination,
       targetKind: input.target.kind,
-      fileCount: finalManifest.entries.length,
-      combinedSha256: finalManifest.combinedSha256,
+      fileCount: finalSnapshot.manifest.entries.length,
+      combinedSha256: finalSnapshot.manifest.combinedSha256,
       source: {
         gameAddon: `game/dota_addons/${input.addonName}`,
         contentAddon: `content/dota_addons/${input.addonName}`
       },
-      manifest: finalManifest,
+      manifest: finalSnapshot.manifest,
+      topology: finalSnapshot.topology,
       ownership,
       boundaries: EXPORTED_CANDIDATE_BOUNDARIES
     });
@@ -254,7 +261,7 @@ export async function exportNodeReleaseCandidate(
 
 export async function cleanupNodeExportedCandidate(
   input: CleanupExportedCandidateToolInput,
-  dependencies: Pick<ExportDependencies, "repositoryRoot" | "remove" | "unlink"> = {}
+  dependencies: Pick<ExportDependencies, "repositoryRoot" | "remove" | "rename" | "unlink"> = {}
 ): Promise<ToolResult> {
   const operation = "cleanup_exported_candidate";
   if (input.target.kind === "remote") {
@@ -272,6 +279,7 @@ export async function cleanupNodeExportedCandidate(
     }, [], cleanupAuthorizationFailure(input.dryRun !== false, authorization.code));
   }
   if (input.dryRun !== false) {
+    await authorization.handoffHandle.close().catch(() => undefined);
     const cleanup: ExportedCandidateCleanupEvidence = deepFreeze({
       schemaVersion: "1.0",
       mode: "dry-run",
@@ -287,19 +295,61 @@ export async function cleanupNodeExportedCandidate(
   }
 
   const remove = dependencies.remove ?? rm;
+  const renamePath = dependencies.rename ?? rename;
   const removeFile = dependencies.unlink ?? unlink;
   let candidateRemoved = false;
   let manifestRemoved = false;
+  const candidateTombstone = join(paths.exportRoot, `.dota-workshop-candidate-delete-${randomUUID()}`);
+  const handoffTombstone = join(paths.exportRoot, `.dota-workshop-handoff-delete-${randomUUID()}.json`);
   try {
-    await remove(paths.destination, { recursive: true });
-    candidateRemoved = true;
-  } catch {}
-  try {
-    await removeFile(paths.handoff);
-    manifestRemoved = true;
-  } catch {}
-  const candidateAbsent = !await pathExists(paths.destination);
-  const manifestAbsent = !await pathExists(paths.handoff);
+    const mutationAuthorization = await authorizeCleanup(input, paths);
+    if (!mutationAuthorization.ok || !sameAuthorization(authorization, mutationAuthorization)) {
+      if (mutationAuthorization.ok) await mutationAuthorization.handoffHandle.close().catch(() => undefined);
+      throw new Error("CLEANUP_MUTATION_AUTHORIZATION_CHANGED");
+    }
+    await mutationAuthorization.handoffHandle.close().catch(() => undefined);
+    await renamePath(paths.destination, candidateTombstone);
+    const movedIdentity = await captureDirectoryIdentity(candidateTombstone);
+    if (!sameNodeIdentity(movedIdentity, authorization.candidateIdentity)) throw new Error("CANDIDATE_IDENTITY_MISMATCH");
+    const movedSnapshot = await computeCandidateSnapshot(candidateTombstone);
+    if (!snapshotMatchesHandoff(movedSnapshot, authorization.manifest)) throw new Error("CANDIDATE_DIGEST_MISMATCH");
+    await remove(candidateTombstone, { recursive: true });
+    candidateRemoved = !await pathExists(candidateTombstone) && !await pathExists(paths.destination);
+  } catch {
+    try {
+      if (await pathExists(candidateTombstone) && !await pathExists(paths.destination)) {
+        const tombstoneIdentity = await captureDirectoryIdentity(candidateTombstone);
+        if (sameNodeIdentity(tombstoneIdentity, authorization.candidateIdentity)) await renamePath(candidateTombstone, paths.destination);
+      }
+    } catch {}
+  }
+  const candidateAbsent = candidateRemoved && !await pathExists(paths.destination) && !await pathExists(candidateTombstone);
+  if (candidateAbsent) {
+    try {
+      const handoffStats = await lstat(paths.handoff);
+      if (!sameNodeIdentity(handoffStats, authorization.handoffIdentity) || !handoffStats.isFile() || handoffStats.isSymbolicLink()) {
+        throw new Error("HANDOFF_IDENTITY_MISMATCH");
+      }
+      await renamePath(paths.handoff, handoffTombstone);
+      const movedHandoffStats = await lstat(handoffTombstone);
+      if (!sameNodeIdentity(movedHandoffStats, authorization.handoffIdentity) || !movedHandoffStats.isFile() || movedHandoffStats.isSymbolicLink()) {
+        throw new Error("HANDOFF_IDENTITY_MISMATCH");
+      }
+      await removeFile(handoffTombstone);
+      manifestRemoved = !await pathExists(handoffTombstone) && !await pathExists(paths.handoff);
+    } catch {
+      try {
+        if (await pathExists(handoffTombstone) && !await pathExists(paths.handoff)) {
+          const tombstoneStats = await lstat(handoffTombstone);
+          if (sameNodeIdentity(tombstoneStats, authorization.handoffIdentity) && tombstoneStats.isFile() && !tombstoneStats.isSymbolicLink()) {
+            await renamePath(handoffTombstone, paths.handoff);
+          }
+        }
+      } catch {}
+    }
+  }
+  await authorization.handoffHandle.close().catch(() => undefined);
+  const manifestAbsent = manifestRemoved && !await pathExists(paths.handoff) && !await pathExists(handoffTombstone);
   const verified = candidateRemoved && candidateAbsent && manifestRemoved && manifestAbsent;
   const cleanup: ExportedCandidateCleanupEvidence = deepFreeze({
     schemaVersion: "1.0",
@@ -326,32 +376,71 @@ export async function cleanupNodeExportedCandidate(
 async function authorizeCleanup(
   input: CleanupExportedCandidateToolInput,
   paths: ValidPaths
-): Promise<{ ok: true; manifest: ExportedCandidateHandoffManifest } | { ok: false; code: string; message: string }> {
+): Promise<CleanupAuthorization | { ok: false; code: string; message: string }> {
+  let handoffHandle: Awaited<ReturnType<typeof open>> | undefined;
   try {
-    const manifest = parseExportedCandidateHandoffManifest(JSON.parse(await readFile(paths.handoff, "utf8")));
-    if (manifest === undefined) return { ok: false, code: "HANDOFF_MANIFEST_INVALID", message: "Handoff manifest is invalid." };
+    const handoffStats = await lstat(paths.handoff);
+    if (!handoffStats.isFile() || handoffStats.isSymbolicLink()) {
+      return { ok: false, code: "HANDOFF_MANIFEST_INVALID", message: "Handoff manifest must be an owned regular file." };
+    }
+    if (typeof fsConstants.O_NOFOLLOW !== "number") {
+      return { ok: false, code: "HANDOFF_NOFOLLOW_UNAVAILABLE", message: "The runtime cannot prove no-follow handoff access." };
+    }
+    handoffHandle = await open(paths.handoff, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    const openStats = await handoffHandle.stat();
+    if (!openStats.isFile() || !sameNodeIdentity(openStats, handoffStats)) {
+      await handoffHandle.close();
+      return { ok: false, code: "HANDOFF_IDENTITY_MISMATCH", message: "Handoff manifest identity changed while opening." };
+    }
+    const manifest = parseExportedCandidateHandoffManifest(JSON.parse(await handoffHandle.readFile({ encoding: "utf8" })));
+    if (manifest === undefined) {
+      await handoffHandle.close();
+      return { ok: false, code: "HANDOFF_MANIFEST_INVALID", message: "Handoff manifest is invalid." };
+    }
     if (
       manifest.exportRoot !== paths.exportRoot
       || manifest.destination !== paths.destination
       || manifest.ownership.ownershipId !== input.ownershipId
       || manifest.schemaVersion !== input.manifestVersion
       || manifest.combinedSha256 !== input.combinedSha256
-    ) return { ok: false, code: "CLEANUP_AUTHORIZATION_MISMATCH", message: "Cleanup assertions do not match the handoff manifest." };
+    ) {
+      await handoffHandle.close();
+      return { ok: false, code: "CLEANUP_AUTHORIZATION_MISMATCH", message: "Cleanup assertions do not match the handoff manifest." };
+    }
     const identity = await captureDirectoryIdentity(paths.destination);
     if (
       manifest.ownership.candidateIdentity.kind !== "node"
       || identity.device !== manifest.ownership.candidateIdentity.device
       || identity.inode !== manifest.ownership.candidateIdentity.inode
-    ) return { ok: false, code: "CANDIDATE_IDENTITY_MISMATCH", message: "Candidate identity changed after export." };
-    const candidateManifest = await computeManifest(paths.destination);
-    if (!manifestEqual(candidateManifest, manifest.manifest) || candidateManifest.combinedSha256 !== input.combinedSha256) {
+    ) {
+      await handoffHandle.close();
+      return { ok: false, code: "CANDIDATE_IDENTITY_MISMATCH", message: "Candidate identity changed after export." };
+    }
+    const candidateSnapshot = await computeCandidateSnapshot(paths.destination);
+    if (!snapshotMatchesHandoff(candidateSnapshot, manifest) || candidateSnapshot.manifest.combinedSha256 !== input.combinedSha256) {
+      await handoffHandle.close();
       return { ok: false, code: "CANDIDATE_DIGEST_MISMATCH", message: "Candidate digest no longer matches the handoff evidence." };
     }
-    return { ok: true, manifest };
+    return {
+      ok: true,
+      manifest,
+      candidateIdentity: identity,
+      handoffIdentity: { device: openStats.dev, inode: openStats.ino },
+      handoffHandle
+    };
   } catch {
+    await handoffHandle?.close().catch(() => undefined);
     return { ok: false, code: "CLEANUP_AUTHORIZATION_FAILED", message: "Cleanup authorization evidence could not be verified." };
   }
 }
+
+type CleanupAuthorization = Readonly<{
+  ok: true;
+  manifest: ExportedCandidateHandoffManifest;
+  candidateIdentity: Readonly<{ device: number; inode: number }>;
+  handoffIdentity: Readonly<{ device: number; inode: number }>;
+  handoffHandle: Awaited<ReturnType<typeof open>>;
+}>;
 
 type ValidPaths = Readonly<{ exportRoot: string; destination: string; handoff: string }>;
 
@@ -370,6 +459,7 @@ async function validateExportPaths(
     if (!exportStats.isDirectory() || exportStats.isSymbolicLink()) {
       return { ok: false, code: "EXPORT_ROOT_UNSAFE", message: "Export root must be a canonical non-link directory.", paths: rawPaths };
     }
+    await assertNoSymbolicLinkAncestry(input.exportRoot);
     const rawExportRoot = resolve(input.exportRoot);
     const rawDestination = resolve(input.destination);
     const destinationLeaf = rawDestination.slice(rawDestination.lastIndexOf(sep) + 1);
@@ -378,7 +468,11 @@ async function validateExportPaths(
     }
     const destination = join(canonicalExportRoot, destinationLeaf);
     const protectedRoots = [resolve(await realpath(repositoryRoot))];
-    if (input.target.kind === "local") protectedRoots.push(resolve(tmpdir()));
+    if (input.target.kind === "local") {
+      protectedRoots.push(resolve(tmpdir()), resolve(homedir()));
+      const windowsRoot = process.env.SystemRoot;
+      if (windowsRoot) protectedRoots.push(resolve(windowsRoot));
+    }
     if (input.target.kind === "fixture") protectedRoots.push(resolve(await realpath(input.target.root)));
     if (input.target.kind === "local" && input.target.dotaRoot !== undefined) protectedRoots.push(resolve(await realpath(input.target.dotaRoot)));
     if (canonicalExportRoot === parse(canonicalExportRoot).root || protectedRoots.some((protectedRoot) => pathsOverlap(canonicalExportRoot, protectedRoot))) {
@@ -393,6 +487,14 @@ async function validateExportPaths(
     }
     if (allowExisting && (!await pathExists(destination) || !await pathExists(handoff))) {
       return { ok: false, code: "EXPORTED_CANDIDATE_STATE_MISSING", message: "Candidate and handoff manifest must both exist.", paths: { exportRoot: canonicalExportRoot, destination, handoffManifest: handoff } };
+    }
+    if (allowExisting) {
+      await assertNoSymbolicLinkAncestry(destination);
+      const destinationStats = await lstat(destination);
+      const handoffStats = await lstat(handoff);
+      if (!destinationStats.isDirectory() || destinationStats.isSymbolicLink() || !handoffStats.isFile() || handoffStats.isSymbolicLink()) {
+        return { ok: false, code: "EXPORTED_CANDIDATE_STATE_UNSAFE", message: "Candidate and handoff manifest must be non-link owned objects.", paths: { exportRoot: canonicalExportRoot, destination, handoffManifest: handoff } };
+      }
     }
     return { ok: true, exportRoot: canonicalExportRoot, destination, handoff };
   } catch {
@@ -428,11 +530,17 @@ async function copyCandidateTree(sourceRoot: string, destinationRoot: string): P
 }
 
 export async function computeExportedCandidateManifest(root: string): Promise<ReleaseCandidateManifestDetail> {
-  return await computeManifest(root);
+  return (await computeCandidateSnapshot(root)).manifest;
 }
 
-async function computeManifest(root: string): Promise<ReleaseCandidateManifestDetail> {
+type CandidateSnapshot = Readonly<{
+  manifest: ReleaseCandidateManifestDetail;
+  topology: readonly ExportedCandidateTopologyEntry[];
+}>;
+
+async function computeCandidateSnapshot(root: string): Promise<CandidateSnapshot> {
   const entries: ReleaseCandidateManifestEntryDetail[] = [];
+  const topology: ExportedCandidateTopologyEntry[] = [];
   const folded = new Set<string>();
   const walk = async (directory: string): Promise<void> => {
     for (const name of [...await readdir(directory)].sort(compareOrdinal)) {
@@ -445,6 +553,7 @@ async function computeManifest(root: string): Promise<ReleaseCandidateManifestDe
       folded.add(foldedIdentity);
       if (stats.isSymbolicLink()) throw new Error("symbolic link rejected");
       if (stats.isDirectory()) {
+        topology.push({ kind: "directory", path: identity });
         await walk(path);
         continue;
       }
@@ -463,6 +572,7 @@ async function computeManifest(root: string): Promise<ReleaseCandidateManifestDe
           hash.update(buffer.subarray(0, result.bytesRead));
         }
         entries.push({ schemaVersion: "1.0", root: rootName, path: identity, bytes: fileStats.size, sha256: hash.digest("hex") });
+        topology.push({ kind: "file", path: identity });
       } finally {
         await handle.close();
       }
@@ -470,33 +580,115 @@ async function computeManifest(root: string): Promise<ReleaseCandidateManifestDe
   };
   await walk(root);
   entries.sort((left, right) => compareOrdinal(left.root, right.root) || compareOrdinal(left.path, right.path));
-  return deepFreeze({ schemaVersion: "1.0", entries, combinedSha256: computeReleaseCandidateCombinedDigest(entries) });
+  topology.sort((left, right) => compareOrdinal(left.path, right.path));
+  return deepFreeze({
+    manifest: { schemaVersion: "1.0", entries, combinedSha256: computeReleaseCandidateCombinedDigest(entries) },
+    topology
+  });
 }
 
 function manifestEqual(left: ReleaseCandidateManifestDetail, right: ReleaseCandidateManifestDetail): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function snapshotEqual(left: CandidateSnapshot, right: CandidateSnapshot): boolean {
+  return manifestEqual(left.manifest, right.manifest) && JSON.stringify(left.topology) === JSON.stringify(right.topology);
+}
+
+function snapshotMatchesHandoff(snapshot: CandidateSnapshot, handoff: ExportedCandidateHandoffManifest): boolean {
+  return manifestEqual(snapshot.manifest, handoff.manifest) && JSON.stringify(snapshot.topology) === JSON.stringify(handoff.topology);
+}
+
 export function parseExportedCandidateHandoffManifest(value: unknown): ExportedCandidateHandoffManifest | undefined {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const candidate = value as Record<string, unknown>;
-  if (candidate.schemaVersion !== "1.0" || candidate.operation !== "export_release_candidate") return undefined;
-  if (typeof candidate.addonName !== "string" || typeof candidate.exportRoot !== "string" || typeof candidate.destination !== "string") return undefined;
-  if (typeof candidate.fileCount !== "number" || typeof candidate.combinedSha256 !== "string" || !/^[0-9a-f]{64}$/.test(candidate.combinedSha256)) return undefined;
-  const ownership = candidate.ownership as Record<string, unknown> | undefined;
-  const identity = ownership?.candidateIdentity as Record<string, unknown> | undefined;
-  const nodeIdentity = identity?.kind === "node" && typeof identity.device === "number" && typeof identity.inode === "number";
-  const windowsIdentity = identity?.kind === "windows" && typeof identity.volumeIdentity === "string" && typeof identity.fileIdentity === "string";
-  if (ownership?.schemaVersion !== "1.0" || typeof ownership.ownershipId !== "string" || (!nodeIdentity && !windowsIdentity)) return undefined;
-  const manifest = candidate.manifest as ReleaseCandidateManifestDetail | undefined;
-  if (manifest?.schemaVersion !== "1.0" || !Array.isArray(manifest.entries) || manifest.combinedSha256 !== candidate.combinedSha256) return undefined;
-  if (computeReleaseCandidateCombinedDigest(manifest.entries) !== manifest.combinedSha256 || manifest.entries.length !== candidate.fileCount) return undefined;
-  if (candidate.boundaries === null || typeof candidate.boundaries !== "object" || JSON.stringify(candidate.boundaries) !== JSON.stringify(EXPORTED_CANDIDATE_BOUNDARIES)) return undefined;
-  return deepFreeze(value as ExportedCandidateHandoffManifest);
+  try {
+    if (!isRecordWithKeys(value, ["schemaVersion", "operation", "addonName", "exportRoot", "destination", "targetKind", "fileCount", "combinedSha256", "source", "manifest", "topology", "ownership", "boundaries"])) return undefined;
+    if (value.schemaVersion !== "1.0" || value.operation !== "export_release_candidate") return undefined;
+    if (typeof value.addonName !== "string" || !safeLeaf(value.addonName)) return undefined;
+    if (typeof value.exportRoot !== "string" || value.exportRoot.length === 0 || typeof value.destination !== "string" || value.destination.length === 0) return undefined;
+    if (value.targetKind !== "fixture" && value.targetKind !== "local" && value.targetKind !== "ssh" && value.targetKind !== "powershell") return undefined;
+    if (!isCount(value.fileCount) || typeof value.combinedSha256 !== "string" || !isDigest(value.combinedSha256)) return undefined;
+    if (!isRecordWithKeys(value.source, ["gameAddon", "contentAddon"])) return undefined;
+    if (value.source.gameAddon !== `game/dota_addons/${value.addonName}` || value.source.contentAddon !== `content/dota_addons/${value.addonName}`) return undefined;
+    const manifest = parseManifest(value.manifest);
+    const topology = parseTopology(value.topology, manifest);
+    const ownership = parseOwnership(value.ownership);
+    if (manifest === undefined || topology === undefined || ownership === undefined) return undefined;
+    if (manifest.entries.length !== value.fileCount || manifest.combinedSha256 !== value.combinedSha256) return undefined;
+    if (!isRecordWithKeys(value.boundaries, Object.keys(EXPORTED_CANDIDATE_BOUNDARIES)) || JSON.stringify(value.boundaries) !== JSON.stringify(EXPORTED_CANDIDATE_BOUNDARIES)) return undefined;
+    return deepFreeze({
+      schemaVersion: "1.0",
+      operation: "export_release_candidate",
+      addonName: value.addonName,
+      exportRoot: value.exportRoot,
+      destination: value.destination,
+      targetKind: value.targetKind,
+      fileCount: value.fileCount,
+      combinedSha256: value.combinedSha256,
+      source: { gameAddon: value.source.gameAddon, contentAddon: value.source.contentAddon },
+      manifest,
+      topology,
+      ownership,
+      boundaries: EXPORTED_CANDIDATE_BOUNDARIES
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function parseManifest(value: unknown): ReleaseCandidateManifestDetail | undefined {
+  if (!isRecordWithKeys(value, ["schemaVersion", "entries", "combinedSha256"]) || value.schemaVersion !== "1.0" || !Array.isArray(value.entries) || !isDigest(value.combinedSha256)) return undefined;
+  const entries: ReleaseCandidateManifestEntryDetail[] = [];
+  const seen = new Set<string>();
+  for (const raw of value.entries) {
+    if (!isRecordWithKeys(raw, ["schemaVersion", "root", "path", "bytes", "sha256"]) || raw.schemaVersion !== "1.0") return undefined;
+    const foldedPath = typeof raw.path === "string" ? raw.path.toLocaleLowerCase("en-US") : "";
+    if ((raw.root !== "game" && raw.root !== "content") || typeof raw.path !== "string" || !safeManifestPath(raw.root, raw.path) || !isCount(raw.bytes) || !isDigest(raw.sha256) || seen.has(foldedPath)) return undefined;
+    seen.add(foldedPath);
+    entries.push({ schemaVersion: "1.0", root: raw.root, path: raw.path, bytes: raw.bytes, sha256: raw.sha256 });
+  }
+  for (let index = 1; index < entries.length; index += 1) {
+    const previous = entries[index - 1]!;
+    const current = entries[index]!;
+    if (compareOrdinal(previous.root, current.root) > 0) return undefined;
+    if (previous.root === current.root && compareOrdinal(previous.path, current.path) >= 0) return undefined;
+  }
+  if (computeReleaseCandidateCombinedDigest(entries) !== value.combinedSha256) return undefined;
+  return deepFreeze({ schemaVersion: "1.0", entries, combinedSha256: value.combinedSha256 });
+}
+
+function parseTopology(value: unknown, manifest: ReleaseCandidateManifestDetail | undefined): readonly ExportedCandidateTopologyEntry[] | undefined {
+  if (manifest === undefined || !Array.isArray(value)) return undefined;
+  const topology: ExportedCandidateTopologyEntry[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    const foldedPath = typeof raw === "object" && raw !== null && "path" in raw && typeof raw.path === "string" ? raw.path.toLocaleLowerCase("en-US") : "";
+    if (!isRecordWithKeys(raw, ["kind", "path"]) || (raw.kind !== "directory" && raw.kind !== "file") || typeof raw.path !== "string" || !safeTopologyPath(raw.path) || seen.has(foldedPath)) return undefined;
+    seen.add(foldedPath);
+    topology.push({ kind: raw.kind, path: raw.path });
+  }
+  for (let index = 1; index < topology.length; index += 1) if (compareOrdinal(topology[index - 1]!.path, topology[index]!.path) >= 0) return undefined;
+  const manifestPaths = manifest.entries.map((entry) => entry.path);
+  const topologyFilePaths = topology.filter((entry) => entry.kind === "file").map((entry) => entry.path);
+  if (JSON.stringify(manifestPaths) !== JSON.stringify(topologyFilePaths)) return undefined;
+  if (!topology.some((entry) => entry.kind === "directory" && entry.path === "game") || !topology.some((entry) => entry.kind === "directory" && entry.path === "content")) return undefined;
+  return deepFreeze(topology);
+}
+
+function parseOwnership(value: unknown): ExportedCandidateOwnership | undefined {
+  if (!isRecordWithKeys(value, ["schemaVersion", "ownershipId", "candidateIdentity"]) || value.schemaVersion !== "1.0" || typeof value.ownershipId !== "string" || !isUuid(value.ownershipId)) return undefined;
+  const identity = value.candidateIdentity;
+  if (!isRecord(identity)) return undefined;
+  if (identity.kind === "node" && isRecordWithKeys(identity, ["kind", "device", "inode"]) && isCount(identity.device) && isCount(identity.inode)) {
+    return deepFreeze({ schemaVersion: "1.0", ownershipId: value.ownershipId, candidateIdentity: { kind: "node", device: identity.device, inode: identity.inode } });
+  }
+  if (identity.kind === "windows" && isRecordWithKeys(identity, ["kind", "volumeIdentity", "fileIdentity"]) && nonEmptyIdentity(identity.volumeIdentity) && nonEmptyIdentity(identity.fileIdentity)) {
+    return deepFreeze({ schemaVersion: "1.0", ownershipId: value.ownershipId, candidateIdentity: { kind: "windows", volumeIdentity: identity.volumeIdentity, fileIdentity: identity.fileIdentity } });
+  }
+  return undefined;
 }
 
 async function captureDirectoryIdentity(path: string): Promise<{ device: number; inode: number }> {
-  const stats = await stat(path);
+  const stats = await lstat(path);
   const canonical = resolve(await realpath(path));
   if (!stats.isDirectory() || canonical !== resolve(path)) throw new Error("directory identity invalid");
   return { device: stats.dev, inode: stats.ino };
@@ -659,7 +851,11 @@ function portableAbsolute(path: string): boolean {
 }
 
 function containsUnsafePathText(path: string): boolean {
-  return path.includes("\0") || /[\r\n]/u.test(path) || path.split(/[\\/]/u).some((segment) => segment === "..");
+  const segments = path.split(/[\\/]/u);
+  return path.includes("\0")
+    || /[\r\n]/u.test(path)
+    || segments.some((segment) => segment === "." || segment === "..")
+    || segments.slice(1).some((segment) => segment.includes(":"));
 }
 
 function safeLeaf(value: string): boolean {
@@ -677,6 +873,71 @@ function atOrInside(child: string, parent: string): boolean {
 
 function compareOrdinal(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+async function assertNoSymbolicLinkAncestry(path: string): Promise<void> {
+  const absolute = resolve(path);
+  const root = parse(absolute).root;
+  const relativeParts = relative(root, absolute).split(sep).filter(Boolean);
+  let current = root;
+  for (const part of relativeParts) {
+    current = join(current, part);
+    const stats = await lstat(current);
+    if (stats.isSymbolicLink() && !darwinSystemLink(current)) throw new Error("symbolic link ancestry rejected");
+  }
+}
+
+function darwinSystemLink(path: string): boolean {
+  return process.platform === "darwin" && (path === "/var" || path === "/tmp" || path === "/etc");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isRecordWithKeys(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  const actual = Object.keys(value).sort(compareOrdinal);
+  const expected = [...keys].sort(compareOrdinal);
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+}
+
+function isCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isDigest(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
+}
+
+function nonEmptyIdentity(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 256 && !/[\0\r\n]/u.test(value);
+}
+
+function safeManifestPath(root: "game" | "content", value: string): boolean {
+  return safeTopologyPath(value) && (value === root || value.startsWith(`${root}/`));
+}
+
+function safeTopologyPath(value: string): boolean {
+  if (value.length === 0 || value.startsWith("/") || value.endsWith("/") || value.includes("\\")) return false;
+  return value.split("/").every((segment) => safeLeaf(segment) && !segment.includes(":"));
+}
+
+function sameNodeIdentity(
+  left: Readonly<{ dev?: number; ino?: number; device?: number; inode?: number }>,
+  right: Readonly<{ dev?: number; ino?: number; device?: number; inode?: number }>
+): boolean {
+  return (left.device ?? left.dev) === (right.device ?? right.dev) && (left.inode ?? left.ino) === (right.inode ?? right.ino);
+}
+
+function sameAuthorization(left: CleanupAuthorization, right: CleanupAuthorization): boolean {
+  return JSON.stringify(left.manifest) === JSON.stringify(right.manifest)
+    && sameNodeIdentity(left.candidateIdentity, right.candidateIdentity)
+    && sameNodeIdentity(left.handoffIdentity, right.handoffIdentity);
 }
 
 function deepFreeze<T>(value: T): T {

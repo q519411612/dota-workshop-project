@@ -17,18 +17,22 @@ export async function exportRemoteReleaseCandidate(
   if (input.target.kind !== "remote") return invalidTarget("export_release_candidate");
   const outcome = await executeRemoteExport(input);
   const target = publicTarget(input.target);
-  if (outcome.outcome !== "completed") return outcomeFailure(target, "export_release_candidate", outcome);
+  if (outcome.outcome !== "completed") return outcomeFailure(target, "export_release_candidate", outcome, "export-failure");
   const parsed = parseFramedObject(outcome.stdout);
   if (parsed === undefined) return evidenceFailure(target, "export_release_candidate", "REMOTE_EXPORT_EVIDENCE_INVALID");
   const handoff = parseExportedCandidateHandoffManifest(parsed.export);
   const cleanup = parseCleanup(parsed.exportCleanup, "export-failure");
   if (
-    parsed.ok !== true
+    !hasOnlyKeys(parsed, ["schemaVersion", "operation", "artifactValidation", "blockers", "cleanup", "paths", "execution", "warnings", "commands", "logs", "boundaries", "scanCoverage", "manifest", "inclusionLedger", "export", "exportCleanup", "ok"])
+    || parsed.schemaVersion !== "1.0"
+    || parsed.ok !== true
+    || !isRecordWithExact(parsed.operation, ["status"])
+    || parsed.operation.status !== "completed"
     || !isRecord(parsed.cleanup)
     || parsed.cleanup.status !== "verified"
     || handoff === undefined
     || cleanup === undefined
-    || cleanup.status !== "verified"
+    || !cleanupSuccessState(cleanup)
     || handoff.targetKind !== outcome.transport
     || handoff.addonName !== input.addonName
     || !windowsPathEqual(handoff.exportRoot, input.exportRoot)
@@ -55,12 +59,29 @@ export async function cleanupRemoteExportedCandidate(
   if (input.target.kind !== "remote") return invalidTarget("cleanup_exported_candidate");
   const outcome = await executeRemoteExportCleanup(input);
   const target = publicTarget(input.target);
-  if (outcome.outcome !== "completed") return outcomeFailure(target, "cleanup_exported_candidate", outcome);
+  const mode = input.dryRun !== false ? "dry-run" : "execute";
+  if (outcome.outcome !== "completed") return outcomeFailure(target, "cleanup_exported_candidate", outcome, mode);
   const parsed = parseFramedObject(outcome.stdout);
   if (parsed === undefined) return evidenceFailure(target, "cleanup_exported_candidate", "REMOTE_CLEANUP_EVIDENCE_INVALID");
-  const cleanup = parseCleanup(parsed.cleanup, input.dryRun !== false ? "dry-run" : "execute");
+  const cleanup = parseCleanup(parsed.cleanup, mode);
   const handoff = parseExportedCandidateHandoffManifest(parsed.manifest);
-  if (parsed.ok !== true || cleanup === undefined || cleanup.status !== "verified" || handoff === undefined) {
+  if (
+    !hasOnlyKeys(parsed, ["schemaVersion", "ok", "operation", "code", "cleanup", "authorized", "manifest"])
+    || parsed.schemaVersion !== "1.0"
+    || parsed.ok !== true
+    || parsed.operation !== "cleanup_exported_candidate"
+    || parsed.code !== null
+    || parsed.authorized !== true
+    || cleanup === undefined
+    || !cleanupSuccessState(cleanup)
+    || handoff === undefined
+    || handoff.targetKind !== outcome.transport
+    || handoff.schemaVersion !== input.manifestVersion
+    || handoff.ownership.ownershipId !== input.ownershipId
+    || handoff.combinedSha256 !== input.combinedSha256
+    || !windowsPathEqual(handoff.exportRoot, input.exportRoot)
+    || !windowsPathEqual(handoff.destination, input.destination)
+  ) {
     const code = typeof parsed.code === "string" && /^[A-Z0-9_]+$/u.test(parsed.code) ? parsed.code : "REMOTE_CLEANUP_SEMANTIC_INVALID";
     return evidenceFailure(target, "cleanup_exported_candidate", code, cleanup);
   }
@@ -80,12 +101,14 @@ export async function cleanupRemoteExportedCandidate(
 }
 
 function parseCleanup(value: unknown, mode: ExportedCandidateCleanupEvidence["mode"]): ExportedCandidateCleanupEvidence | undefined {
-  if (!isRecord(value) || value.schemaVersion !== "1.0" || value.mode !== mode) return undefined;
+  const keys = ["schemaVersion", "mode", "authorized", "attempted", "candidateRemoved", "candidateAbsent", "manifestRemoved", "manifestAbsent", "status", "code"];
+  if (mode === "export-failure") keys.push("stagingRemoved", "stagingAbsent");
+  if (!isRecord(value) || !hasOnlyKeys(value, keys, ["code", "stagingRemoved", "stagingAbsent"]) || value.schemaVersion !== "1.0" || value.mode !== mode) return undefined;
   const booleanKeys = ["authorized", "attempted", "candidateRemoved", "candidateAbsent", "manifestRemoved", "manifestAbsent"];
   if (!booleanKeys.every((key) => typeof value[key] === "boolean")) return undefined;
-  if (value.status !== "not-reached" && value.status !== "verified" && value.status !== "failed") return undefined;
+  if (value.status !== "not-reached" && value.status !== "verified" && value.status !== "failed" && value.status !== "unknown") return undefined;
   if (value.code !== undefined && (typeof value.code !== "string" || !/^[A-Z0-9_]+$/u.test(value.code))) return undefined;
-  return Object.freeze({
+  const parsed = Object.freeze({
     schemaVersion: "1.0",
     mode,
     authorized: value.authorized as boolean,
@@ -99,6 +122,25 @@ function parseCleanup(value: unknown, mode: ExportedCandidateCleanupEvidence["mo
     status: value.status,
     ...(typeof value.code === "string" ? { code: value.code } : {})
   });
+  if (parsed.status === "verified" && parsed.code !== undefined) return undefined;
+  return parsed;
+}
+
+function cleanupSuccessState(cleanup: ExportedCandidateCleanupEvidence): boolean {
+  if (cleanup.status !== "verified" || !cleanup.authorized) return false;
+  if (cleanup.mode === "dry-run") {
+    return !cleanup.attempted && !cleanup.candidateRemoved && !cleanup.candidateAbsent && !cleanup.manifestRemoved && !cleanup.manifestAbsent;
+  }
+  if (cleanup.mode === "execute") {
+    return cleanup.attempted && cleanup.candidateRemoved && cleanup.candidateAbsent && cleanup.manifestRemoved && cleanup.manifestAbsent;
+  }
+  return !cleanup.attempted
+    && !cleanup.candidateRemoved
+    && !cleanup.candidateAbsent
+    && !cleanup.manifestRemoved
+    && !cleanup.manifestAbsent
+    && cleanup.stagingRemoved === false
+    && cleanup.stagingAbsent === true;
 }
 
 function parseFramedObject(stdout: string): Record<string, unknown> | undefined {
@@ -109,9 +151,31 @@ function parseFramedObject(stdout: string): Record<string, unknown> | undefined 
   } catch { return undefined; }
 }
 
-function outcomeFailure(target: RemoteTarget, operation: string, outcome: Exclude<Awaited<ReturnType<typeof executeRemoteExport>>, { outcome: "completed" }>): ToolResult {
-  const code = outcome.outcome === "configuration-failed" ? outcome.code : "REMOTE_EXPORTED_CANDIDATE_TRANSPORT_FAILED";
-  return evidenceFailure(target, operation, code);
+function outcomeFailure(
+  target: RemoteTarget,
+  operation: string,
+  outcome: Exclude<Awaited<ReturnType<typeof executeRemoteExport>>, { outcome: "completed" }>,
+  mode: ExportedCandidateCleanupEvidence["mode"]
+): ToolResult {
+  const code = outcome.outcome === "configuration-failed"
+    ? outcome.code
+    : outcome.outcome === "uncertain"
+      ? "REMOTE_EXPORTED_CANDIDATE_TRANSPORT_UNCERTAIN"
+      : "REMOTE_EXPORTED_CANDIDATE_TRANSPORT_FAILED";
+  const uncertain = outcome.outcome === "uncertain";
+  return evidenceFailure(target, operation, code, Object.freeze({
+    schemaVersion: "1.0",
+    mode,
+    authorized: false,
+    attempted: false,
+    candidateRemoved: false,
+    candidateAbsent: false,
+    manifestRemoved: false,
+    manifestAbsent: false,
+    ...(uncertain ? { candidateState: "unknown" as const, manifestState: "unknown" as const } : {}),
+    status: uncertain ? "unknown" : "failed",
+    code
+  }), uncertain);
 }
 
 function evidenceFailure(
@@ -129,15 +193,16 @@ function evidenceFailure(
     manifestAbsent: false,
     status: "failed",
     code
-  })
+  }),
+  uncertain = false
 ): ToolResult {
   return {
     ok: false,
     target,
     operation,
     error: { code, message: "Remote exported-candidate evidence was rejected." },
-    evidence: ["remote exported-candidate evidence rejected"],
-    warnings: ["remote state is not assumed clean without complete evidence"],
+    evidence: [uncertain ? "remote operation completion and object state are unknown" : "remote exported-candidate evidence rejected"],
+    warnings: [uncertain ? "do not retry; candidate and handoff state require target-local inspection" : "remote state is not assumed clean without complete evidence"],
     paths: {},
     commands: [{ command: `${target.transport} ${operation} <redacted-script>` }],
     logs: [{ source: "remote-exported-candidate", lines: ["remote evidence unavailable or invalid"] }],
@@ -162,4 +227,14 @@ function windowsPathEqual(left: string, right: string): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[], optional: readonly string[] = []): boolean {
+  const allowed = new Set(keys);
+  const required = keys.filter((key) => !optional.includes(key));
+  return Object.keys(value).every((key) => allowed.has(key)) && required.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function isRecordWithExact(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
+  return isRecord(value) && hasOnlyKeys(value, keys) && Object.keys(value).length === keys.length;
 }

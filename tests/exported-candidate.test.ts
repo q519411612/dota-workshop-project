@@ -230,6 +230,24 @@ describe("exported release candidate lifecycle", () => {
     expect(await readdir(handoffDestination)).toEqual(["content", "game"]);
   });
 
+  test("rejects a post-promotion topology injection", async () => {
+    const fixture = await createFixture();
+    const destination = join(fixture.exportRoot, "candidate-topology-injected");
+    let renameCalls = 0;
+    const result = await exportNodeReleaseCandidate({ target: { kind: "fixture", root: fixture.dotaRoot }, addonName: fixture.addonName, exportRoot: fixture.exportRoot, destination }, {
+      repositoryRoot: fixture.repositoryRoot,
+      tempParent: fixture.tempParent,
+      platform: "darwin",
+      rename: async (source, target) => {
+        renameCalls += 1;
+        await rename(source, target);
+        if (renameCalls === 1) await mkdir(join(String(target), "unexpected-empty"));
+      }
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "PROMOTED_MANIFEST_MISMATCH" } });
+    expect(await readdir(join(destination, "unexpected-empty"))).toEqual([]);
+  });
+
   test("reports partial execute cleanup without broad retry", async () => {
     const fixture = await createFixture();
     const destination = join(fixture.exportRoot, "candidate-partial-cleanup");
@@ -255,8 +273,59 @@ describe("exported release candidate lifecycle", () => {
     expect(result).toMatchObject({
       ok: false,
       error: { code: "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE" },
-      cleanup: { candidateRemoved: false, candidateAbsent: false, manifestRemoved: true, manifestAbsent: true, status: "failed" }
+      cleanup: { candidateRemoved: false, candidateAbsent: false, manifestRemoved: false, manifestAbsent: false, status: "failed" }
     });
     expect(await readdir(destination)).toEqual(["content", "game"]);
+    expect(JSON.parse(await readFile(`${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`, "utf8"))).toMatchObject({ ownership: { ownershipId: exported.ownership.ownershipId } });
+  });
+
+  test("rejects unexpected empty directories during cleanup authorization", async () => {
+    const fixture = await createFixture();
+    const destination = join(fixture.exportRoot, "candidate-topology");
+    const exported = await exportNodeReleaseCandidate({ target: { kind: "fixture", root: fixture.dotaRoot }, addonName: fixture.addonName, exportRoot: fixture.exportRoot, destination }, { repositoryRoot: fixture.repositoryRoot, tempParent: fixture.tempParent, platform: "darwin" });
+    if (!exported.ok || exported.manifest == null || exported.ownership == null) throw new Error("export failed");
+    await mkdir(join(destination, "unexpected-empty"));
+    const result = await cleanupNodeExportedCandidate({ target: { kind: "fixture", root: fixture.dotaRoot }, exportRoot: fixture.exportRoot, destination, ownershipId: exported.ownership.ownershipId, manifestVersion: "1.0", combinedSha256: exported.manifest.combinedSha256, dryRun: false }, { repositoryRoot: fixture.repositoryRoot });
+    expect(result).toMatchObject({ ok: false, error: { code: "CANDIDATE_DIGEST_MISMATCH" }, cleanup: { attempted: false } });
+    expect(await readdir(join(destination, "unexpected-empty"))).toEqual([]);
+  });
+
+  test("rejects a symbolic-link handoff without following it", async () => {
+    const fixture = await createFixture();
+    const destination = join(fixture.exportRoot, "candidate-linked-handoff");
+    const exported = await exportNodeReleaseCandidate({ target: { kind: "fixture", root: fixture.dotaRoot }, addonName: fixture.addonName, exportRoot: fixture.exportRoot, destination }, { repositoryRoot: fixture.repositoryRoot, tempParent: fixture.tempParent, platform: "darwin" });
+    if (!exported.ok || exported.manifest == null || exported.ownership == null) throw new Error("export failed");
+    const handoffPath = `${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`;
+    const external = join(fixture.root, "external-handoff.json");
+    await rename(handoffPath, external);
+    await symlink(external, handoffPath);
+    const result = await cleanupNodeExportedCandidate({ target: { kind: "fixture", root: fixture.dotaRoot }, exportRoot: fixture.exportRoot, destination, ownershipId: exported.ownership.ownershipId, manifestVersion: "1.0", combinedSha256: exported.manifest.combinedSha256, dryRun: false }, { repositoryRoot: fixture.repositoryRoot });
+    expect(result).toMatchObject({ ok: false, error: { code: "EXPORTED_CANDIDATE_STATE_UNSAFE" } });
+    expect(await readdir(destination)).toEqual(["content", "game"]);
+    expect(JSON.parse(await readFile(external, "utf8"))).toMatchObject({ ownership: { ownershipId: exported.ownership.ownershipId } });
+  });
+
+  test("does not delete an identity swapped at the mutation boundary", async () => {
+    const fixture = await createFixture();
+    const destination = join(fixture.exportRoot, "candidate-swapped");
+    const exported = await exportNodeReleaseCandidate({ target: { kind: "fixture", root: fixture.dotaRoot }, addonName: fixture.addonName, exportRoot: fixture.exportRoot, destination }, { repositoryRoot: fixture.repositoryRoot, tempParent: fixture.tempParent, platform: "darwin" });
+    if (!exported.ok || exported.manifest == null || exported.ownership == null) throw new Error("export failed");
+    const original = join(fixture.exportRoot, "candidate-original-preserved");
+    let renameCalls = 0;
+    const result = await cleanupNodeExportedCandidate({ target: { kind: "fixture", root: fixture.dotaRoot }, exportRoot: fixture.exportRoot, destination, ownershipId: exported.ownership.ownershipId, manifestVersion: "1.0", combinedSha256: exported.manifest.combinedSha256, dryRun: false }, {
+      repositoryRoot: fixture.repositoryRoot,
+      rename: async (source, target) => {
+        renameCalls += 1;
+        if (renameCalls === 1) {
+          await rename(source, original);
+          await mkdir(source);
+          await writeFile(join(String(source), "hostile.txt"), "must remain");
+        }
+        await rename(source, target);
+      }
+    });
+    expect(result).toMatchObject({ ok: false, cleanup: { candidateRemoved: false, manifestRemoved: false } });
+    expect(await readdir(original)).toEqual(["content", "game"]);
+    expect(await readFile(`${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`, "utf8")).toContain(exported.ownership.ownershipId);
   });
 });

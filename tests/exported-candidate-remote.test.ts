@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   EXPORTED_CANDIDATE_BOUNDARIES,
+  parseExportedCandidateHandoffManifest,
   type ExportedCandidateHandoffManifest
 } from "../src/exported-candidate.js";
 import {
@@ -42,6 +43,11 @@ function handoff(): ExportedCandidateHandoffManifest {
     combinedSha256,
     source: { gameAddon: "game/dota_addons/demo", contentAddon: "content/dota_addons/demo" },
     manifest: { schemaVersion: "1.0", entries, combinedSha256 },
+    topology: [
+      { kind: "directory", path: "content" },
+      { kind: "directory", path: "game" },
+      { kind: "file", path: "game/dota_addons/demo/addoninfo.txt" }
+    ],
     ownership: {
       schemaVersion: "1.0",
       ownershipId: "00000000-0000-4000-8000-000000000000",
@@ -55,8 +61,20 @@ function exportPayload() {
   const manifest = handoff();
   return JSON.stringify({
     schemaVersion: "1.0",
+    operation: { status: "completed" },
+    artifactValidation: { status: "passed" },
+    blockers: [],
     ok: true,
     cleanup: { status: "verified" },
+    paths: {},
+    execution: { kind: "remote", outcome: "completed", exitCode: 0 },
+    warnings: [],
+    commands: [],
+    logs: [],
+    boundaries: {},
+    scanCoverage: {},
+    manifest: manifest.manifest,
+    inclusionLedger: {},
     export: manifest,
     exportCleanup: {
       schemaVersion: "1.0",
@@ -89,6 +107,7 @@ describe("remote exported candidate", () => {
     expect(exportScript).not.toMatch(/Get-Credential|-Credential|scp|Copy-Item.*ComputerName/u);
 
     const cleanupScript = buildRemoteCleanupExportedCandidateScript({
+      transport: "ssh",
       exportRoot: "C:/Exports",
       destination: "C:/Exports/demo",
       ownershipId: "00000000-0000-4000-8000-000000000000",
@@ -97,7 +116,10 @@ describe("remote exported candidate", () => {
       dryRun: true
     });
     expect(cleanupScript).toContain("Assert-NoReparseAncestry $destination");
-    expect(cleanupScript).toContain("Get-CanonicalManifestDigest $observed");
+    expect(cleanupScript).toContain("function Get-CanonicalManifestDigest");
+    expect(cleanupScript).toContain("Assert-StrictHandoff");
+    expect(cleanupScript).toContain("Get-ObservedCandidate");
+    expect(cleanupScript).toContain("$candidateTombstone");
     expect(cleanupScript).not.toMatch(/Get-Credential|-Credential|scp/u);
   });
 
@@ -136,7 +158,7 @@ describe("remote exported candidate", () => {
       destination: "C:/Exports/demo",
       executor: async () => { throw new Error("private transport failure"); }
     });
-    expect(uncertain).toMatchObject({ ok: false, error: { code: "REMOTE_EXPORTED_CANDIDATE_TRANSPORT_FAILED" } });
+    expect(uncertain).toMatchObject({ ok: false, error: { code: "REMOTE_EXPORTED_CANDIDATE_TRANSPORT_UNCERTAIN" } });
     expect(JSON.stringify(uncertain)).not.toContain("private transport failure");
   });
 
@@ -162,10 +184,67 @@ describe("remote exported candidate", () => {
         manifestVersion: "1.0",
         combinedSha256: manifest.combinedSha256,
         dryRun,
-        executor: async () => ({ exitCode: 0, stdout: JSON.stringify({ schemaVersion: "1.0", ok: true, operation: "cleanup_exported_candidate", code: null, manifest, cleanup }), stderr: "" })
+        executor: async () => ({ exitCode: 0, stdout: JSON.stringify({ schemaVersion: "1.0", ok: true, operation: "cleanup_exported_candidate", code: null, authorized: true, manifest, cleanup }), stderr: "" })
       });
       expect(result).toMatchObject({ ok: true, cleanup: { mode: cleanup.mode, status: "verified" } });
     }
   });
-});
 
+  test("rejects unrelated, impossible, and open-key cleanup success evidence", async () => {
+    const manifest = handoff();
+    const hostile = [
+      { manifest: { ...manifest, destination: "D:\\Other\\unrelated" } },
+      { cleanup: { schemaVersion: "1.0", mode: "execute", authorized: false, attempted: false, candidateRemoved: false, candidateAbsent: false, manifestRemoved: false, manifestAbsent: false, status: "verified" } },
+      { extra: true }
+    ];
+    for (const mutation of hostile) {
+      const cleanup = { schemaVersion: "1.0", mode: "execute", authorized: true, attempted: true, candidateRemoved: true, candidateAbsent: true, manifestRemoved: true, manifestAbsent: true, status: "verified" };
+      const payload = { schemaVersion: "1.0", ok: true, operation: "cleanup_exported_candidate", code: null, authorized: true, manifest, cleanup, ...mutation };
+      const result = await cleanupRemoteExportedCandidate({
+        target,
+        exportRoot: "C:/Exports",
+        destination: "C:/Exports/demo",
+        ownershipId: manifest.ownership.ownershipId,
+        manifestVersion: "1.0",
+        combinedSha256: manifest.combinedSha256,
+        dryRun: false,
+        executor: async () => ({ exitCode: 0, stdout: JSON.stringify(payload), stderr: "" })
+      });
+      expect(result).toMatchObject({ ok: false });
+    }
+  });
+
+  test("strictly parses hostile handoff nesting without throwing", () => {
+    const valid = handoff();
+    expect(parseExportedCandidateHandoffManifest({ ...valid, extra: true })).toBeUndefined();
+    expect(parseExportedCandidateHandoffManifest({ ...valid, ownership: { ...valid.ownership, ownershipId: "not-a-uuid" } })).toBeUndefined();
+    expect(parseExportedCandidateHandoffManifest({ ...valid, manifest: { ...valid.manifest, entries: [null] } })).toBeUndefined();
+    expect(parseExportedCandidateHandoffManifest({ ...valid, topology: [...valid.topology, { kind: "directory", path: "game" }] })).toBeUndefined();
+  });
+
+  test("rejects ambiguous remote paths before execution", () => {
+    for (const path of ["C:/Exports/../Windows/demo", "C:/Exports/demo:stream", "\\\\?\\C:\\Exports\\demo", "C:/Exports/demo."]) {
+      expect(() => buildRemoteExportedCandidateScript({ transport: "ssh", dotaRoot: "C:/Dota", addonName: "demo", exportRoot: "C:/Exports", destination: path })).toThrow("REMOTE_EXPORT_PATH_INVALID");
+    }
+  });
+
+  test.each(["ssh", "powershell"] as const)("preserves destructive %s transport uncertainty", async (transport) => {
+    const manifest = handoff();
+    const result = await cleanupRemoteExportedCandidate({
+      target: { ...target, transport },
+      exportRoot: "C:/Exports",
+      destination: "C:/Exports/demo",
+      ownershipId: manifest.ownership.ownershipId,
+      manifestVersion: "1.0",
+      combinedSha256: manifest.combinedSha256,
+      dryRun: false,
+      executor: async () => { throw new Error("transport interrupted"); }
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "REMOTE_EXPORTED_CANDIDATE_TRANSPORT_UNCERTAIN" },
+      cleanup: { mode: "execute", attempted: false, candidateRemoved: false, manifestRemoved: false }
+    });
+    expect(result.warnings.join(" ")).toContain("do not retry");
+  });
+});

@@ -96,9 +96,9 @@ Remote authorization is external runtime configuration. `preflight_release_candi
 
 `export_release_candidate` is separate from temporary preflight. It requires `target`, `addonName`, `exportRoot`, and `destination`. The export root must already exist on the target, and the destination must be an absent direct child. Existing targets, protected roots, repository paths, Dota paths, path escape, symbolic links, junctions, reparse points, case-fold collisions, and unknown entry types are blockers.
 
-Success retains the candidate and creates a versioned sibling handoff manifest. Record the returned destination, ownership identifier, manifest version, and combined SHA-256 together. They are audit evidence for later cleanup, not remote credentials.
+Success retains the candidate and creates a versioned sibling handoff manifest. Record the returned destination, ownership identifier, manifest version, complete topology, and combined SHA-256 together. They are audit evidence for later cleanup, not remote credentials.
 
-Run `cleanup_exported_candidate` with `dryRun: true`. Proceed to execute mode only when the result says authorization passed. Execute mode deletes only the exactly matched candidate and handoff manifest. If either removal or absence check fails, stop and inspect the reported partial state; do not retry with a wider path or altered evidence.
+Run `cleanup_exported_candidate` with `dryRun: true`. Proceed to execute mode only when the result says authorization passed. Execute mode revalidates the complete topology and object identities at the mutation boundary, removes the candidate before the handoff, and preserves the handoff when candidate removal or absence proof fails. If either removal or absence check fails, stop and inspect the reported partial state; do not retry with a wider path or altered evidence. If remote execute returns transport uncertainty, candidate and handoff state are both unknown and automatic retry is prohibited.
 
 Remote candidates stay on the target Windows machine. The operations do not download, archive, compress, sign, encrypt, upload, or claim official Valve upload compatibility. Mocked target results are contract evidence and do not prove real Windows reparse, canonicalization, promotion, or cleanup behavior.
 
