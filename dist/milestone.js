@@ -91,6 +91,21 @@ const VERSION_INVENTORY = [
         documentationStatus: "README and runbook include the handoff gate after `verify:rc`.",
         knownBoundary: "No Workshop upload, Steam login, Steam Guard handling, content encryption, package signing, credential storage, or remote Windows connection.",
         remainingNonBlockingItems: []
+    },
+    {
+        version: "v1.15",
+        title: "Verifiable Release Candidate Export and Handoff",
+        commit: "0000000000000000000000000000000000000000",
+        goal: "Retain a strictly validated target-local candidate with auditable handoff, ownership, and exact cleanup evidence.",
+        keyDeliveries: [
+            "Added independent export_release_candidate and cleanup_exported_candidate MCP operations.",
+            "Added same-filesystem staging, atomic no-replace promotion, external handoff ownership, and verified cleanup.",
+            "Added strict fixture, local, SSH, and PowerShell contract normalization with no remote candidate transfer."
+        ],
+        verificationStatus: "Complete: 24/24 requirements, clean independent review, and all local release gates passed.",
+        documentationStatus: "README, operator runbook, skill guidance, examples, phase verification, and milestone audit cover v1.15.",
+        knownBoundary: "Real Windows export, normalization, reparse, promotion, and cleanup runtime evidence remains explicitly unverified.",
+        remainingNonBlockingItems: ["Real Windows exported-candidate runtime evidence remains optional supporting evidence."]
     }
 ];
 const BOUNDARIES = [
@@ -155,6 +170,7 @@ const REQUIRED_RUNBOOK_COVERAGE = [
 const REQUIRED_HANDOFF_DELIVERY_LABELS = ["README", "operator runbook", "workflow examples"];
 const REMAINING_NON_BLOCKING_ITEMS = [
     "same-machine local Windows MCP server smoke remains optional supporting evidence",
+    "real Windows exported-candidate runtime evidence remains explicitly unverified",
     "real Workshop upload remains deferred until a future explicit publishing milestone",
     "package signing, content encryption, and registry publishing remain out of scope"
 ];
@@ -172,10 +188,15 @@ export async function verifyMilestoneCloseout(input = {}) {
         blockers.push(...handoffResult.blockers.map((blocker) => copyHandoffBlocker(blocker, root)));
     }
     warnings.push(...handoffResult.warnings.map((warning) => sanitizeText(warning, root)));
-    const versions = VERSION_INVENTORY.map((entry) => ({ ...entry, keyDeliveries: [...entry.keyDeliveries], remainingNonBlockingItems: [...entry.remainingNonBlockingItems] }));
+    const versions = VERSION_INVENTORY.map((entry) => ({
+        ...entry,
+        ...(entry.version === "v1.15" ? { commit: handoffResult.commit.sha } : {}),
+        keyDeliveries: [...entry.keyDeliveries],
+        remainingNonBlockingItems: [...entry.remainingNonBlockingItems]
+    }));
     blockers.push(...validateVersionInventory(versions));
     if (!blockers.some((blocker) => blocker.code.startsWith("MILESTONE_VERSION"))) {
-        evidence.push("milestone version inventory complete: v1.2-v1.7");
+        evidence.push("milestone version inventory complete: v1.2-v1.15");
     }
     const documentationItems = await buildDocumentationItems(root, handoffResult, blockers);
     if (documentationItems.every((item) => item.ok)) {
@@ -190,14 +211,14 @@ export async function verifyMilestoneCloseout(input = {}) {
     return {
         ok: blockers.length === 0,
         milestone: {
-            version: "v1.8",
-            title: "Milestone Archive and Release Notes Readiness",
-            purpose: "Summarize v1.2-v1.7 release readiness for operator handoff and future release review."
+            version: "v1.15",
+            title: "Verifiable Release Candidate Export and Handoff",
+            purpose: "Verify retained candidate export, external handoff, exact cleanup, release boundaries, and audit readiness."
         },
         commitRange: {
-            from: VERSION_INVENTORY[0]?.commit ?? "",
-            to: VERSION_INVENTORY[VERSION_INVENTORY.length - 1]?.commit ?? "",
-            label: "v1.2-v1.7"
+            from: versions[0]?.commit ?? "",
+            to: versions[versions.length - 1]?.commit ?? "",
+            label: "v1.2-v1.15"
         },
         handoff: {
             ok: handoffResult.ok,
@@ -230,7 +251,7 @@ export async function verifyMilestoneCloseout(input = {}) {
 }
 function validateVersionInventory(entries) {
     const blockers = [];
-    const expectedVersions = ["v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7"];
+    const expectedVersions = ["v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7", "v1.15"];
     const actualVersions = entries.map((entry) => entry.version);
     for (const version of expectedVersions) {
         if (!actualVersions.includes(version)) {

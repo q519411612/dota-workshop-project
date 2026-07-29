@@ -96,7 +96,7 @@ describe("milestone closeout readiness", () => {
     expect(packageJson.scripts?.["verify:milestone"]).toBe("node ./dist/verify-milestone.js");
   });
 
-  test("aggregates handoff preflight, v1.2-v1.7 inventory, docs, and boundaries", async () => {
+  test("aggregates handoff preflight, current inventory, docs, and boundaries", async () => {
     const { verifyMilestoneCloseout } = await import("../src/milestone.js");
     const root = await createMilestoneFixture();
     try {
@@ -106,20 +106,21 @@ describe("milestone closeout readiness", () => {
       });
 
       expect(result.ok).toBe(true);
-      expect(result.milestone.version).toBe("v1.8");
+      expect(result.milestone.version).toBe("v1.15");
       expect(result.handoff.ok).toBe(true);
       expect(result.commitRange).toEqual({
         from: "ba6856fa170d97dea677a42293fc3d2c12eda012",
         to: "7c0d3bfd7224a6ed82a97eaf7b6f6f038590cb1d",
-        label: "v1.2-v1.7"
+        label: "v1.2-v1.15"
       });
-      expect(result.versions.map((entry) => entry.version)).toEqual(["v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7"]);
+      expect(result.versions.map((entry) => entry.version)).toEqual(["v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7", "v1.15"]);
       expect(result.versions.map((entry) => entry.commit)).toEqual([
         "ba6856fa170d97dea677a42293fc3d2c12eda012",
         "c2ae5b36b82e3e826025d5ecf01d2d95fafbca1b",
         "37d436f56c21daa9a7277622db5239fceda4e4b0",
         "62c08d143d7b2fb70d1c6c9293cadafd5acf32d0",
         "1f5b722e7e413b3e19388ba37c2a052d818704c0",
+        "7c0d3bfd7224a6ed82a97eaf7b6f6f038590cb1d",
         "7c0d3bfd7224a6ed82a97eaf7b6f6f038590cb1d"
       ]);
       expect(result.documentation.items.map((item) => item.label)).toEqual(["README", "operator runbook", "handoff report"]);

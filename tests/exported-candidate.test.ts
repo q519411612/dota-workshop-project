@@ -227,6 +227,38 @@ describe("exported release candidate lifecycle", () => {
     expect(linkedResult).toMatchObject({ ok: false, error: { code: "EXPORT_ROOT_UNSAFE" } });
   });
 
+  test("protects a discovered local Dota root before creating staging", async () => {
+    const fixture = await createFixture("discovered_local_root");
+    const exportRoot = join(fixture.dotaRoot, "retained-exports");
+    await mkdir(exportRoot);
+    let stagingAttempted = false;
+    const result = await exportNodeReleaseCandidate({
+      target: { kind: "local" },
+      addonName: fixture.addonName,
+      exportRoot,
+      destination: join(exportRoot, "candidate")
+    }, {
+      repositoryRoot: fixture.repositoryRoot,
+      platform: "darwin",
+      discoverLocalEnvironment: async () => ({
+        ok: true,
+        target: { kind: "local" },
+        operation: "discover_environment",
+        evidence: [],
+        warnings: [],
+        paths: { dotaRoot: fixture.dotaRoot },
+        commands: [],
+        logs: []
+      }),
+      createStaging: async () => {
+        stagingAttempted = true;
+        throw new Error("staging must not start");
+      }
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "EXPORT_ROOT_PROTECTED" } });
+    expect(stagingAttempted).toBe(false);
+  });
+
   test("fails before staging when the declared POSIX atomic primitive prerequisite is unavailable", async () => {
     const fixture = await createFixture("atomic_prerequisite");
     const destination = join(fixture.exportRoot, "candidate");
@@ -364,7 +396,11 @@ describe("exported release candidate lifecycle", () => {
       platform: "darwin",
       write: async () => { throw new Error("handoff write failure"); }
     });
-    expect(handoffFailure).toMatchObject({ ok: false, error: { code: "HANDOFF_MANIFEST_PUBLICATION_FAILED" }, cleanup: { attempted: false } });
+    expect(handoffFailure).toMatchObject({
+      ok: false,
+      error: { code: "HANDOFF_MANIFEST_PUBLICATION_FAILED" },
+      cleanup: { attempted: false, temporaryHandoffRemoved: false, temporaryHandoffAbsent: true }
+    });
     expect(await readdir(handoffDestination)).toEqual(["content", "game"]);
   });
 
@@ -470,6 +506,32 @@ describe("exported release candidate lifecycle", () => {
     const result = await cleanupNodeExportedCandidate({ target: { kind: "fixture", root: fixture.dotaRoot }, exportRoot: fixture.exportRoot, destination, ownershipId: exported.ownership.ownershipId, manifestVersion: "1.0", combinedSha256: exported.manifest.combinedSha256, dryRun: false }, { repositoryRoot: fixture.repositoryRoot });
     expect(result).toMatchObject({ ok: false, error: { code: "CANDIDATE_DIGEST_MISMATCH" }, cleanup: { attempted: false } });
     expect(await readdir(join(destination, "unexpected-empty"))).toEqual([]);
+  });
+
+  test("binds Node cleanup authorization to the handoff target kind", async () => {
+    const fixture = await createFixture("cleanup_target_kind");
+    const destination = join(fixture.exportRoot, "candidate-target-kind");
+    const exported = await exportNodeReleaseCandidate({
+      target: { kind: "fixture", root: fixture.dotaRoot },
+      addonName: fixture.addonName,
+      exportRoot: fixture.exportRoot,
+      destination
+    }, { repositoryRoot: fixture.repositoryRoot, tempParent: fixture.tempParent, platform: "darwin" });
+    if (!exported.ok || exported.manifest == null || exported.ownership == null) throw new Error("export failed");
+    const handoffPath = `${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`;
+    const handoff = JSON.parse(await readFile(handoffPath, "utf8"));
+    handoff.targetKind = "local";
+    await writeFile(handoffPath, `${JSON.stringify(handoff, null, 2)}\n`, "utf8");
+    const result = await cleanupNodeExportedCandidate({
+      target: { kind: "fixture", root: fixture.dotaRoot },
+      exportRoot: fixture.exportRoot,
+      destination,
+      ownershipId: exported.ownership.ownershipId,
+      manifestVersion: "1.0",
+      combinedSha256: exported.manifest.combinedSha256,
+      dryRun: true
+    }, { repositoryRoot: fixture.repositoryRoot });
+    expect(result).toMatchObject({ ok: false, error: { code: "CLEANUP_AUTHORIZATION_MISMATCH" } });
   });
 
   test("rejects a symbolic-link handoff without following it", async () => {

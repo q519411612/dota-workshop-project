@@ -14,6 +14,7 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
+import { discoverEnvironment } from "./environment.js";
 import {
   createNodeReleaseCandidateFilesystem,
   preflightNodeReleaseCandidate,
@@ -109,6 +110,7 @@ type ExportDependencies = NodeReleaseCandidatePreflightDependencies & Readonly<{
   atomicMove?: (source: string, destination: string) => Promise<void>;
   atomicCompiler?: string;
   verifyAtomicMove?: (platform: NodeJS.Platform, compiler: string) => Promise<void>;
+  discoverLocalEnvironment?: typeof discoverEnvironment;
   rename?: typeof rename;
   remove?: typeof rm;
   write?: typeof writeFile;
@@ -140,7 +142,9 @@ export async function exportNodeReleaseCandidate(
   const target = publicTarget(input.target);
   const classifier = exportClassifier(dependencies);
   if (!classifier.ok) return failure(target, operation, classifier.code, classifier.message);
-  const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd(), false, classifier.classify);
+  const resolvedInput = await resolveLocalExportInput(input, dependencies);
+  if (!resolvedInput.ok) return failure(target, operation, resolvedInput.code, resolvedInput.message);
+  const paths = await validateExportPaths(resolvedInput.input, dependencies.repositoryRoot ?? process.cwd(), false, classifier.classify);
   if (!paths.ok) return failure(target, operation, paths.code, paths.message, paths.paths);
   const atomicCompiler = dependencies.atomicCompiler ?? (process.env.CC?.trim() || "/usr/bin/cc");
   if (dependencies.atomicMove === undefined && dependencies.rename === undefined) {
@@ -174,7 +178,7 @@ export async function exportNodeReleaseCandidate(
 
   try {
     const releaseCandidate = await (dependencies.preflight ?? preflightNodeReleaseCandidate)(
-      { target: input.target, addonName: input.addonName },
+      { target: resolvedInput.input.target, addonName: input.addonName },
       {
         ...dependencies,
         inspectCandidate: async (candidateRoot) => {
@@ -240,13 +244,17 @@ export async function exportNodeReleaseCandidate(
       await write(temporaryManifest, `${JSON.stringify(handoff, null, 2)}\n`, { flag: "wx" });
       await moveNoReplace(temporaryManifest, paths.handoff);
     } catch (error) {
-      try { await rm(temporaryManifest, { force: true }); } catch {}
+      let temporaryHandoffRemoved = false;
+      if (await pathExists(temporaryManifest)) {
+        try { await rm(temporaryManifest, { force: true }); temporaryHandoffRemoved = true; } catch {}
+      }
+      const temporaryHandoffAbsent = !await pathExists(temporaryManifest);
       const code = stableErrorCode(error, "HANDOFF_MANIFEST_PUBLICATION_FAILED");
       return failure(target, operation, code, "The retained candidate exists but its handoff manifest was not published.", {
         exportRoot: paths.exportRoot,
         destination: paths.destination,
         handoffManifest: paths.handoff
-      }, [], retainedFailureCleanup(code), handoff, ownership);
+      }, [], retainedFailureCleanup(code, { temporaryHandoffRemoved, temporaryHandoffAbsent }), handoff, ownership);
     }
 
     const cleanup = verifiedExportCleanup();
@@ -298,10 +306,12 @@ export async function cleanupNodeExportedCandidate(
   const target = publicTarget(input.target);
   const classifier = exportClassifier(dependencies);
   if (!classifier.ok) return failure(target, operation, classifier.code, classifier.message);
-  const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd(), true, classifier.classify);
+  const resolvedInput = await resolveLocalExportInput(input, dependencies);
+  if (!resolvedInput.ok) return failure(target, operation, resolvedInput.code, resolvedInput.message);
+  const paths = await validateExportPaths(resolvedInput.input, dependencies.repositoryRoot ?? process.cwd(), true, classifier.classify);
   if (!paths.ok) return failure(target, operation, paths.code, paths.message, paths.paths);
   const atomicCompiler = dependencies.atomicCompiler ?? (process.env.CC?.trim() || "/usr/bin/cc");
-  const authorization = await authorizeCleanup(input, paths, classifier.classify);
+  const authorization = await authorizeCleanup(resolvedInput.input, paths, classifier.classify);
   if (!authorization.ok) {
     return failure(target, operation, authorization.code, authorization.message, {
       exportRoot: paths.exportRoot,
@@ -350,7 +360,7 @@ export async function cleanupNodeExportedCandidate(
 
   try {
     await dependencies.afterHandoffAuthorization?.(paths.handoff);
-    const mutationAuthorization = await authorizeCleanup(input, paths, classifier.classify);
+    const mutationAuthorization = await authorizeCleanup(resolvedInput.input, paths, classifier.classify);
     if (!mutationAuthorization.ok || !sameAuthorization(authorization, mutationAuthorization)) {
       if (mutationAuthorization.ok) await mutationAuthorization.handoffHandle.close().catch(() => undefined);
       throw new Error("CLEANUP_MUTATION_AUTHORIZATION_CHANGED");
@@ -464,6 +474,7 @@ async function authorizeCleanup(
     if (
       manifest.exportRoot !== paths.exportRoot
       || manifest.destination !== paths.destination
+      || manifest.targetKind !== input.target.kind
       || manifest.ownership.ownershipId !== input.ownershipId
       || manifest.schemaVersion !== input.manifestVersion
       || manifest.combinedSha256 !== input.combinedSha256
@@ -525,6 +536,26 @@ function exportClassifier(dependencies: ExportDependencies):
     };
   }
   return { ok: true, classify: async (path) => await filesystem.classifySourceEntry(path) };
+}
+
+async function resolveLocalExportInput<T extends Readonly<{ target: ExportReleaseCandidateToolInput["target"] }>>(
+  input: T,
+  dependencies: ExportDependencies
+): Promise<Readonly<{ ok: true; input: T }> | Readonly<{ ok: false; code: string; message: string }>> {
+  if (input.target.kind !== "local" || input.target.dotaRoot !== undefined) return { ok: true, input };
+  const discovery = await (dependencies.discoverLocalEnvironment ?? discoverEnvironment)({
+    target: input.target,
+    platform: dependencies.platform ?? process.platform,
+    environment: dependencies.environment ?? process.env
+  });
+  const dotaRoot = discovery.ok ? discovery.paths.dotaRoot : undefined;
+  if (typeof dotaRoot !== "string" || dotaRoot.length === 0) {
+    return { ok: false, code: "DOTA_INSTALL_NOT_FOUND", message: "Local export requires a provided or discovered Dota install root." };
+  }
+  return {
+    ok: true,
+    input: Object.freeze({ ...input, target: Object.freeze({ ...input.target, dotaRoot }) }) as T
+  };
 }
 
 async function validateExportPaths(
@@ -815,7 +846,10 @@ async function cleanupStaging(staging: string, remove: typeof rm, code: string):
   });
 }
 
-function retainedFailureCleanup(code: string): ExportedCandidateCleanupEvidence {
+function retainedFailureCleanup(
+  code: string,
+  temporaryHandoff?: Readonly<{ temporaryHandoffRemoved: boolean; temporaryHandoffAbsent: boolean }>
+): ExportedCandidateCleanupEvidence {
   return deepFreeze({
     schemaVersion: "1.0",
     mode: "export-failure",
@@ -827,6 +861,7 @@ function retainedFailureCleanup(code: string): ExportedCandidateCleanupEvidence 
     manifestAbsent: false,
     candidateState: "present",
     manifestState: "absent",
+    ...(temporaryHandoff ?? {}),
     promotionState: "promoted",
     status: "failed",
     code
