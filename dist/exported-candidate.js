@@ -28,7 +28,17 @@ export async function exportNodeReleaseCandidate(input, dependencies = {}) {
     const paths = await validateExportPaths(input, dependencies.repositoryRoot ?? process.cwd());
     if (!paths.ok)
         return failure(target, operation, paths.code, paths.message, paths.paths);
-    const staging = await mkdtemp(join(paths.exportRoot, ".dota-workshop-export-"));
+    let staging;
+    try {
+        staging = await (dependencies.createStaging ?? mkdtemp)(join(paths.exportRoot, ".dota-workshop-export-"));
+    }
+    catch {
+        return failure(target, operation, "EXPORT_STAGING_CREATION_FAILED", "Export staging could not be created.", {
+            exportRoot: paths.exportRoot,
+            destination: paths.destination,
+            handoffManifest: paths.handoff
+        });
+    }
     let stagingSnapshot;
     let promoted = false;
     let failureStage = "assembly";
@@ -577,7 +587,19 @@ function parseTopology(value, manifest) {
     const topologyFilePaths = topology.filter((entry) => entry.kind === "file").map((entry) => entry.path);
     if (JSON.stringify(manifestPaths) !== JSON.stringify(topologyFilePaths))
         return undefined;
-    if (!topology.some((entry) => entry.kind === "directory" && entry.path === "game") || !topology.some((entry) => entry.kind === "directory" && entry.path === "content"))
+    const topologyKinds = new Map(topology.map((entry) => [entry.path, entry.kind]));
+    const requiredDirectories = new Set(["game", "content"]);
+    for (const entry of topology) {
+        const segments = entry.path.split("/");
+        for (let index = 1; index < segments.length; index += 1)
+            requiredDirectories.add(segments.slice(0, index).join("/"));
+    }
+    for (const path of manifestPaths) {
+        const segments = path.split("/");
+        for (let index = 1; index < segments.length; index += 1)
+            requiredDirectories.add(segments.slice(0, index).join("/"));
+    }
+    if ([...requiredDirectories].some((path) => topologyKinds.get(path) !== "directory"))
         return undefined;
     return deepFreeze(topology);
 }
