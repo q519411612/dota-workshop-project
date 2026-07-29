@@ -96,11 +96,12 @@ export async function exportNodeReleaseCandidate(input, dependencies = {}) {
         promoted = true;
         const finalSnapshot = await computeCandidateSnapshot(paths.destination, classifier.classify);
         if (!snapshotEqual(stagingSnapshot, finalSnapshot)) {
+            const manifestState = await observedUnownedPathState(paths.handoff);
             return failure(target, operation, "PROMOTED_MANIFEST_MISMATCH", "Promoted candidate integrity could not be proven.", {
                 exportRoot: paths.exportRoot,
                 destination: paths.destination,
                 handoffManifest: paths.handoff
-            }, [], retainedFailureCleanup("PROMOTED_MANIFEST_MISMATCH"));
+            }, [], retainedFailureCleanup("PROMOTED_MANIFEST_MISMATCH", { manifestState }));
         }
         const identity = await captureDirectoryIdentity(paths.destination, classifier.classify);
         const ownership = Object.freeze({
@@ -135,18 +136,23 @@ export async function exportNodeReleaseCandidate(input, dependencies = {}) {
             let temporaryHandoffRemoved = false;
             if (await pathExists(temporaryManifest)) {
                 try {
-                    await rm(temporaryManifest, { force: true });
+                    await remove(temporaryManifest, { force: true });
                     temporaryHandoffRemoved = true;
                 }
                 catch { }
             }
             const temporaryHandoffAbsent = !await pathExists(temporaryManifest);
+            const manifestState = await observedUnownedPathState(paths.handoff);
             const code = stableErrorCode(error, "HANDOFF_MANIFEST_PUBLICATION_FAILED");
             return failure(target, operation, code, "The retained candidate exists but its handoff manifest was not published.", {
                 exportRoot: paths.exportRoot,
                 destination: paths.destination,
                 handoffManifest: paths.handoff
-            }, [], retainedFailureCleanup(code, { temporaryHandoffRemoved, temporaryHandoffAbsent }), handoff, ownership);
+            }, [], retainedFailureCleanup(code, {
+                temporaryHandoffRemoved,
+                temporaryHandoffAbsent,
+                manifestState
+            }), handoff, ownership);
         }
         const cleanup = verifiedExportCleanup();
         return {
@@ -171,11 +177,12 @@ export async function exportNodeReleaseCandidate(input, dependencies = {}) {
     catch (error) {
         if (promoted) {
             const code = stableErrorCode(error, "EXPORT_FINALIZATION_FAILED");
+            const manifestState = await observedUnownedPathState(paths.handoff);
             return failure(target, operation, code, "The promoted candidate state requires operator inspection.", {
                 exportRoot: paths.exportRoot,
                 destination: paths.destination,
                 handoffManifest: paths.handoff
-            }, [], retainedFailureCleanup(code));
+            }, [], retainedFailureCleanup(code, { manifestState }));
         }
         const code = stableErrorCode(error, failureStage === "promotion" ? "EXPORT_PROMOTION_FAILED" : "EXPORT_ASSEMBLY_FAILED");
         const cleanup = await cleanupStaging(staging, remove, code);
@@ -414,12 +421,27 @@ function exportClassifier(dependencies) {
 async function resolveLocalExportInput(input, dependencies) {
     if (input.target.kind !== "local" || input.target.dotaRoot !== undefined)
         return { ok: true, input };
-    const discovery = await (dependencies.discoverLocalEnvironment ?? discoverEnvironment)({
-        target: input.target,
-        platform: dependencies.platform ?? process.platform,
-        environment: dependencies.environment ?? process.env
-    });
-    const dotaRoot = discovery.ok ? discovery.paths.dotaRoot : undefined;
+    let discovery;
+    try {
+        discovery = await (dependencies.discoverLocalEnvironment ?? discoverEnvironment)({
+            target: input.target,
+            platform: dependencies.platform ?? process.platform,
+            environment: dependencies.environment ?? process.env
+        });
+    }
+    catch {
+        return { ok: false, code: "LOCAL_ENVIRONMENT_DISCOVERY_FAILED", message: "Local Dota environment discovery failed." };
+    }
+    if (!discovery.ok) {
+        if (discovery.error?.code === "UNSUPPORTED_OS") {
+            return { ok: false, code: "UNSUPPORTED_OS", message: "Local Dota 2 Workshop Tools discovery requires Windows." };
+        }
+        if (discovery.error?.code === "DOTA_INSTALL_NOT_FOUND") {
+            return { ok: false, code: "DOTA_INSTALL_NOT_FOUND", message: "Dota 2 install root was not provided or discovered." };
+        }
+        return { ok: false, code: "LOCAL_ENVIRONMENT_DISCOVERY_FAILED", message: "Local Dota environment discovery failed." };
+    }
+    const dotaRoot = discovery.paths.dotaRoot;
     if (typeof dotaRoot !== "string" || dotaRoot.length === 0) {
         return { ok: false, code: "DOTA_INSTALL_NOT_FOUND", message: "Local export requires a provided or discovered Dota install root." };
     }
@@ -740,7 +762,8 @@ async function cleanupStaging(staging, remove, code) {
         ...(removed && absent ? {} : { code })
     });
 }
-function retainedFailureCleanup(code, temporaryHandoff) {
+function retainedFailureCleanup(code, handoffState) {
+    const manifestState = handoffState?.manifestState ?? "absent";
     return deepFreeze({
         schemaVersion: "1.0",
         mode: "export-failure",
@@ -749,10 +772,11 @@ function retainedFailureCleanup(code, temporaryHandoff) {
         candidateRemoved: false,
         candidateAbsent: false,
         manifestRemoved: false,
-        manifestAbsent: false,
+        manifestAbsent: manifestState === "absent",
         candidateState: "present",
-        manifestState: "absent",
-        ...(temporaryHandoff ?? {}),
+        manifestState,
+        ...(handoffState?.temporaryHandoffRemoved === undefined ? {} : { temporaryHandoffRemoved: handoffState.temporaryHandoffRemoved }),
+        ...(handoffState?.temporaryHandoffAbsent === undefined ? {} : { temporaryHandoffAbsent: handoffState.temporaryHandoffAbsent }),
         promotionState: "promoted",
         status: "failed",
         code
@@ -848,6 +872,18 @@ async function pathExists(path) {
     catch {
         return false;
     }
+}
+async function observedUnownedPathState(path) {
+    try {
+        await lstat(path);
+        return "present";
+    }
+    catch (error) {
+        return isFilesystemCode(error, "ENOENT") ? "absent" : "unknown";
+    }
+}
+function isFilesystemCode(error, code) {
+    return typeof error === "object" && error !== null && "code" in error && error.code === code;
 }
 async function hasGitAncestor(path) {
     let current = resolve(path);

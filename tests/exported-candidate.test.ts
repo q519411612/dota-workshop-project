@@ -259,6 +259,45 @@ describe("exported release candidate lifecycle", () => {
     expect(stagingAttempted).toBe(false);
   });
 
+  test("preserves explicit local discovery failures for export and cleanup", async () => {
+    const fixture = await createFixture("local_discovery_failure");
+    for (const failure of [
+      { code: "UNSUPPORTED_OS", message: "Local Dota 2 Workshop Tools discovery requires Windows." },
+      { code: "DOTA_INSTALL_NOT_FOUND", message: "Dota 2 install root was not provided or discovered." }
+    ]) {
+      const discoverLocalEnvironment = async () => ({
+        ok: false as const,
+        target: { kind: "local" as const },
+        operation: "discover_environment",
+        error: failure,
+        evidence: [],
+        warnings: [],
+        paths: {},
+        commands: [],
+        logs: []
+      });
+      const destination = join(fixture.exportRoot, `candidate-${failure.code.toLowerCase()}`);
+      const exported = await exportNodeReleaseCandidate({
+        target: { kind: "local" },
+        addonName: fixture.addonName,
+        exportRoot: fixture.exportRoot,
+        destination
+      }, { repositoryRoot: fixture.repositoryRoot, platform: "darwin", discoverLocalEnvironment });
+      expect(exported).toMatchObject({ ok: false, error: { code: failure.code, message: failure.message } });
+
+      const cleaned = await cleanupNodeExportedCandidate({
+        target: { kind: "local" },
+        exportRoot: fixture.exportRoot,
+        destination,
+        ownershipId: "00000000-0000-4000-8000-000000000000",
+        manifestVersion: "1.0",
+        combinedSha256: "0".repeat(64),
+        dryRun: true
+      }, { repositoryRoot: fixture.repositoryRoot, platform: "darwin", discoverLocalEnvironment });
+      expect(cleaned).toMatchObject({ ok: false, error: { code: failure.code, message: failure.message } });
+    }
+  });
+
   test("fails before staging when the declared POSIX atomic primitive prerequisite is unavailable", async () => {
     const fixture = await createFixture("atomic_prerequisite");
     const destination = join(fixture.exportRoot, "candidate");
@@ -399,9 +438,73 @@ describe("exported release candidate lifecycle", () => {
     expect(handoffFailure).toMatchObject({
       ok: false,
       error: { code: "HANDOFF_MANIFEST_PUBLICATION_FAILED" },
-      cleanup: { attempted: false, temporaryHandoffRemoved: false, temporaryHandoffAbsent: true }
+      cleanup: {
+        attempted: false,
+        manifestAbsent: true,
+        manifestState: "absent",
+        temporaryHandoffRemoved: false,
+        temporaryHandoffAbsent: true
+      }
     });
     expect(await readdir(handoffDestination)).toEqual(["content", "game"]);
+
+    const temporaryCleanupDestination = join(fixture.exportRoot, "candidate-temporary-cleanup-failure");
+    const temporaryCleanupFailure = await exportNodeReleaseCandidate({
+      target: { kind: "fixture", root: fixture.dotaRoot },
+      addonName: fixture.addonName,
+      exportRoot: fixture.exportRoot,
+      destination: temporaryCleanupDestination
+    }, {
+      repositoryRoot: fixture.repositoryRoot,
+      tempParent: fixture.tempParent,
+      platform: "darwin",
+      write: async (path, contents, options) => {
+        await writeFile(path, contents, options);
+        throw new Error("handoff write interrupted");
+      },
+      remove: async () => { throw new Error("temporary handoff removal failed"); }
+    });
+    expect(temporaryCleanupFailure).toMatchObject({
+      ok: false,
+      cleanup: {
+        manifestAbsent: true,
+        manifestState: "absent",
+        temporaryHandoffRemoved: false,
+        temporaryHandoffAbsent: false
+      }
+    });
+
+    const conflictDestination = join(fixture.exportRoot, "candidate-handoff-conflict");
+    let moveCalls = 0;
+    const handoffConflict = await exportNodeReleaseCandidate({
+      target: { kind: "fixture", root: fixture.dotaRoot },
+      addonName: fixture.addonName,
+      exportRoot: fixture.exportRoot,
+      destination: conflictDestination
+    }, {
+      repositoryRoot: fixture.repositoryRoot,
+      tempParent: fixture.tempParent,
+      platform: "darwin",
+      atomicMove: async (source, destination) => {
+        moveCalls += 1;
+        if (moveCalls === 1) {
+          await rename(source, destination);
+          return;
+        }
+        await writeFile(destination, "foreign handoff");
+        throw new Error("HANDOFF_TARGET_EXISTS");
+      }
+    });
+    expect(handoffConflict).toMatchObject({
+      ok: false,
+      error: { code: "HANDOFF_TARGET_EXISTS" },
+      cleanup: {
+        manifestAbsent: false,
+        manifestState: "present",
+        temporaryHandoffRemoved: true,
+        temporaryHandoffAbsent: true
+      }
+    });
   });
 
   test("rejects a post-promotion topology injection", async () => {

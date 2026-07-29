@@ -2,15 +2,15 @@
 phase: 08-release-gates-documentation-and-closure
 fixed_at: 2026-07-29T10:40:00Z
 review_path: .planning/phases/08-release-gates-documentation-and-closure/08-REVIEW.md
-findings_confirmed: 13
-fixed: 13
+findings_confirmed: 16
+fixed: 16
 skipped: 0
-status: all_fixed
+status: re_review_pending
 ---
 
 # Code Review Fix Report
 
-All confirmed findings from the independent deep-review chain were reproduced or traced through the hostile-input and filesystem state machines, fixed, rebuilt into tracked runtime output, and independently re-reviewed to clean status.
+All confirmed findings from the independent deep-review chain were reproduced or traced through the hostile-input and filesystem state machines, fixed, and rebuilt into tracked runtime output. The latest fixes are awaiting independent re-review.
 
 ## Remediation Areas
 
@@ -23,12 +23,15 @@ All confirmed findings from the independent deep-review chain were reproduced or
 - POSIX atomic no-replace compiler capability is documented, selected once, probed before staging, and reused for actual export and cleanup moves.
 - Unwritable and unsafe roots return structured ToolResult failures instead of escaping exceptions.
 - Complete parent-closed topology and packaged source/dist runtime closure are verified.
+- The milestone gate now requires the exact ordered v1.2-v1.15 inventory with no gaps, duplicates, or reordered entries.
+- Handoff publication failures now distinguish final external handoff absence, presence, and unknown state from temporary-file cleanup evidence.
+- Local environment discovery preserves explicit supported failure codes and fails closed on invalid or thrown discovery results.
 
 ## Verification
 
-- Independent deep re-review: clean.
+- Independent deep re-review: pending after the latest fixes.
 - Typecheck: passed.
-- Full test suite: 385 passed, 1 Windows-only skipped.
+- Full test suite: 388 passed, 1 Windows-only skipped.
 - Build and tracked packaged runtime parity: passed.
 - Plugin, source snapshot, install simulation, RC, handoff, and milestone gates: passed.
 - Preflight source and behavior regression checks: passed.

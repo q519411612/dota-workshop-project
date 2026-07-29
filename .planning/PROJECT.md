@@ -116,7 +116,7 @@ Milestones v1.1, v1.13, and v1.14 are archived under `.planning/milestones/`. Cu
 ## Current State
 
 - **Shipped version:** v1.15 Verifiable Release Candidate Export and Handoff on 2026-07-29.
-- **Verification:** 385/385 runnable tests passed, one Windows-only test skipped, clean independent deep review, and 24/24 requirements verified.
+- **Verification:** 388/388 runnable tests passed, one Windows-only test skipped, final independent deep re-review pending, and 24/24 requirements verified.
 - **Release-candidate readiness:** temporary preflight remains unchanged; independent export retains a fully validated target-local candidate and strict cleanup proves exact removal.
 - **Planning state:** v1.15 is ready for audit and archive; v1.14 archives remain immutable.
 - **Known follow-ups:** real Windows export, path normalization, general reparse, atomic promotion, and cleanup runtime evidence remain explicitly unverified.
