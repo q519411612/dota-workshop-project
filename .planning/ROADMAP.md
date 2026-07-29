@@ -1,7 +1,7 @@
 # Roadmap: Dota Workshop Project
 
 **Created:** 2026-07-03
-**Updated:** 2026-07-16
+**Updated:** 2026-07-29
 **Mode:** Vertical MVP
 **Core Value:** AI can reliably create and validate a minimal playable Dota 2 Workshop addon through one documented skill and one MCP tool interface.
 
@@ -21,6 +21,45 @@
 - [x] **v1.12 Minimal Runtime Ability Proof** — explicit Lua ability marker proof harness.
 - [x] **v1.13 Local Install Simulation** — isolated install consumption and audit closure. [Archive](milestones/v1.13-ROADMAP.md)
 - [x] **v1.14 Workshop Addon Release Candidate Preflight** — Phases 3-5 shipped on 2026-07-16 with 19/19 requirements, 17/17 integration links, 9/9 flows, and verified cleanup. [Archive](milestones/v1.14-ROADMAP.md)
+- [ ] **v1.15 Verifiable Release Candidate Export and Handoff** — Phases 6-8 retain validated target-local candidates with strict handoff and cleanup evidence.
+
+## Active Milestone: v1.15 Verifiable Release Candidate Export and Handoff
+
+### Phase 6: Safe Retained Candidate Export
+
+**Goal:** Produce a strictly validated target-local candidate through an isolated same-filesystem staging lifecycle and atomic promotion without changing temporary preflight behavior.
+
+**Requirements:** EXPT-01, EXPT-02, EXPT-03, EXPT-04, INTG-01, INTG-02, INTG-03, INTG-04, INTG-05, HAND-01, HAND-02
+
+**Success criteria:**
+1. A fixture export retains a complete validated candidate at an explicit absent destination and creates its external versioned handoff manifest.
+2. Existing, escaped, protected, linked, reparse, case-colliding, or unknown paths fail before promotion without overwriting state.
+3. Source mutation, candidate mutation, digest mismatch, or promotion failure produces explicit evidence and cleans only current-operation staging state.
+4. The shipped `preflight_release_candidate` schema, temporary lifecycle, verified cleanup semantics, and public result remain unchanged.
+
+### Phase 7: Unified Export Cleanup and Remote Parity
+
+**Goal:** Expose normalized export and cleanup operations across fixture, local Windows, SSH, and PowerShell Remoting with exact ownership-bound deletion authorization.
+
+**Requirements:** HAND-03, HAND-04, CLEN-01, CLEN-02, CLEN-03, CLEN-04, CLEN-05, CLEN-06
+
+**Success criteria:**
+1. Both new MCP operations expose one strict schema and result envelope across all target kinds.
+2. Dry-run cleanup performs complete authorization without mutation; execute removes only an exact candidate and handoff match and proves both absent.
+3. Malformed, hostile, stale, replaced, or mismatched remote evidence is rejected by shared normalization and never triggers local fallback.
+4. SSH and PowerShell retain and remove candidates only on the target Windows host with no candidate transfer to the MCP host.
+
+### Phase 8: Release Gates, Documentation, and Milestone Closure
+
+**Goal:** Prove adversarial behavior, existing-tool regression safety, packaging readiness, explicit real-Windows evidence status, and release boundary compliance.
+
+**Requirements:** VERI-01, VERI-02, VERI-03, VERI-04, BNDR-01
+
+**Success criteria:**
+1. macOS fixture and adapter-contract tests cover all required success and failure classes with four-target semantic parity.
+2. Typecheck, full tests, build, plugin verification, release gates, examples, documentation, and packaged runtime verification pass.
+3. Independent review findings are resolved and milestone verification maps all 24 requirements to implementation evidence.
+4. Real Windows evidence is either recorded in sanitized form or explicitly marked unverified without mock substitution.
 
 ## Completed Phase History
 
@@ -45,6 +84,6 @@ Execution history: `.planning/milestones/v1.13-phases/`
 
 </details>
 
-## Next Milestone
+## Next Action
 
-Not defined. Start from fresh requirements with `$gsd-new-milestone`.
+Specify and plan Phase 6 before implementation.
