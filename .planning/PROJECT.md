@@ -22,6 +22,16 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 - Return candidate, validation, cleanup, path, warning, command, and log evidence without silently falling back.
 - Verify deterministic behavior on macOS fixtures without requiring a real Windows host for milestone completion.
 
+## Current Milestone: v1.15 Verifiable Release Candidate Export and Handoff
+
+**Goal:** Safely retain a strictly validated Dota Workshop addon candidate at an explicitly authorized target-local destination with auditable integrity, ownership, handoff, promotion, and cleanup evidence while preserving the temporary cleanup semantics of `preflight_release_candidate` unchanged.
+
+**Target features:**
+- Add independent `export_release_candidate` and `cleanup_exported_candidate` MCP operations across fixture, local Windows, SSH Windows, and PowerShell Remoting.
+- Require an explicit target-local export root and destination, reject existing or dangerous paths, assemble in an owned same-filesystem staging directory, and promote only after full validation.
+- Emit a versioned handoff manifest outside the candidate directory with deterministic digest, source/target boundaries, ownership evidence, and strict cleanup authorization fields.
+- Preserve v1.14 complete file coverage, source immutability, sensitive-content validation, three-way SHA-256 equality, deterministic manifests, and combined digest semantics.
+
 ## Requirements
 
 ### Validated
@@ -77,13 +87,16 @@ AI can reliably create and validate a minimal playable Dota 2 Workshop addon thr
 
 ### Active
 
+- [ ] Export a strictly validated release candidate to an explicitly authorized target-local destination without changing `preflight_release_candidate`.
+- [ ] Produce versioned external handoff and ownership evidence for the retained candidate.
+- [ ] Delete an exported candidate only after exact path, ownership, manifest-version, and combined-digest revalidation, with distinct dry-run and execute evidence.
 - [ ] Collect real same-machine Windows runtime marker evidence if a Windows machine is available.
 - [ ] Collect real Windows ability proof marker evidence if a Windows runtime is available and the proof unit is spawned.
 
 ### Out of Scope
 
 - Steam login, Workshop item creation or mutation, and real upload - v1.14 validates release-candidate artifacts only.
-- Persistent archives, package signing, or content encryption - keep the release candidate temporary and inspectable.
+- Archive or compression output, package signing, or content encryption - v1.15 retains an inspectable directory only.
 - Codex plugin distribution artifacts - v1.14 targets Dota Workshop addon trees only.
 - Full gameplay generation beyond the minimal playable loop - keep v2 focused on proving the gameplay validation loop.
 - Fragile UI-only automation as the primary path - prefer command, file, and process control before desktop automation.
@@ -105,15 +118,15 @@ Milestones v1.1, v1.13, and v1.14 are archived under `.planning/milestones/`. Cu
 - **Shipped version:** v1.14 Workshop Addon Release Candidate Preflight on 2026-07-16.
 - **Verification:** 318/318 tests, clean independent review, 19/19 requirements, 17/17 integration links, and 9/9 end-to-end flows.
 - **Release-candidate readiness:** one strict MCP operation assembles, validates, hashes, reconciles, and removes temporary candidates across fixture/local/remote contracts while returning evidence only.
-- **Planning state:** v1.14 requirements, audit, roadmap detail, and execution history are archived; the project is awaiting a fresh next-milestone requirement slice.
+- **Planning state:** v1.15 is active with a fresh requirement slice; v1.14 requirements, audit, roadmap detail, and execution history remain archived and immutable.
 - **Known follow-ups:** real same-machine Windows runtime evidence, real ability marker evidence, and optional real Windows candidate parity evidence remain outside the v1.14 completion gate.
 
 ## Next Milestone Goals
 
-- Define the next focused requirement slice before implementation.
-- Preserve explicit evidence, source immutability, verified cleanup, no credential storage, and no silent fallback.
-- Keep Steam login, Workshop mutation/upload, and retained candidate behavior outside scope until separately approved.
-- Consider optional sanitized real Windows candidate parity evidence without making it a prerequisite for already shipped v1.14 behavior.
+- Export a validated addon candidate to an explicit target-local destination without altering the temporary v1.14 preflight lifecycle.
+- Prove path isolation, complete content integrity, source immutability, atomic promotion, handoff ownership, and failure cleanup.
+- Add strict dry-run and execute cleanup that refuses deletion unless all manifest and ownership facts match.
+- Preserve target parity, explicit failures, no credential storage, no cross-host candidate transfer, and no silent fallback.
 
 ## Constraints
 
@@ -163,6 +176,9 @@ Milestones v1.1, v1.13, and v1.14 are archived under `.planning/milestones/`. Cu
 | Register cleanup identity synchronously at the creation boundary | Post-create exceptions or malformed results must never lose cleanup ownership | Implemented |
 | Return only normalized inert inspection evidence | A deleted candidate path or live capability must not escape successful cleanup | Implemented |
 | Reject sensitive source identities before manifest projection | Caller-visible manifest evidence must never expose credential-shaped filename segments | Implemented |
+| Keep retained export independent from temporary preflight | The shipped preflight contract guarantees exactly-once cleanup and must not gain a retention mode | Accepted for v1.15 |
+| Require an explicit export root separate from destination | Destination safety must be validated against an auditable caller-declared isolation boundary instead of inferred from arbitrary paths | Accepted for v1.15 |
+| Treat handoff ownership as deletion evidence, not a credential | A versioned ownership identifier prevents accidental or stale cleanup but does not authorize remote access or store private connection material | Accepted for v1.15 |
 
 ## Evolution
 
@@ -182,4 +198,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-16 after v1.14 milestone*
+*Last updated: 2026-07-29 after v1.15 milestone initialization*

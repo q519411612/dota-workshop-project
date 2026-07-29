@@ -1,19 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.14
-milestone_name: Workshop Addon Release Candidate Preflight
-current_phase: null
-status: Awaiting next milestone
-last_updated: "2026-07-15T22:20:09.318Z"
-last_activity: 2026-07-15
-last_activity_desc: Milestone v1.14 completed and archived
+milestone: v1.15
+milestone_name: Verifiable Release Candidate Export and Handoff
+status: planning
+last_updated: "2026-07-29T03:52:12.791Z"
+last_activity: 2026-07-29
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 19
-  completed_plans: 19
-  percent: 100
-current_phase_name: null
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Dota Workshop Project
@@ -36,10 +33,10 @@ See: `.planning/PROJECT.md` (updated 2026-07-16)
 
 ## Current Position
 
-Phase: Milestone v1.14 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-15 — Milestone v1.14 completed and archived
+Status: Defining requirements
+Last activity: 2026-07-29 — Milestone v1.15 started
 
 ## Performance Metrics
 
