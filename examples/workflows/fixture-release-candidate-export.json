@@ -1,0 +1,16 @@
+{
+  "operation": "export_release_candidate",
+  "input": {
+    "target": {
+      "kind": "fixture",
+      "root": "/fixture/dota"
+    },
+    "addonName": "example_addon",
+    "exportRoot": "/safe/dota-exports",
+    "destination": "/safe/dota-exports/example_addon_candidate"
+  },
+  "notes": [
+    "The export root must already exist outside the Dota tree and project repository.",
+    "The destination and derived sibling handoff manifest must not exist."
+  ]
+}

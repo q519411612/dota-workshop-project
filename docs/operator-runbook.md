@@ -38,6 +38,8 @@ Use fixture targets for local dry checks that do not need Dota 2 or Windows:
 3. Use `examples/workflows/fixture-preflight.json` with `inspect_workshop_preflight`.
 4. Use `examples/workflows/fixture-release-dry-run.json` with `dry_run_release_report`.
 5. Use `examples/workflows/fixture-release-candidate-preflight.json` with `preflight_release_candidate`.
+6. Use `examples/workflows/fixture-release-candidate-export.json` only with a new isolated export root and absent destination.
+7. Use `examples/workflows/fixture-exported-candidate-cleanup.json` in dry-run mode before any execute cleanup.
 
 Fixture workflows are useful for checking generated file layout, metadata blockers, publishing boundaries, and sensitive information scanning. They do not prove runtime behavior.
 
@@ -89,6 +91,16 @@ The manifest plus verified cleanup proof is the deliverable; no candidate remain
 Fixture, local-adapter, mocked SSH, and mocked PowerShell results are contract evidence. This evidence does not prove real Windows reparse, canonicalization, transport, or cleanup behavior. Real Windows evidence is optional supporting evidence, not the v1.14 completion gate.
 
 Remote authorization is external runtime configuration. `preflight_release_candidate` never accepts, loads, stores, prompts for, or synthesizes credentials. It does not log into Steam, create or modify Workshop items, upload, create persistent archives, sign, encrypt, launch Dota, validate runtime behavior, compile or convert addon source, repair metadata, retain candidates, or transfer addon files.
+
+## Retained Candidate Handoff
+
+`export_release_candidate` is separate from temporary preflight. It requires `target`, `addonName`, `exportRoot`, and `destination`. The export root must already exist on the target, and the destination must be an absent direct child. Existing targets, protected roots, repository paths, Dota paths, path escape, symbolic links, junctions, reparse points, case-fold collisions, and unknown entry types are blockers.
+
+Success retains the candidate and creates a versioned sibling handoff manifest. Record the returned destination, ownership identifier, manifest version, and combined SHA-256 together. They are audit evidence for later cleanup, not remote credentials.
+
+Run `cleanup_exported_candidate` with `dryRun: true`. Proceed to execute mode only when the result says authorization passed. Execute mode deletes only the exactly matched candidate and handoff manifest. If either removal or absence check fails, stop and inspect the reported partial state; do not retry with a wider path or altered evidence.
+
+Remote candidates stay on the target Windows machine. The operations do not download, archive, compress, sign, encrypt, upload, or claim official Valve upload compatibility. Mocked target results are contract evidence and do not prove real Windows reparse, canonicalization, promotion, or cleanup behavior.
 
 ## Troubleshooting
 

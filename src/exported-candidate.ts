@@ -90,6 +90,7 @@ export type ExportedCandidateResultFields = Readonly<{
 }>;
 
 type ExportDependencies = NodeReleaseCandidatePreflightDependencies & Readonly<{
+  preflight?: typeof preflightNodeReleaseCandidate;
   rename?: typeof rename;
   remove?: typeof rm;
   write?: typeof writeFile;
@@ -124,13 +125,14 @@ export async function exportNodeReleaseCandidate(
   const staging = await mkdtemp(join(paths.exportRoot, ".dota-workshop-export-"));
   let stagingManifest: ReleaseCandidateManifestDetail | undefined;
   let promoted = false;
+  let failureStage: "assembly" | "promotion" = "assembly";
   const remove = dependencies.remove ?? rm;
   const renamePath = dependencies.rename ?? rename;
   const write = dependencies.write ?? writeFile;
   const removeFile = dependencies.unlink ?? unlink;
 
   try {
-    const releaseCandidate = await preflightNodeReleaseCandidate(
+    const releaseCandidate = await (dependencies.preflight ?? preflightNodeReleaseCandidate)(
       { target: input.target, addonName: input.addonName },
       {
         ...dependencies,
@@ -166,6 +168,7 @@ export async function exportNodeReleaseCandidate(
       }, [], cleanup);
     }
 
+    failureStage = "promotion";
     await renamePath(staging, paths.destination);
     promoted = true;
     const finalManifest = await computeManifest(paths.destination);
@@ -239,8 +242,9 @@ export async function exportNodeReleaseCandidate(
         handoffManifest: paths.handoff
       }, [], retainedFailureCleanup("EXPORT_FINALIZATION_FAILED"));
     }
-    const cleanup = await cleanupStaging(staging, remove, "EXPORT_ASSEMBLY_FAILED");
-    return failure(target, operation, "EXPORT_ASSEMBLY_FAILED", "Candidate export failed before promotion.", {
+    const code = failureStage === "promotion" ? "EXPORT_PROMOTION_FAILED" : "EXPORT_ASSEMBLY_FAILED";
+    const cleanup = await cleanupStaging(staging, remove, code);
+    return failure(target, operation, code, failureStage === "promotion" ? "Candidate promotion failed." : "Candidate export failed before promotion.", {
       exportRoot: paths.exportRoot,
       destination: paths.destination,
       handoffManifest: paths.handoff
@@ -375,8 +379,8 @@ async function validateExportPaths(
     const destination = join(canonicalExportRoot, destinationLeaf);
     const protectedRoots = [resolve(await realpath(repositoryRoot))];
     if (input.target.kind === "local") protectedRoots.push(resolve(tmpdir()));
-    if (input.target.kind === "fixture") protectedRoots.push(resolve(input.target.root));
-    if (input.target.kind === "local" && input.target.dotaRoot !== undefined) protectedRoots.push(resolve(input.target.dotaRoot));
+    if (input.target.kind === "fixture") protectedRoots.push(resolve(await realpath(input.target.root)));
+    if (input.target.kind === "local" && input.target.dotaRoot !== undefined) protectedRoots.push(resolve(await realpath(input.target.dotaRoot)));
     if (canonicalExportRoot === parse(canonicalExportRoot).root || protectedRoots.some((protectedRoot) => pathsOverlap(canonicalExportRoot, protectedRoot))) {
       return { ok: false, code: "EXPORT_ROOT_PROTECTED", message: "Export root overlaps a protected location.", paths: rawPaths };
     }
@@ -624,8 +628,8 @@ function failure(
     paths,
     commands: [],
     logs: [],
-    ...(manifest === undefined ? {} : { manifest }),
-    ...(ownership === undefined ? {} : { ownership }),
+    manifest: manifest ?? null,
+    ownership: ownership ?? null,
     cleanup
   };
 }

@@ -1,0 +1,19 @@
+{
+  "operation": "cleanup_exported_candidate",
+  "input": {
+    "target": {
+      "kind": "fixture",
+      "root": "/fixture/dota"
+    },
+    "exportRoot": "/safe/dota-exports",
+    "destination": "/safe/dota-exports/example_addon_candidate",
+    "ownershipId": "00000000-0000-4000-8000-000000000000",
+    "manifestVersion": "1.0",
+    "combinedSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "dryRun": true
+  },
+  "notes": [
+    "Copy ownership and digest values from the successful export result.",
+    "Keep dryRun true until every authorization fact matches."
+  ]
+}

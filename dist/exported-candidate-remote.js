@@ -129,6 +129,8 @@ function evidenceFailure(target, operation, code, cleanup = Object.freeze({
         paths: {},
         commands: [{ command: `${target.transport} ${operation} <redacted-script>` }],
         logs: [{ source: "remote-exported-candidate", lines: ["remote evidence unavailable or invalid"] }],
+        manifest: null,
+        ownership: null,
         cleanup
     };
 }

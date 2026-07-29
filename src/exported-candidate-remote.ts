@@ -141,6 +141,8 @@ function evidenceFailure(
     paths: {},
     commands: [{ command: `${target.transport} ${operation} <redacted-script>` }],
     logs: [{ source: "remote-exported-candidate", lines: ["remote evidence unavailable or invalid"] }],
+    manifest: null,
+    ownership: null,
     cleanup
   };
 }
@@ -161,4 +163,3 @@ function windowsPathEqual(left: string, right: string): boolean {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
-

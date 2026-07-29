@@ -84,6 +84,8 @@ The server exposes these logical operations:
 - `inspect_workshop_preflight`
 - `dry_run_release_report`
 - `preflight_release_candidate`
+- `export_release_candidate`
+- `cleanup_exported_candidate`
 - `launch_tools`
 - `launch_custom_game`
 - `run_playable_smoke`
@@ -288,6 +290,18 @@ The operation creates one isolated temporary candidate, inventories every regula
 Passing fixture, local-adapter, mocked SSH, and mocked PowerShell tests are contract evidence. They do not prove real Windows reparse, canonicalization, transport, or cleanup behavior. Results explicitly keep `realWindowsRuntimeProven` false.
 
 Remote authorization is external runtime configuration. The operation never accepts, loads, stores, prompts for, or synthesizes credentials. It does not log into Steam, create or modify a Workshop item, upload, archive, sign, encrypt, launch the game, validate runtime behavior, compile or convert source, repair metadata, retain a candidate, or transfer addon files.
+
+## Retained Candidate Export and Handoff
+
+Use `export_release_candidate` only after choosing an existing target-local `exportRoot` outside the Dota tree, source addon trees, project repository, system roots, and other protected locations. Supply an absent direct-child `destination`. The operation has no overwrite option and never changes the temporary cleanup behavior of `preflight_release_candidate`.
+
+The operation runs the strict release-candidate validation, reproduces the validated candidate in same-filesystem staging under the export root, verifies the deterministic manifest and combined SHA-256, and performs one rename or directory move to the destination. It then writes `<destination>.dota-workshop-handoff.v1.json` outside the candidate. The handoff contains candidate identity, file count, source and target boundaries, manifest, combined digest, and non-secret ownership evidence.
+
+For SSH and PowerShell Remoting, the candidate and handoff remain on the target Windows host. No candidate files are downloaded or transferred to the MCP host. Remote failure is final and never falls back to fixture or local execution.
+
+Use `cleanup_exported_candidate` with `dryRun: true` first. Cleanup is authorized only when the canonical export root and destination, candidate identity, external handoff, ownership identifier, manifest version, and recomputed combined SHA-256 all match. Execute mode removes only that candidate and that sibling handoff manifest, then proves both absent. Any mismatch, reparse point, unknown state, or partial removal is an explicit failure without repair or broad retry.
+
+Fixture, local-adapter, mocked SSH, and mocked PowerShell results are contract evidence. They do not prove real Windows path normalization, reparse, atomic promotion, or cleanup behavior. The retained directory is not an official Valve upload payload, archive, signed package, encrypted package, or Workshop upload.
 
 ## Custom Map Preparation
 
