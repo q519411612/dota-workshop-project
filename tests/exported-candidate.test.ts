@@ -177,12 +177,20 @@ describe("exported release candidate lifecycle", () => {
 
     const executed = await cleanupNodeExportedCandidate({ ...base, dryRun: false }, { repositoryRoot: fixture.repositoryRoot });
     expect(executed).toMatchObject({
-      ok: false,
-      error: { code: "IDENTITY_BOUND_DELETION_UNAVAILABLE" },
-      cleanup: { mode: "execute", candidateState: "tombstoned", manifestState: "present", status: "failed" },
-      paths: { candidateTombstone: expect.any(String) }
+      ok: true,
+      cleanup: {
+        mode: "execute",
+        candidateRemoved: true,
+        candidateAbsent: true,
+        manifestRemoved: true,
+        manifestAbsent: true,
+        candidateState: "absent",
+        manifestState: "absent",
+        status: "verified"
+      }
     });
-    expect(await readFile(`${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`, "utf8")).toContain(exported.ownership.ownershipId);
+    await expect(readdir(destination)).rejects.toThrow();
+    await expect(readFile(`${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`, "utf8")).rejects.toThrow();
   });
 
   test("rejects protected and symbolic-link export roots", async () => {
@@ -367,11 +375,55 @@ describe("exported release candidate lifecycle", () => {
     });
     expect(result).toMatchObject({
       ok: false,
-      error: { code: "IDENTITY_BOUND_DELETION_UNAVAILABLE" },
-      cleanup: { candidateState: "tombstoned", candidateRemoved: false, candidateAbsent: false, manifestRemoved: false, manifestAbsent: false, status: "failed" },
-      paths: { candidateTombstone: expect.any(String) }
+      error: { code: "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE" },
+      cleanup: { candidateState: "present", candidateRemoved: false, candidateAbsent: false, manifestRemoved: false, manifestAbsent: false, status: "failed" }
     });
+    expect(await readdir(destination)).toEqual(["content", "game"]);
     expect(JSON.parse(await readFile(`${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`, "utf8"))).toMatchObject({ ownership: { ownershipId: exported.ownership.ownershipId } });
+  });
+
+  test("preserves the handoff when candidate removal succeeds but handoff removal fails", async () => {
+    const fixture = await createFixture("handoff_removal_failure");
+    const destination = join(fixture.exportRoot, "candidate");
+    const exported = await exportNodeReleaseCandidate({
+      target: { kind: "fixture", root: fixture.dotaRoot },
+      addonName: fixture.addonName,
+      exportRoot: fixture.exportRoot,
+      destination
+    }, { repositoryRoot: fixture.repositoryRoot, tempParent: fixture.tempParent, platform: "darwin" });
+    if (!exported.ok || exported.manifest == null || exported.ownership == null) throw new Error("export failed");
+    let removalCount = 0;
+    const result = await cleanupNodeExportedCandidate({
+      target: { kind: "fixture", root: fixture.dotaRoot },
+      exportRoot: fixture.exportRoot,
+      destination,
+      ownershipId: exported.ownership.ownershipId,
+      manifestVersion: "1.0",
+      combinedSha256: exported.manifest.combinedSha256,
+      dryRun: false
+    }, {
+      repositoryRoot: fixture.repositoryRoot,
+      remove: async (path, options) => {
+        removalCount += 1;
+        if (removalCount === 2) throw new Error("handoff removal failure");
+        await rm(path, options);
+      }
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE" },
+      cleanup: {
+        candidateRemoved: true,
+        candidateAbsent: true,
+        candidateState: "absent",
+        manifestRemoved: false,
+        manifestAbsent: false,
+        manifestState: "present",
+        status: "failed"
+      }
+    });
+    await expect(readdir(destination)).rejects.toThrow();
+    expect(await readFile(`${destination}${EXPORTED_CANDIDATE_HANDOFF_SUFFIX}`, "utf8")).toContain(exported.ownership.ownershipId);
   });
 
   test("rejects unexpected empty directories during cleanup authorization", async () => {

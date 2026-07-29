@@ -263,8 +263,7 @@ function cleanupFailureStateValid(cleanup, paths, envelopeCode) {
 }
 function failureTransitionCodeValid(cleanup, code) {
     if (cleanup.candidateState === "tombstoned") {
-        return code === "IDENTITY_BOUND_DELETION_UNAVAILABLE"
-            || code === "CANDIDATE_IDENTITY_MISMATCH"
+        return code === "CANDIDATE_IDENTITY_MISMATCH"
             || code === "CANDIDATE_DIGEST_MISMATCH"
             || code === "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE";
     }

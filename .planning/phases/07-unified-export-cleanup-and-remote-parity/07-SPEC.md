@@ -13,6 +13,7 @@ Goal 0.98, boundary 0.96, constraint 0.95, acceptance 0.96. **Weighted ambiguity
 - Cleanup revalidates the external handoff and complete retained candidate before mutation.
 - Dry-run and execute return distinguishable evidence; dry-run performs zero writes.
 - Execute deletes only the exact candidate and exact handoff manifest and proves both absent.
+- Cleanup uses the v1.14 practical filesystem threat boundary: it rejects hostile pre-existing state and revalidates identity, topology, and content immediately before deletion, then proves absence. Active replacement by another process running with the same account inside the final deletion system-call window is outside the guarantee.
 - Remote execution is one target-native lifecycle per operation. No candidate byte crosses to the MCP host.
 - Remote JSON is hostile unknown input; the host normalizer recomputes invariants and success.
 - Transport uncertainty, malformed output, identity drift, or any mismatch fails without retry or fallback.
@@ -23,4 +24,3 @@ Goal 0.98, boundary 0.96, constraint 0.95, acceptance 0.96. **Weighted ambiguity
 2. Dry-run authorization success leaves candidate and handoff unchanged.
 3. Execute succeeds only with all exact assertions and reports separate absence evidence.
 4. Every stale, replaced, mismatched, hostile, or interrupted scenario refuses broad deletion.
-

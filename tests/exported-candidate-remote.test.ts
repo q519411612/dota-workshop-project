@@ -154,10 +154,11 @@ describe("remote exported candidate", () => {
     expect(cleanupScript).toContain("CreateFileW");
     expect(cleanupScript).toContain("FILE_FLAG_OPEN_REPARSE_POINT");
     expect(cleanupScript).toContain("Invoke-ExportedCandidateCleanup");
-    expect(cleanupScript).toContain("IDENTITY_BOUND_DELETION_UNAVAILABLE");
+    expect(cleanupScript.match(/function Invoke-ExportedCandidateCleanup/gu)).toHaveLength(1);
     expect(cleanupScript).toContain("candidateTombstone");
-    expect(cleanupScript).not.toContain("Remove-Item -LiteralPath $candidateTombstone");
-    expect(cleanupScript).not.toContain("Remove-Item -LiteralPath $handoffTombstone");
+    expect(cleanupScript).toContain("Remove-Item -LiteralPath $candidateTombstone");
+    expect(cleanupScript).toContain("Remove-Item -LiteralPath $handoffTombstone");
+    expect(cleanupScript).not.toContain("IDENTITY_BOUND_DELETION_UNAVAILABLE");
     expect(cleanupScript).not.toMatch(/Get-Credential|-Credential|scp/u);
   });
 
@@ -396,7 +397,7 @@ describe("remote exported candidate", () => {
     },
     {
       name: "retained tombstone",
-      code: "IDENTITY_BOUND_DELETION_UNAVAILABLE",
+      code: "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE",
       cleanup: { candidateState: "tombstoned", manifestState: "present", candidateRemoved: false, candidateAbsent: false, manifestRemoved: false, manifestAbsent: false },
       extraPaths: { candidateTombstone: "C:\\Exports\\.dota-workshop-candidate-delete-0123456789abcdef0123456789abcdef" }
     }

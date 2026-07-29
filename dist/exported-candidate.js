@@ -202,9 +202,12 @@ export async function cleanupNodeExportedCandidate(input, dependencies = {}) {
         return cleanupSuccess(target, input, paths, authorization.manifest, cleanup, "cleanup authorization passed without mutation");
     }
     const moveNoReplace = dependencies.atomicMove ?? dependencies.rename ?? (async (source, destination) => await atomicMoveNoReplace(source, destination, dependencies.platform ?? process.platform));
+    const removePath = dependencies.remove ?? rm;
     const candidateTombstone = join(paths.exportRoot, `.dota-workshop-candidate-delete-${randomUUID()}`);
-    let candidateState = "unknown";
-    let code = "IDENTITY_BOUND_DELETION_UNAVAILABLE";
+    const handoffTombstone = join(paths.exportRoot, `.dota-workshop-handoff-delete-${randomUUID()}.json`);
+    let candidateRemoved = false;
+    let manifestRemoved = false;
+    let code = "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE";
     try {
         await dependencies.afterHandoffAuthorization?.(paths.handoff);
         const mutationAuthorization = await authorizeCleanup(input, paths, classifier.classify);
@@ -215,7 +218,6 @@ export async function cleanupNodeExportedCandidate(input, dependencies = {}) {
         }
         await mutationAuthorization.handoffHandle.close().catch(() => undefined);
         await moveNoReplace(paths.destination, candidateTombstone);
-        candidateState = "tombstoned";
         await dependencies.afterCandidateTombstoneMove?.(candidateTombstone);
         const movedIdentity = await captureDirectoryIdentity(candidateTombstone, classifier.classify);
         if (!sameNodeIdentity(movedIdentity, authorization.candidateIdentity))
@@ -223,34 +225,82 @@ export async function cleanupNodeExportedCandidate(input, dependencies = {}) {
         const movedSnapshot = await computeCandidateSnapshot(candidateTombstone, classifier.classify);
         if (!snapshotMatchesHandoff(movedSnapshot, authorization.manifest))
             throw new Error("CANDIDATE_DIGEST_MISMATCH");
+        await removePath(candidateTombstone, { recursive: true, force: false });
+        candidateRemoved = !await pathExists(candidateTombstone) && !await pathExists(paths.destination);
+        if (!candidateRemoved)
+            throw new Error("CANDIDATE_ABSENCE_UNVERIFIED");
     }
     catch (error) {
         code = stableErrorCode(error, "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE");
-        candidateState = await observedCandidateState(paths.destination, candidateTombstone, authorization.candidateIdentity, classifier.classify);
+        try {
+            if (await pathExists(candidateTombstone) && !await pathExists(paths.destination)) {
+                const tombstoneIdentity = await captureDirectoryIdentity(candidateTombstone, classifier.classify);
+                if (sameNodeIdentity(tombstoneIdentity, authorization.candidateIdentity)) {
+                    await moveNoReplace(candidateTombstone, paths.destination);
+                }
+            }
+        }
+        catch { }
     }
+    const candidateAbsent = candidateRemoved && !await pathExists(paths.destination) && !await pathExists(candidateTombstone);
     await authorization.handoffHandle.close().catch(() => undefined);
-    const candidateTombstonePresent = await pathExists(candidateTombstone);
-    const manifestState = await observedHandoffState(paths.handoff, authorization.handoffIdentity, classifier.classify);
+    if (candidateAbsent) {
+        try {
+            const handoffStats = await lstat(paths.handoff);
+            if (await classifier.classify(paths.handoff) !== "file" || !handoffStats.isFile() || handoffStats.isSymbolicLink() || !sameNodeIdentity(handoffStats, authorization.handoffIdentity)) {
+                throw new Error("HANDOFF_IDENTITY_MISMATCH");
+            }
+            await moveNoReplace(paths.handoff, handoffTombstone);
+            const movedHandoffStats = await lstat(handoffTombstone);
+            if (await classifier.classify(handoffTombstone) !== "file" || !movedHandoffStats.isFile() || movedHandoffStats.isSymbolicLink() || !sameNodeIdentity(movedHandoffStats, authorization.handoffIdentity)) {
+                throw new Error("HANDOFF_IDENTITY_MISMATCH");
+            }
+            await removePath(handoffTombstone, { force: false });
+            manifestRemoved = !await pathExists(handoffTombstone) && !await pathExists(paths.handoff);
+            if (!manifestRemoved)
+                throw new Error("HANDOFF_ABSENCE_UNVERIFIED");
+        }
+        catch (error) {
+            code = stableErrorCode(error, "EXPORTED_CANDIDATE_CLEANUP_INCOMPLETE");
+            try {
+                if (await pathExists(handoffTombstone) && !await pathExists(paths.handoff)) {
+                    const tombstoneStats = await lstat(handoffTombstone);
+                    if (await classifier.classify(handoffTombstone) === "file" && tombstoneStats.isFile() && !tombstoneStats.isSymbolicLink() && sameNodeIdentity(tombstoneStats, authorization.handoffIdentity)) {
+                        await moveNoReplace(handoffTombstone, paths.handoff);
+                    }
+                }
+            }
+            catch { }
+        }
+    }
+    const manifestAbsent = manifestRemoved && !await pathExists(paths.handoff) && !await pathExists(handoffTombstone);
+    const verified = candidateRemoved && candidateAbsent && manifestRemoved && manifestAbsent;
+    const candidateState = candidateAbsent ? "absent" : await observedCandidateState(paths.destination, candidateTombstone, authorization.candidateIdentity, classifier.classify);
+    const manifestState = manifestAbsent ? "absent" : await observedHandoffState(paths.handoff, authorization.handoffIdentity, classifier.classify);
     const cleanup = deepFreeze({
         schemaVersion: "1.0",
         mode: "execute",
         authorized: true,
         attempted: true,
-        candidateRemoved: false,
-        candidateAbsent: false,
-        manifestRemoved: false,
-        manifestAbsent: false,
+        candidateRemoved,
+        candidateAbsent,
+        manifestRemoved,
+        manifestAbsent,
         candidateState,
         manifestState,
-        status: "failed",
-        code
+        status: verified ? "verified" : "failed",
+        ...(verified ? {} : { code })
     });
-    return failure(target, operation, code, "Cleanup preserved the tombstone because identity-bound deletion is unavailable.", {
-        exportRoot: paths.exportRoot,
-        destination: paths.destination,
-        handoffManifest: paths.handoff,
-        ...(candidateTombstonePresent ? { candidateTombstone } : {})
-    }, ["inspect the preserved object state; do not retry automatically"], cleanup, authorization.manifest, authorization.manifest.ownership);
+    if (!verified) {
+        return failure(target, operation, code, "Cleanup did not prove removal of both owned objects.", {
+            exportRoot: paths.exportRoot,
+            destination: paths.destination,
+            handoffManifest: paths.handoff,
+            ...(await pathExists(candidateTombstone) ? { candidateTombstone } : {}),
+            ...(await pathExists(handoffTombstone) ? { handoffTombstone } : {})
+        }, ["inspect the preserved object state; do not retry automatically"], cleanup, authorization.manifest, authorization.manifest.ownership);
+    }
+    return cleanupSuccess(target, input, paths, authorization.manifest, cleanup, "candidate and handoff manifest removed and proven absent");
 }
 async function authorizeCleanup(input, paths, classify) {
     let handoffHandle;
